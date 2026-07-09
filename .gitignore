@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 运行时产物
+app/data/gradio_run.log
+app/data/runs/
+.examples_cache/
+.output_cache/
+smoke_output.mp4
+
+# 系统
+Thumbs.db
+.DS_Store
+
+# venv
+.venv/
+venv/
+env/\n
+
+# 调试截图 + 视觉验收截图 (per-dev / per-CI,不入库)
+app/data/*.png
+app/static/demo/shot_*.png
+
+# 上次成功参数 (运行时状态)
+app/data/last_run/\n
+
+# Codex 内部规划文件
+.zcode/
+notes/

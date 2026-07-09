@@ -1,0 +1,50 @@
+{
+  "coral-orange": {
+    "name": "珊瑚橘红 (多媒体能量)",
+    "desc": "沿用经典暖橙并往红色微调,冷暖撞色,极具多媒体生产力质感",
+    "tokens": {
+      "--theme-accent-300": "#ffaa7a",
+      "--theme-accent-400": "#ff7f50",
+      "--theme-accent-500": "#ff6347",
+      "--theme-accent-600": "#e85030",
+      "--theme-accent-glow": "rgba(255, 99, 71, 0.35)",
+      "--theme-text-highlight": "#bde4f4"
+    }
+  },
+  "cyber-blue": {
+    "name": "极客深海蓝 (硬核技术)",
+    "desc": "内敛严谨的深海科技感,搭配麦穗金点缀,适合自动化工程流",
+    "tokens": {
+      "--theme-accent-300": "#5fc1d8",
+      "--theme-accent-400": "#0881a3",
+      "--theme-accent-500": "#056681",
+      "--theme-accent-600": "#034f63",
+      "--theme-accent-glow": "rgba(8, 129, 163, 0.30)",
+      "--theme-text-highlight": "#ffd6a4"
+    }
+  },
+  "future-retro": {
+    "name": "未来复古 (创意插画)",
+    "desc": "低饱和度绛紫与玫瑰红,透露独立设计师工作室的艺术腔调",
+    "tokens": {
+      "--theme-accent-300": "#e89494",
+      "--theme-accent-400": "#df6a6a",
+      "--theme-accent-500": "#c75a5a",
+      "--theme-accent-600": "#a04545",
+      "--theme-accent-glow": "rgba(223, 106, 106, 0.25)",
+      "--theme-text-highlight": "#c2dbc1"
+    }
+  },
+  "mint-tesla": {
+    "name": "电光薄荷绿 (未来科技)",
+    "desc": "高亮荧光绿与墨绿过渡,极具科幻感和赛博算力风",
+    "tokens": {
+      "--theme-accent-300": "#c8f5ec",
+      "--theme-accent-400": "#95e1d3",
+      "--theme-accent-500": "#35b0ab",
+      "--theme-accent-600": "#1f8a85",
+      "--theme-accent-glow": "rgba(149, 225, 211, 0.30)",
+      "--theme-text-highlight": "#faffb8"
+    }
+  }
+}

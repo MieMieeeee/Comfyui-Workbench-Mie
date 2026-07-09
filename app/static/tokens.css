@@ -1,0 +1,692 @@
+/*
+ * app/static/tokens.css
+ * ComfyUIWebToRunWorkflow 设计 token —— 方案 B 的单一来源。
+ *
+ * 架构:
+ *   :root 顶部声明 --theme-accent-* 等品牌色变量,值取自 coral-orange 主题,
+ *   下游所有组件 (.btn-run-primary, .card-core, ...) 一律消费 var(--theme-accent-*)
+ *   而不是直接写颜色字面量。换主题时,scail2_app.py 调 _apply_theme(theme_id)
+ *   把对应主题的 --theme-* 注入到 <style>:root{}</style>,通过 gr.HTML 写到 DOM,
+ *   毫秒级响应。
+ *
+ *   主题配置文件: app/presets/themes.json (新增 / 删改都在那里)。
+ *
+ * 用法:
+ *   scail2_app.py 的 build_ui() 末尾通过 launch(css=_build_launch_css())
+ *   把整个 tokens.css + 默认主题注入样式一起传给 Gradio。
+ *   切主题靠 _apply_theme() 动态更新不可见 HTML 组件。
+ *
+ * Gradio 升级 7.x 时如果原生 .gradio-container / .gr-button 等类名漂移,
+ * 只改这个文件里的覆盖选择器即可,不必满地找颜色。
+ */
+
+:root {
+  /* ============================================================
+   * Theme variables —— 默认 coral-orange,运行时可被 _apply_theme 覆盖
+   * ============================================================ */
+  --theme-accent-300: #ffaa7a;
+  --theme-accent-400: #ff7f50;
+  --theme-accent-500: #ff6347;
+  --theme-accent-600: #e85030;
+  --theme-accent-glow: rgba(255, 99, 71, 0.35);
+  --theme-text-highlight: #bde4f4;
+
+  /* ---------- Surface (背景层级) ---------- */
+  --bg-app:        #0f1115;
+  --bg-panel:      #15181e;
+  --bg-card:       #1a1d23;
+  --bg-card-hover: #1f232b;
+  --bg-overlay:    #23272f;
+  --bg-input:      #0c0e12;
+
+  /* ---------- Border ---------- */
+  --border-subtle:  #252830;
+  --border-default: #2f333d;
+  --border-strong:  #4b5160;
+  --border-accent: var(--theme-accent-500);
+
+  /* ---------- Text ---------- */
+  --text-primary:   #f3f4f6;
+  --text-secondary: #c2c7d2;
+  --text-muted:     #8b909b;
+  --text-faint:     #5f6470;
+  --text-on-accent: #0f1115;
+
+  /* ---------- Status (语义色,跨主题稳定) ---------- */
+  --color-success:     #34d399;
+  --color-success-bg:  #0e2f24;
+  --color-error:       #f87171;
+  --color-error-bg:    #2f1414;
+  --color-warning:     #fbbf24;
+  --color-warning-bg:  #2f2510;
+  --color-info:        #60a5fa;
+  --color-info-bg:     #0e1f33;
+
+  /* ---------- Spacing scale (4px 网格) ---------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---------- Radius ---------- */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-pill: 9999px;
+
+  /* ---------- Shadow / elevation ---------- */
+  --shadow-sm:           0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:           0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg:           0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-accent:       0 6px 20px var(--theme-accent-glow);
+  --shadow-accent-hover: 0 10px 28px var(--theme-accent-glow);
+
+  /* ---------- Typography ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+               "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Source Code Pro", ui-monospace, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   17px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+
+  --leading-tight:  1.25;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  /* ---------- Motion ---------- */
+  --duration-fast:   120ms;
+  --duration-base:   200ms;
+  --duration-slow:   320ms;
+  --ease-out:        cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---------- Layout shortcut ---------- */
+  --radius-card:   var(--radius-lg);
+  --radius-button: var(--radius-md);
+  --radius-input:  var(--radius-md);
+  --shadow-card:   var(--shadow-md);
+
+  /* ---------- Z-index ---------- */
+  --z-base:    1;
+  --z-sticky:  10;
+  --z-overlay: 100;
+  --z-modal:   1000;
+  --z-toast:   2000;
+}
+
+/* ============================================================
+ * Gradio 6 全局覆盖
+ * ============================================================ */
+.gradio-container {
+  max-width: 1400px !important;
+  background: var(--bg-app) !important;
+}
+.dark, body {
+  --body-background-fill: var(--bg-app);
+  --block-background-fill: var(--bg-card);
+  --border-color-primary: var(--border-default);
+  --block-border-color: var(--border-default);
+  --block-radius: var(--radius-lg);
+  --layout-gap: var(--space-4);
+  --block-label-text-color: var(--text-secondary);
+  --block-title-text-color: var(--text-primary);
+  --color-accent: var(--theme-accent-500);
+  --color-accent-soft: var(--theme-accent-300);
+}
+
+/* ============================================================
+ * .btn-run-primary —— 主运行按钮 (🚀 开始运行 / 🔁 用相同参数再来)
+ * ============================================================ */
+.btn-run-primary {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 180px;
+  padding: var(--space-3) var(--space-6) !important;
+  background: linear-gradient(180deg, var(--theme-accent-400) 0%, var(--theme-accent-500) 100%) !important;
+  color: var(--text-on-accent) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-md) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--theme-accent-600) !important;
+  border-radius: var(--radius-button) !important;
+  box-shadow: var(--shadow-accent) !important;
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out),
+              background var(--duration-base) var(--ease-out) !important;
+}
+.btn-run-primary:hover {
+  background: linear-gradient(180deg, var(--theme-accent-300) 0%, var(--theme-accent-400) 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-accent-hover) !important;
+}
+.btn-run-primary:active {
+  transform: translateY(0) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.btn-run-primary:disabled,
+.btn-run-primary[disabled] {
+  background: var(--bg-overlay) !important;
+  color: var(--text-faint) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  filter: none !important;
+}
+
+/* 次按钮(📥 / 📂 / 🔍 等) */
+.btn-secondary-override {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 var(--space-4) !important;
+  background: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 500 !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-button) !important;
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+}
+.btn-secondary-override:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============================================================
+ * .card-core —— 主卡片容器 (表单 Group / 结果区)
+ * ============================================================ */
+.card-core {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-card) !important;
+  padding: var(--space-6) !important;
+  box-shadow: var(--shadow-card) !important;
+  margin-bottom: var(--space-3) !important;
+  transition: border-color var(--duration-base) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out);
+}
+.card-core.is-elevated {
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-hover) 100%) !important;
+  border-color: var(--border-default) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+.card-core.is-accent {
+  border-left: 3px solid var(--theme-accent-500) !important;
+}
+
+/* ============================================================
+ * .custom-accordion —— 🔧 高级参数 / 📜 运行日志 Accordion
+ * ============================================================ */
+.custom-accordion {
+  background: transparent !important;
+  border: none !important;
+  border-left: 3px solid var(--theme-accent-500) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: var(--space-3) 0 !important;
+}
+.custom-accordion > .label-wrap {
+  background: transparent !important;
+  border: none !important;
+  padding: var(--space-3) var(--space-4) !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-base) !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+}
+.custom-accordion > .label-wrap:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-card-hover) !important;
+  border-radius: var(--radius-sm) !important;
+}
+.custom-accordion .accordion-content {
+  background: transparent !important;
+  border: none !important;
+  padding: var(--space-3) var(--space-4) var(--space-4) !important;
+}
+
+/* ============================================================
+ * .custom-dataframe —— 历史记录 Dataframe
+ * ============================================================ */
+.custom-dataframe {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+}
+.custom-dataframe table {
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-secondary) !important;
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+.custom-dataframe thead th {
+  background: var(--bg-overlay) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+  padding: var(--space-3) var(--space-4) !important;
+  text-align: left !important;
+  border-bottom: 1px solid var(--border-default) !important;
+}
+.custom-dataframe tbody tr {
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.custom-dataframe tbody tr:nth-child(odd)  { background: rgba(255, 255, 255, 0.015); }
+.custom-dataframe tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.04); }
+.custom-dataframe tbody tr:hover { background: var(--bg-card-hover) !important; }
+.custom-dataframe tbody td {
+  padding: var(--space-3) var(--space-4) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ============================================================
+ * .custom-radio —— 左侧工作流导航 Radio
+ * ============================================================ */
+.custom-radio {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.custom-radio .wrap {
+  gap: var(--space-2) !important;
+}
+.custom-radio label {
+  display: flex !important;
+  align-items: center;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-left: 3px solid transparent !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+}
+.custom-radio label:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+.custom-radio label.selected,
+.custom-radio input:checked + span {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-default) !important;
+  border-left-color: var(--theme-accent-500) !important;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+/* ============================================================
+ * .error-banner —— 失败 / 超时红条
+ * ============================================================ */
+.error-banner {
+  background: var(--color-error-bg) !important;
+  border: 1px solid var(--color-error) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  margin: var(--space-2) 0 !important;
+}
+.error-banner-inner {
+  color: var(--color-error) !important;
+  font-size: var(--text-base);
+}
+.error-banner-inner b { color: var(--color-error) !important; }
+
+/* ============================================================
+ * .file-fallback —— 未知文件类型 banner
+ * ============================================================ */
+.file-fallback {
+  color: var(--text-muted) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  border: 1px dashed var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  margin: var(--space-1) 0 !important;
+  background: var(--bg-overlay) !important;
+}
+.file-fallback a {
+  color: var(--theme-accent-400) !important;
+  text-decoration: underline;
+}
+.file-fallback a:hover { color: var(--theme-accent-300) !important; }
+
+/* ============================================================
+ * .result-area —— 输出区 (视频 / 图片 / 文本容器)
+ * ============================================================ */
+.result-area {
+  min-height: 300px;
+  padding: var(--space-2) 0 !important;
+}
+
+/* 输入框细节 */
+.gradio-container input[type="text"],
+.gradio-container textarea {
+  background: var(--bg-input) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-input) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  transition: border-color var(--duration-base) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out);
+}
+.gradio-container input[type="text"]:focus,
+.gradio-container textarea:focus {
+  outline: none !important;
+  border-color: var(--theme-accent-500) !important;
+  box-shadow: 0 0 0 3px var(--theme-accent-glow) !important;
+}
+
+
+/* ============================================================
+ * gr.File / gr.UploadButton —— 素材拖拽区
+ * ============================================================
+ * Gradio 6 默认样式是粗灰虚线 + 灰色拖拽提示。改造目标:
+ *   - 非激活态用克制的次级 border + 透明背景,不打扰视觉
+ *   - 激活/拖入态用 --theme-accent-400 虚线 + 微 glow,主色明确但不刺眼
+ *   - 拖拽文字降一档色阶,跟暗背景完美消隐
+ */
+.file-dropzone {
+  background: var(--bg-card) !important;
+  border: 1px dashed var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--text-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  padding: var(--space-6) !important;
+  transition: all var(--duration-base) var(--ease-out) !important;
+}
+.file-dropzone:hover,
+.file-dropzone:focus-within,
+.file-dropzone.is-dragover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--theme-accent-400) !important;
+  border-style: dashed !important;
+  color: var(--text-secondary) !important;
+  box-shadow: 0 0 0 3px var(--theme-accent-glow) !important;
+}
+.file-dropzone svg,
+.file-dropzone .icon {
+  color: var(--text-faint) !important;
+  transition: color var(--duration-base) var(--ease-out);
+}
+.file-dropzone:hover svg,
+.file-dropzone:hover .icon,
+.file-dropzone.is-dragover svg {
+  color: var(--theme-accent-400) !important;
+}
+/* Gradio 6 的实际 file 上传组件 wrapper (退化覆盖) */
+.gradio-container .file,
+.gradio-container [data-testid="file"] {
+  background: var(--bg-card) !important;
+  border: 1px dashed var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  transition: border-color var(--duration-base) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out);
+}
+.gradio-container .file:hover,
+.gradio-container [data-testid="file"]:hover {
+  border-color: var(--theme-accent-400) !important;
+  box-shadow: 0 0 0 3px var(--theme-accent-glow) !important;
+}
+
+/* ============================================================
+ * gr.Progress —— 进度条 (槽 + 进度 + 文字)
+ * ============================================================
+ * 默认 Gradio 进度条是亮色轨道 + 蓝色填充,跟暗色主题违和。
+ * 改造:
+ *   - 轨道用卡片色,几乎隐于背景
+ *   - 推进槽用主题色双段渐变,跨主题同步视觉彩度
+ *   - 文字 (百分比 + 步骤名) 用 --theme-text-highlight,在长视频
+ *     任务里跟当前主题绝对同步
+ */
+.progress-track {
+  background: var(--bg-overlay) !important;
+  border-radius: var(--radius-pill) !important;
+  height: 8px !important;
+  overflow: hidden;
+  border: none !important;
+}
+.progress-bar {
+  background: linear-gradient(
+    90deg,
+    var(--theme-accent-400) 0%,
+    var(--theme-accent-500) 100%
+  ) !important;
+  border-radius: var(--radius-pill) !important;
+  height: 100% !important;
+  transition: width var(--duration-slow) var(--ease-out) !important;
+  box-shadow: 0 0 8px var(--theme-accent-glow) !important;
+}
+.progress-text {
+  color: var(--theme-text-highlight) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em;
+}
+/* Gradio 6 原生 <progress> 元素退化覆盖 */
+.gradio-container progress {
+  background: var(--bg-overlay) !important;
+  border: none !important;
+  border-radius: var(--radius-pill) !important;
+  height: 8px !important;
+  overflow: hidden;
+  appearance: none;
+}
+.gradio-container progress::-webkit-progress-bar {
+  background: var(--bg-overlay) !important;
+  border-radius: var(--radius-pill) !important;
+}
+.gradio-container progress::-webkit-progress-value {
+  background: linear-gradient(
+    90deg,
+    var(--theme-accent-400) 0%,
+    var(--theme-accent-500) 100%
+  ) !important;
+  border-radius: var(--radius-pill) !important;
+}
+.gradio-container progress::-moz-progress-bar {
+  background: linear-gradient(
+    90deg,
+    var(--theme-accent-400) 0%,
+    var(--theme-accent-500) 100%
+  ) !important;
+  border-radius: var(--radius-pill) !important;
+}
+.gradio-container .progress-text,
+.gradio-container [class*="progress"] {
+  color: var(--theme-text-highlight) !important;
+  font-weight: 500 !important;
+}
+
+/* ============================================================
+ * gr.Markdown —— 排版 + annotation 模式
+ * ============================================================
+ * - h1/h2/h3 用 text-primary,字距松一档
+ * - 行内 code 用 bg-overlay + accent 文字,跟主题色同步
+ * - .annotation-block 是给 Recipe / 警告 / 提示用的统一视觉 pattern
+ *   (左 border + radius-sm + 卡片底)。
+ *   同组选择器包含 .annotation-block / .prose blockquote (Markdown 原生 > 引用)
+ *   / .markdown-section blockquote / .gradio-container blockquote / 裸 blockquote,
+ *   任何 Markdown 容器内的引用块都会自动套用。
+ */
+.gradio-container .prose h1,
+.gradio-container h1 {
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-2xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+  margin: var(--space-6) 0 var(--space-4) !important;
+}
+.gradio-container .prose h2,
+.gradio-container h2 {
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-xl) !important;
+  font-weight: 600 !important;
+  margin: var(--space-5) 0 var(--space-3) !important;
+}
+.gradio-container .prose h3,
+.gradio-container h3 {
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-lg) !important;
+  font-weight: 600 !important;
+  margin: var(--space-4) 0 var(--space-2) !important;
+}
+.gradio-container .prose code,
+.gradio-container code,
+.gradio-container .prose :not(pre) > code {
+  background: var(--bg-overlay) !important;
+  color: var(--theme-accent-300) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.92em !important;
+  padding: 2px 6px !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+.gradio-container .prose pre,
+.gradio-container pre {
+  background: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-4) !important;
+  overflow-x: auto;
+}
+.gradio-container .prose pre code,
+.gradio-container pre code {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
+  padding: 0 !important;
+}
+
+/* annotation 模式 —— Recipe / 警告 / 提示统一视觉 */
+.annotation-block {
+  background: var(--bg-overlay) !important;
+  border-left: 3px solid var(--theme-accent-400) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  margin: var(--space-3) 0 !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  line-height: var(--leading-normal);
+}
+.markdown-section blockquote,
+.prose blockquote {
+  background: var(--bg-overlay) !important;
+  border-left: 3px solid var(--theme-accent-400) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  margin: var(--space-3) 0 !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  line-height: var(--leading-normal);
+}
+
+/* ============================================================
+ * System Light Mode —— 系统级暗黑/亮色模式跟随
+ * ============================================================
+ * 原则:
+ *   - 主题色 (--theme-accent-*) 不动,跨模式稳定
+ *   - 仅反转底层 surface / text / border
+ *   - Light mode 下文字高亮必须指向 --theme-accent-500 (饱和度足够,
+ *     在白底上仍有对比度),不要继续用浅底配浅色 highlight
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-app:        #f8f9fa;
+    --bg-panel:      #ffffff;
+    --bg-card:       #ffffff;
+    --bg-card-hover: #f1f3f5;
+    --bg-overlay:    rgba(241, 243, 245, 0.85);
+    --bg-input:      #ffffff;
+
+    --border-subtle:  #e9ecef;
+    --border-default: #dee2e6;
+    --border-strong:  #adb5bd;
+
+    --text-primary:   #212529;
+    --text-secondary: #495057;
+    --text-muted:     #6c757d;
+    --text-faint:     #adb5bd;
+    --text-on-accent: #ffffff;
+
+    --color-success:     #16a34a;
+    --color-success-bg:  #dcfce7;
+    --color-error:       #dc2626;
+    --color-error-bg:    #fee2e2;
+    --color-warning:     #d97706;
+    --color-warning-bg:  #fef3c7;
+    --color-info:        #2563eb;
+    --color-info-bg:     #dbeafe;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.10);
+    --shadow-accent:       0 6px 20px var(--theme-accent-glow);
+    --shadow-accent-hover: 0 10px 28px var(--theme-accent-glow);
+
+    /* Light mode 下 highlight 必须够深才能在白底上读得清 */
+    --theme-text-highlight: var(--theme-accent-500);
+  }
+
+  /* Light mode 下卡片阴影更轻,避免过重 */
+  .card-core {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+  }
+  .card-core.is-elevated {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Light mode 下 annotation 底色更深一档,跟白底卡片拉开 */
+  .annotation-block,
+  .markdown-section blockquote,
+  .prose blockquote {
+    background: rgba(241, 243, 245, 0.85) !important;
+  }
+
+  /* Light mode 下 disabled 按钮灰度调整 */
+  .btn-run-primary:disabled,
+  .btn-run-primary[disabled] {
+    background: #e9ecef !important;
+    color: #adb5bd !important;
+    border-color: #dee2e6 !important;
+  }
+
+  /* Light mode 下错误 banner 调整 */
+  .error-banner {
+    background: #fee2e2 !important;
+  }
+  .error-banner-inner,
+  .error-banner-inner b {
+    color: #b91c1c !important;
+  }
+}

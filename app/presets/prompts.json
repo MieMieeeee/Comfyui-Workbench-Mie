@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "source": "FollowThisImage history (curated)",
+  "prompts": [
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed black and white portrait of a woman with long, dark wavy hair, wearing a sleek sleeveless black satin dress with a deep V-neck, seated relaxed on a plush velvet sofa, one arm resting on the back while the other hand gently touches her face near her lips, adorned with layered necklaces and earrings, soft directional lighting from the side creating subtle shadows, minimalist background with a tall decorative floor lamp, intimate moody atmosphere, elegant composition, close-up shot with shallow depth of field, cinematic texture, grayscale tonality."
+    },
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed portrait of a woman with long, straight black hair, eyes gently closed, serene expression, one hand delicately touching her neck, the other resting on her waist, wearing a traditional-style light green jacket with subtle floral patterns and wide sleeves, paired with soft beige pants, standing in a tranquil garden with lush green foliage, a wooden fence, and a stone wall in the background, dappled sunlight filtering through the leaves, soft golden-hour lighting, natural outdoor ambiance, medium close-up shot with shallow depth of field, warm and peaceful mood."
+    },
+    {
+      "category": "portrait-m",
+      "text": "Photorealistic, ultra-detailed black and white portrait of a young woman in three-quarter profile, looking slightly toward the viewer with a soft, serene expression, dark hair styled in a high ponytail with loose waves cascading down her back, delicate pearl earring in one ear, wearing a light-toned off-the-shoulder garment with smooth fabric texture, soft studio lighting with gentle shadows defining her facial contours and neck, plain neutral gradient background, classic portrait composition with shallow depth of field, cinematic black and white tonality, timeless elegant mood"
+    },
+    {
+      "category": "vehicle",
+      "text": "Photorealistic, ultra-detailed close-up portrait of a person sitting in a car, wearing a dark brown coat with a thick black faux-fur hood, layered over a light grey patterned scarf and a dark turtleneck; soft natural lighting from the car window, warm color tone, subtle shadows, shallow depth of field (50mm f/1.8 feel), tight crop focusing on face and upper torso, emphasize skin texture, individual hair strands, fur pile, fabric weave and sheen of the coat, cinematic lifestyle aesthetic"
+    },
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed portrait of a young woman in a form-fitting, pale yellow off-the-shoulder mini dress with large ruffled sleeves, posing gracefully with one leg lifted and hand resting on a large, crescent-shaped fluffy cloud structure that emits soft warm light, wearing delicate silver high-heeled sandals, standing on a pink floor scattered with small white cloud props, surrounded by a soft pink gradient background with ethereal glow, soft studio lighting with volumetric highlights, dreamy cinematic atmosphere, medium shot, elegant and whimsical composition"
+    },
+    {
+      "category": "vehicle",
+      "text": "Photorealistic, ultra-detailed close-up portrait of a young woman with long reddish-brown hair and bangs, wearing white cat ear headband, soft gaze looking directly at camera, finger gently touching lips, dressed in white knitted oversized sweater over a white collared shirt with pink bow tie, pink pleated skirt, sitting inside a car with beige interior, dim ambient lighting with cool purple tone, soft shadows, close-up framing, intimate and cozy mood, detailed fabric textures and skin imperfections."
+    },
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed close-up portrait of a young woman with long dark hair pulled back in a loose half-ponytail, wearing thin metal-rimmed glasses, looking thoughtfully to the side with wide eyes, hand gently resting under her chin, wearing a white off-the-shoulder long-sleeve top over a light-colored bralette, soft natural lighting, warm indoor atmosphere, blurred wooden bookshelf background with out-of-focus books, shallow depth of field, clean skin texture, detailed eye reflections and hair strands, serene and contemplative mood."
+    },
+    {
+      "category": "portrait-m",
+      "text": "Photorealistic, ultra-detailed portrait of a woman with short wavy dark hair, wearing a deep blue velvet cheongsam with intricate blue embroidered dragon patterns along the front, sheer black sleeves with matching blue embroidery, standing confidently with hands on hips, subtle red lipstick, small green and gold earrings, gold bracelet on right wrist, against a plain light gray studio backdrop, soft even lighting, direct gaze at camera, full-body shot, professional studio setup, elegant and poised mood, sharp focus with slight background blur."
+    },
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed silhouette of a woman standing on a balcony, viewed from behind, long wavy hair cascading down her back, wearing a flowing knee-length dress with soft fabric draping, hands resting lightly on an ornate wrought iron railing, framed by sheer translucent curtains, bathed in warm diffused pink and purple backlighting from a foggy or hazy atmosphere, vintage cinematic mood, shallow depth of field, soft focus, ethereal glow, dreamy and melancholic ambiance, slight haze enhancing the atmospheric perspective."
+    },
+    {
+      "category": "portrait",
+      "text": "Photorealistic, ultra-detailed close-up portrait of a young woman with short, layered brown hair, soft neutral expression, gazing directly at the camera, right hand gently cupping her cheek, wearing delicate floral pearl earrings and a sheer, pastel-colored top with golden rings and tied straps, soft natural lighting, indoor setting with blurred background featuring textured fabrics and muted tones, warm intimate atmosphere, shallow depth of field, high-resolution skin texture, fine eyelashes and soft color grading."
+    },
+    {
+      "category": "cityscape",
+      "text": "Photorealistic, ultra-detailed full-body shot of a woman standing on a cobblestone alley at night, wearing a black polka-dot dress with short sleeves, holding a beige fluffy faux-fur stole with gold chain accents and a small beige drawstring bucket bag with gold hardware; warm ambient street lighting with soft glows, muted neutral tones, 50mm feel, f/1.8, slight low-angle, emphasize skin texture, hair strands, fabric weave, fur texture, and subtle glitter on the dress, cinematic editorial mood."
+    },
+    {
+      "category": "nature",
+      "text": "Photorealistic, ultra-detailed portrait of a woman posing confidently with one leg resting on a bright orange electric three-wheeled vehicle, short sleeve white dress with subtle text, white sneakers, shoulder-length dark hair, gentle smile, hand resting on the vehicle’s side, outdoors in a modern urban setting with large tropical plants, glass buildings, yellow umbrellas in background, soft daylight with natural shadows, wide-angle shot capturing dynamic composition, clean polished floor, vibrant colors, cinematic clarity and depth, relaxed urban atmosphere"
+    },
+    {
+      "category": "interior",
+      "text": "Photorealistic, ultra-detailed portrait of a woman in an elegant long-sleeved beaded gown with a sheer, floral-embroidered pink overlay, holding a circular painted fan with a teal tassel, standing beside dark wooden furniture with ornate carvings, soft ambient lighting, golden textured backdrop, white blossoms in decorative pots, delicate hair accessory, serene expression, slight head tilt, upright posture, cinematic composition, shallow depth of field, rich fabric textures, subtle shadows, refined Eastern-inspired interior decor, tranquil and sophisticated mood."
+    },
+    {
+      "category": "animal",
+      "text": "Photorealistic, ultra-detailed close-up portrait of a young woman with long, wavy black hair and bangs, soft smile, warm brown eyes looking slightly to the side, wearing a bright yellow zip-up hoodie over a white ribbed tank top, delicate white cord choker with small gold hardware, holding white plush objects in her lap, softly lit indoor setting with vertical striped background, natural lighting, shallow depth of field, soft focus on background, cozy and gentle mood, medium close-up framing from chest up, detailed fabric textures and skin finish."
+    },
+    {
+      "category": "food",
+      "text": "Photorealistic, ultra-detailed street scene featuring an older man with grey hair and glasses eating a skewer of grilled food, standing beside a woman in a red patterned blouse and black jacket with a black crossbody bag; both wearing dark pants; behind them, a red textured wall with raised black \"FRESH\" lettering and a yellow food stall sign with red Chinese characters; natural daylight with slight shadows, 23mm feel, f/2.0, eye-level angle, emphasize fabric textures, skin pores, hair strands, skewer details, and worn urban surfaces, candid lifestyle mood with authentic street atmosphere."
+    },
+    {
+      "category": "interior",
+      "text": "Photorealistic, ultra-detailed portrait of a woman with long straight black hair, soft neutral expression, looking directly at the camera, wearing a loose-fitting blush pink high-neck top with layered ruffles and voluminous sleeves, paired with sheer black tights, standing indoors against a neutral beige wall with a dark window or screen to the right and a vertical louvered door panel to the left, even soft lighting, natural studio lighting, full-length shot from waist up, subtle shadow on the wall, minimalist modern interior, calm and understated mood."
+    },
+    {
+      "category": "landscape",
+      "text": "Photorealistic, ultra-detailed rear view of a person with short black hair, wearing a navy and white striped long-sleeve crop top and high-waisted blue jeans, arms raised and hands open in a stretching pose, standing in a sunlit grassy field with scattered white wildflowers, surrounded by leafy green trees and a wooden fence, bright natural daylight with soft dappled shadows, vibrant greenery, clear blue sky peeking through branches, peaceful outdoor setting, full-body shot from slightly low angle, detailed fabric textures and natural vegetation."
+    },
+    {
+      "category": "portrait-m",
+      "text": "Photorealistic, ultra-detailed portrait of a young woman with long, straight black hair, wearing black-rimmed glasses decorated with small white and red floral embellishments on the temples, soft gentle smile, looking slightly to the side, wearing a short-sleeved purple t-shirt, seated on a light beige upholstered chair, soft even lighting, neutral plain background, subtle shadows, close-up framing focusing on face and upper torso, warm natural skin tone, detailed hair strands and fabric texture, calm and friendly mood."
+    },
+    {
+      "category": "landscape",
+      "text": "Photorealistic, ultra-detailed outdoor portrait of a woman in a sleeveless red dress with a floral headdress, holding a large red paper-cuttings character; standing on a boat with a red flag and yellow railing, calm water and blue sky in background; bright natural sunlight with warm color tone, 50mm feel, f/2.0, soft focus on distant horizon, emphasize fabric texture, flower details, and crisp edges of the paper cut, cinematic festive style."
+    },
+    {
+      "category": "portrait-m",
+      "text": "Photorealistic, ultra-detailed portrait of a young woman with dark hair styled in a high bun with bangs, smiling gently with hands cupping her cheeks, wearing a bright blue ribbed short-sleeve top and gray and white checkered pants, standing against a soft white textured curtain backdrop, even bright indoor lighting, natural skin texture, detailed fabric weave, warm and cheerful mood, medium close-up chest-up framing, soft focus background."
+    },
+    {
+      "category": "landscape",
+      "text": "Photorealistic, ultra-detailed portrait of a young woman with long, dark wavy hair, smiling gently with a tilted head, wearing a white short-sleeve polo shirt with a blue collar and blue side panels, two blue buttons, a small embroidered leaf logo on the chest, paired with a black skirt featuring white side stripes, standing on a green and red outdoor court with a volleyball net behind her, trees and a brick structure in the background, soft natural daylight, slightly overcast sky, shallow depth of field, medium shot with a warm and serene mood."
+    },
+    {
+      "category": "product",
+      "text": "Photorealistic, ultra-detailed side profile portrait of a young woman with dark hair tied in a messy bun with a white fabric bow, wearing a white ribbed knit cardigan over a red strap top, a pearl choker, holding a black spoon above a bowl, seated at a modern kitchen counter with stainless steel appliances, large metal pot, water bottle, and a plate of breaded food, soft ambient lighting, shallow depth of field, warm tone, clean minimalist background, focused on her delicate features, natural posture, and intimate dining moment."
+    }
+  ]
+}

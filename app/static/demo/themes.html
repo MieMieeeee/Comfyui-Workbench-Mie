@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>4 主题对比 — 方案 B 视觉系统</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: 32px;
+    font-family: var(--font-sans);
+    background: #06080c;
+    color: var(--text-primary);
+  }
+  h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .subtitle {
+    margin: 0 0 32px 0;
+    text-align: center;
+    font-size: 13px;
+    color: #8b909b;
+  }
+  .themes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  .theme-scope {
+    /* Each card gets its own scoped :root via inline style on body element below */
+    padding: 24px;
+    border-radius: 16px;
+    background: var(--bg-app);
+  }
+  .theme-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .theme-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .theme-id {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    background: var(--bg-overlay);
+    border-radius: 4px;
+  }
+  .swatch-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  /* demo components */
+  .preview-btn-row {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 16px 0;
+  }
+  .preview-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .preview-card.is-elevated {
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-hover) 100%);
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-lg);
+  }
+  .preview-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .preview-card-emoji { font-size: 16px; }
+  .preview-card-body { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+
+  .preview-accordion {
+    border-left: 3px solid var(--theme-accent-500);
+    border-radius: 0;
+    padding: 8px 12px;
+    margin: 8px 0;
+    background: transparent;
+  }
+  .preview-accordion-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .preview-accordion-content {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .preview-radio-list { padding: 0; margin: 0; list-style: none; }
+  .preview-radio-list li {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid transparent;
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .preview-radio-list li.is-selected {
+    background: var(--bg-card-hover);
+    border-color: var(--border-default);
+    border-left-color: var(--theme-accent-500);
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<h1>方案 B — 4 主题并排对比</h1>
+<p class="subtitle">tokens.css + themes.json 真正驱动。每个卡片 scoped 一份 :root 变量。</p>
+
+<div class="themes-grid">
+
+  <!-- ===================== coral-orange ===================== -->
+  <div class="theme-scope" id="theme-coral">
+    <style>
+      #theme-coral {
+        --theme-accent-300: #ffaa7a;
+        --theme-accent-400: #ff7f50;
+        --theme-accent-500: #ff6347;
+        --theme-accent-600: #e85030;
+        --theme-accent-glow: rgba(255, 99, 71, 0.35);
+        --theme-text-highlight: #bde4f4;
+      }
+    </style>
+    <div class="theme-header">
+      <div class="theme-name">珊瑚橘红</div>
+      <div class="theme-id">coral-orange</div>
+    </div>
+    <div class="swatch-row">
+      <div class="swatch" style="background:#ffaa7a"></div>
+      <div class="swatch" style="background:#ff7f50"></div>
+      <div class="swatch" style="background:#ff6347"></div>
+      <div class="swatch" style="background:#e85030"></div>
+      <div class="swatch" style="background:#bde4f4"></div>
+    </div>
+
+    <div class="preview-btn-row">
+      <button class="btn-run-primary">🚀 开始运行</button>
+      <button class="btn-secondary-override">📂 加载上次参数</button>
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🎬</span>
+        <span>SCAIL2 角色替换</span>
+      </div>
+      <div class="preview-card-body">主提示词 + 输入素材 + 高级参数折叠</div>
+    </div>
+
+    <div class="preview-card is-elevated">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🖼️</span>
+        <span>生成结果</span>
+      </div>
+      <div class="preview-card-body">高亮态 — 用户此刻最该看的卡</div>
+    </div>
+
+    <div class="preview-accordion">
+      <div class="preview-accordion-label">📜 运行日志</div>
+      <div class="preview-accordion-content">⏳ 上传参考图 → 上传驱动视频 → 等待执行</div>
+    </div>
+
+    <ul class="preview-radio-list">
+      <li class="is-selected">🎬 SCAIL2 角色替换</li>
+      <li>🎬 SCAIL2 动作迁移</li>
+      <li>🖼️ 文生图 Z-Image</li>
+    </ul>
+  </div>
+
+  <!-- ===================== cyber-blue ===================== -->
+  <div class="theme-scope" id="theme-cyber">
+    <style>
+      #theme-cyber {
+        --theme-accent-300: #5fc1d8;
+        --theme-accent-400: #0881a3;
+        --theme-accent-500: #056681;
+        --theme-accent-600: #034f63;
+        --theme-accent-glow: rgba(8, 129, 163, 0.30);
+        --theme-text-highlight: #ffd6a4;
+      }
+    </style>
+    <div class="theme-header">
+      <div class="theme-name">极客深海蓝</div>
+      <div class="theme-id">cyber-blue</div>
+    </div>
+    <div class="swatch-row">
+      <div class="swatch" style="background:#5fc1d8"></div>
+      <div class="swatch" style="background:#0881a3"></div>
+      <div class="swatch" style="background:#056681"></div>
+      <div class="swatch" style="background:#034f63"></div>
+      <div class="swatch" style="background:#ffd6a4"></div>
+    </div>
+
+    <div class="preview-btn-row">
+      <button class="btn-run-primary">🚀 开始运行</button>
+      <button class="btn-secondary-override">📂 加载上次参数</button>
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🎬</span>
+        <span>SCAIL2 角色替换</span>
+      </div>
+      <div class="preview-card-body">主提示词 + 输入素材 + 高级参数折叠</div>
+    </div>
+
+    <div class="preview-card is-elevated">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🖼️</span>
+        <span>生成结果</span>
+      </div>
+      <div class="preview-card-body">高亮态 — 用户此刻最该看的卡</div>
+    </div>
+
+    <div class="preview-accordion">
+      <div class="preview-accordion-label">📜 运行日志</div>
+      <div class="preview-accordion-content">⏳ 上传参考图 → 上传驱动视频 → 等待执行</div>
+    </div>
+
+    <ul class="preview-radio-list">
+      <li class="is-selected">🎬 SCAIL2 角色替换</li>
+      <li>🎬 SCAIL2 动作迁移</li>
+      <li>🖼️ 文生图 Z-Image</li>
+    </ul>
+  </div>
+
+  <!-- ===================== future-retro ===================== -->
+  <div class="theme-scope" id="theme-retro">
+    <style>
+      #theme-retro {
+        --theme-accent-300: #e89494;
+        --theme-accent-400: #df6a6a;
+        --theme-accent-500: #c75a5a;
+        --theme-accent-600: #a04545;
+        --theme-accent-glow: rgba(223, 106, 106, 0.25);
+        --theme-text-highlight: #c2dbc1;
+      }
+    </style>
+    <div class="theme-header">
+      <div class="theme-name">未来复古</div>
+      <div class="theme-id">future-retro</div>
+    </div>
+    <div class="swatch-row">
+      <div class="swatch" style="background:#e89494"></div>
+      <div class="swatch" style="background:#df6a6a"></div>
+      <div class="swatch" style="background:#c75a5a"></div>
+      <div class="swatch" style="background:#a04545"></div>
+      <div class="swatch" style="background:#c2dbc1"></div>
+    </div>
+
+    <div class="preview-btn-row">
+      <button class="btn-run-primary">🚀 开始运行</button>
+      <button class="btn-secondary-override">📂 加载上次参数</button>
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🎬</span>
+        <span>SCAIL2 角色替换</span>
+      </div>
+      <div class="preview-card-body">主提示词 + 输入素材 + 高级参数折叠</div>
+    </div>
+
+    <div class="preview-card is-elevated">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🖼️</span>
+        <span>生成结果</span>
+      </div>
+      <div class="preview-card-body">高亮态 — 用户此刻最该看的卡</div>
+    </div>
+
+    <div class="preview-accordion">
+      <div class="preview-accordion-label">📜 运行日志</div>
+      <div class="preview-accordion-content">⏳ 上传参考图 → 上传驱动视频 → 等待执行</div>
+    </div>
+
+    <ul class="preview-radio-list">
+      <li class="is-selected">🎬 SCAIL2 角色替换</li>
+      <li>🎬 SCAIL2 动作迁移</li>
+      <li>🖼️ 文生图 Z-Image</li>
+    </ul>
+  </div>
+
+  <!-- ===================== mint-tesla ===================== -->
+  <div class="theme-scope" id="theme-mint">
+    <style>
+      #theme-mint {
+        --theme-accent-300: #c8f5ec;
+        --theme-accent-400: #95e1d3;
+        --theme-accent-500: #35b0ab;
+        --theme-accent-600: #1f8a85;
+        --theme-accent-glow: rgba(149, 225, 211, 0.30);
+        --theme-text-highlight: #faffb8;
+      }
+    </style>
+    <div class="theme-header">
+      <div class="theme-name">电光薄荷绿</div>
+      <div class="theme-id">mint-tesla</div>
+    </div>
+    <div class="swatch-row">
+      <div class="swatch" style="background:#c8f5ec"></div>
+      <div class="swatch" style="background:#95e1d3"></div>
+      <div class="swatch" style="background:#35b0ab"></div>
+      <div class="swatch" style="background:#1f8a85"></div>
+      <div class="swatch" style="background:#faffb8"></div>
+    </div>
+
+    <div class="preview-btn-row">
+      <button class="btn-run-primary">🚀 开始运行</button>
+      <button class="btn-secondary-override">📂 加载上次参数</button>
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🎬</span>
+        <span>SCAIL2 角色替换</span>
+      </div>
+      <div class="preview-card-body">主提示词 + 输入素材 + 高级参数折叠</div>
+    </div>
+
+    <div class="preview-card is-elevated">
+      <div class="preview-card-title">
+        <span class="preview-card-emoji">🖼️</span>
+        <span>生成结果</span>
+      </div>
+      <div class="preview-card-body">高亮态 — 用户此刻最该看的卡</div>
+    </div>
+
+    <div class="preview-accordion">
+      <div class="preview-accordion-label">📜 运行日志</div>
+      <div class="preview-accordion-content">⏳ 上传参考图 → 上传驱动视频 → 等待执行</div>
+    </div>
+
+    <ul class="preview-radio-list">
+      <li class="is-selected">🎬 SCAIL2 角色替换</li>
+      <li>🎬 SCAIL2 动作迁移</li>
+      <li>🖼️ 文生图 Z-Image</li>
+    </ul>
+  </div>
+
+</div>
+
+</body>
+</html>

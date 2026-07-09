@@ -1,0 +1,1079 @@
+{
+  "30": {
+    "inputs": {
+      "image": "halfbody.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "322": {
+    "inputs": {
+      "lora_name": "Wan2.1\\lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "363",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA (LiteX2V)"
+    }
+  },
+  "323": {
+    "inputs": {
+      "vae_name": "Wan_2.1\\wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "327": {
+    "inputs": {
+      "clip_name": "Wan\\umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "328": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "329": {
+    "inputs": {
+      "unet_name": "SCAIL-2\\wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "330": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "322",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "331": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "332": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "322",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "333": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 1,
+      "cfg": 1,
+      "model": [
+        "330",
+        0
+      ],
+      "positive": [
+        "361",
+        0
+      ],
+      "negative": [
+        "361",
+        1
+      ],
+      "sampler": [
+        "331",
+        0
+      ],
+      "sigmas": [
+        "332",
+        0
+      ],
+      "latent_image": [
+        "361",
+        2
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "342": {
+    "inputs": {
+      "value": 512
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int (Width)"
+    }
+  },
+  "343": {
+    "inputs": {
+      "value": 896
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int (Height)"
+    }
+  },
+  "344": {
+    "inputs": {
+      "expression": "(a // 32) * 32",
+      "values.a": [
+        "342",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Width 32-align"
+    }
+  },
+  "345": {
+    "inputs": {
+      "expression": "(a // 32) * 32",
+      "values.a": [
+        "343",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Height 32-align"
+    }
+  },
+  "348": {
+    "inputs": {
+      "text": "human",
+      "clip": [
+        "349",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "SAM3 Drive Prompt"
+    }
+  },
+  "349": {
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint (SAM3)"
+    }
+  },
+  "350": {
+    "inputs": {
+      "detection_threshold": 0.5,
+      "max_objects": 4,
+      "detect_interval": 1,
+      "images": [
+        "369",
+        0
+      ],
+      "model": [
+        "349",
+        0
+      ],
+      "conditioning": [
+        "348",
+        0
+      ]
+    },
+    "class_type": "SAM3_VideoTrack",
+    "_meta": {
+      "title": "SAM3 Video Track (Drive)"
+    }
+  },
+  "351": {
+    "inputs": {
+      "object_indices": "",
+      "sort_by": "left_to_right",
+      "replacement_mode": [
+        "353",
+        0
+      ],
+      "driving_track_data": [
+        "350",
+        0
+      ],
+      "ref_track_data": [
+        "352",
+        0
+      ]
+    },
+    "class_type": "SCAIL2ColoredMask",
+    "_meta": {
+      "title": "Create SCAIL-2 Colored Mask"
+    }
+  },
+  "352": {
+    "inputs": {
+      "detection_threshold": 0.5,
+      "max_objects": 4,
+      "detect_interval": 1,
+      "images": [
+        "457",
+        0
+      ],
+      "model": [
+        "349",
+        0
+      ],
+      "conditioning": [
+        "362",
+        0
+      ]
+    },
+    "class_type": "SAM3_VideoTrack",
+    "_meta": {
+      "title": "SAM3 Video Track (Ref)"
+    }
+  },
+  "353": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean (Replace Mode)"
+    }
+  },
+  "356": {
+    "inputs": {
+      "samples": [
+        "333",
+        1
+      ],
+      "vae": [
+        "323",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "358": {
+    "inputs": {
+      "crop": "none",
+      "clip_vision": [
+        "328",
+        0
+      ],
+      "image": [
+        "457",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
+  },
+  "359": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "327",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "360": {
+    "inputs": {
+      "text": "A young East Asian woman with long dark brown hair flowing past her shoulders, fair porcelain skin, natural refined facial features with soft makeup, wearing a cream-beige knit long-sleeve top and matching fitted skirt, standing in a sunlit urban alley with weathered white walls and concrete stairs behind. She stands and moves naturally in the scene, blending seamlessly into the video.",
+      "clip": [
+        "327",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "361": {
+    "inputs": {
+      "width": [
+        "417",
+        3
+      ],
+      "height": [
+        "417",
+        4
+      ],
+      "length": [
+        "510",
+        1
+      ],
+      "batch_size": 1,
+      "pose_strength": 1,
+      "pose_start": 0,
+      "pose_end": 1,
+      "video_frame_offset": 0,
+      "previous_frame_count": [
+        "497",
+        1
+      ],
+      "replacement_mode": [
+        "353",
+        0
+      ],
+      "positive": [
+        "360",
+        0
+      ],
+      "negative": [
+        "359",
+        0
+      ],
+      "vae": [
+        "323",
+        0
+      ],
+      "pose_video": [
+        "369",
+        0
+      ],
+      "pose_video_mask": [
+        "351",
+        0
+      ],
+      "reference_image": [
+        "457",
+        0
+      ],
+      "reference_image_mask": [
+        "351",
+        1
+      ],
+      "clip_vision_output": [
+        "358",
+        0
+      ],
+      "previous_frames": [
+        "460",
+        0
+      ]
+    },
+    "class_type": "WanSCAILToVideo",
+    "_meta": {
+      "title": "WanSCAILToVideo"
+    }
+  },
+  "362": {
+    "inputs": {
+      "text": "animal",
+      "clip": [
+        "349",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "SAM3 Ref Prompt"
+    }
+  },
+  "363": {
+    "inputs": {
+      "lora_name": "Scail-2\\wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "329",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA (DPO)"
+    }
+  },
+  "367": {
+    "inputs": {
+      "value": 81
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "每段生成长度 (固定81)"
+    }
+  },
+  "369": {
+    "inputs": {
+      "video": "九万字.mp4",
+      "force_rate": 0,
+      "custom_width": [
+        "344",
+        1
+      ],
+      "custom_height": [
+        "345",
+        1
+      ],
+      "frame_load_cap": [
+        "490",
+        1
+      ],
+      "skip_first_frames": [
+        "444",
+        1
+      ],
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Drive Slice)"
+    }
+  },
+  "417": {
+    "inputs": {
+      "video_info": [
+        "369",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoLoaded",
+    "_meta": {
+      "title": "Video Info (Loaded Slice)"
+    }
+  },
+  "444": {
+    "inputs": {
+      "expression": "a * b",
+      "values.a": [
+        "445",
+        0
+      ],
+      "values.b": [
+        "476",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "skip = 轮次 × 76"
+    }
+  },
+  "445": {
+    "inputs": {
+      "key": "value",
+      "default_value": 0,
+      "loop_ctx": [
+        "446",
+        0
+      ]
+    },
+    "class_type": "MieLoopParamGetInt|Mie",
+    "_meta": {
+      "title": "Loop Index"
+    }
+  },
+  "446": {
+    "inputs": {
+      "loop_ctx": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "MieLoopBodyIn|Mie",
+    "_meta": {
+      "title": "Mie Loop Body In"
+    }
+  },
+  "450": {
+    "inputs": {
+      "state_json": "{}",
+      "loop_ctx": [
+        "452",
+        0
+      ]
+    },
+    "class_type": "MieLoopBodyOut|Mie",
+    "_meta": {
+      "title": "Mie Loop Body Out"
+    }
+  },
+  "451": {
+    "inputs": {
+      "loop_ctx": [
+        "453",
+        0
+      ],
+      "done": [
+        "453",
+        1
+      ]
+    },
+    "class_type": "MieLoopFinalizeImages|Mie",
+    "_meta": {
+      "title": "Mie Loop Finalize Images"
+    }
+  },
+  "452": {
+    "inputs": {
+      "offload_to_disk": true,
+      "offload_dir": "",
+      "loop_ctx": [
+        "465",
+        0
+      ],
+      "image": [
+        "466",
+        0
+      ]
+    },
+    "class_type": "MieLoopCollectImage|Mie",
+    "_meta": {
+      "title": "Mie Loop Collect Image"
+    }
+  },
+  "453": {
+    "inputs": {
+      "state_json": "{}",
+      "debug": false,
+      "loop_ctx": [
+        "450",
+        0
+      ]
+    },
+    "class_type": "MieLoopEnd|Mie",
+    "_meta": {
+      "title": "Mie Loop End"
+    }
+  },
+  "456": {
+    "inputs": {
+      "frame_rate": [
+        "470",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "SCAIL-2/scail-2-loop",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "451",
+        0
+      ],
+      "audio": [
+        "469",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine (Final)"
+    }
+  },
+  "457": {
+    "inputs": {
+      "width": [
+        "344",
+        1
+      ],
+      "height": [
+        "345",
+        1
+      ],
+      "upscale_method": "area",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Reference Image"
+    }
+  },
+  "460": {
+    "inputs": {
+      "key": "previous_images",
+      "loop_ctx": [
+        "446",
+        0
+      ]
+    },
+    "class_type": "MieLoopStateGetImage|Mie",
+    "_meta": {
+      "title": "Get Previous 5 Frames"
+    }
+  },
+  "462": {
+    "inputs": {
+      "start_index": -1,
+      "num_frames": [
+        "464",
+        0
+      ],
+      "images": [
+        "356",
+        0
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Last 5 Decoded (Anchor)"
+    }
+  },
+  "464": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Overlap Frames"
+    }
+  },
+  "465": {
+    "inputs": {
+      "key": "previous_images",
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "image": [
+        "462",
+        0
+      ]
+    },
+    "class_type": "MieLoopStateSetImageBatch|Mie",
+    "_meta": {
+      "title": "Save Anchor for Next Round"
+    }
+  },
+  "466": {
+    "inputs": {
+      "start_index": [
+        "493",
+        0
+      ],
+      "num_frames": [
+        "488",
+        1
+      ],
+      "images": [
+        "504",
+        1
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Collect (passthrough)"
+    }
+  },
+  "469": {
+    "inputs": {
+      "video": "九万字.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Full, for info/audio)"
+    }
+  },
+  "470": {
+    "inputs": {
+      "video_info": [
+        "469",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfo",
+    "_meta": {
+      "title": "Video Info (Full Source)"
+    }
+  },
+  "474": {
+    "inputs": {
+      "expression": "a - b",
+      "values.a": [
+        "367",
+        0
+      ],
+      "values.b": [
+        "464",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "段间步进 = 81 - 5"
+    }
+  },
+  "476": {
+    "inputs": {
+      "value": [
+        "474",
+        1
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "段间步进 (76)"
+    }
+  },
+  "477": {
+    "inputs": {
+      "expression": "max(0, ceil(max(0, a - b) / c))",
+      "values.a": [
+        "470",
+        1
+      ],
+      "values.b": [
+        "367",
+        0
+      ],
+      "values.c": [
+        "476",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Loop End Index (0-based)"
+    }
+  },
+  "479": {
+    "inputs": {
+      "loop_id": "loop_1",
+      "param_type": "int",
+      "param_mode": "range",
+      "initial_state_json": "{}",
+      "int_list": "1,2,3",
+      "float_list": "0.1,0.2,0.3",
+      "string_list": "item_1\nitem_2\nitem_3",
+      "json_list": "[{\"value\": 1}, {\"value\": 2}, {\"value\": 3}]",
+      "int_range_start": 0,
+      "int_range_end": [
+        "495",
+        1
+      ],
+      "int_range_step": 1,
+      "float_range_start": 0.1,
+      "float_range_end": 0.3,
+      "float_range_step": 0.1,
+      "int_decrement_total": 5,
+      "int_decrement_step": 2,
+      "float_decrement_total": 5,
+      "float_decrement_step": 2,
+      "meta_json": "{}",
+      "resume_loop_ctx": ""
+    },
+    "class_type": "MieLoopStart|Mie",
+    "_meta": {
+      "title": "Mie Loop Start"
+    }
+  },
+  "487": {
+    "inputs": {
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "then_value": [
+        "493",
+        0
+      ],
+      "else_value": [
+        "493",
+        0
+      ]
+    },
+    "class_type": "MieLoopIfIsFirst|Mie",
+    "_meta": {
+      "title": "Collect Start (deprecated, drop moved to 505)"
+    }
+  },
+  "488": {
+    "inputs": {
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "then_value": [
+        "417",
+        1
+      ],
+      "else_value": [
+        "489",
+        1
+      ]
+    },
+    "class_type": "MieLoopIfIsFirst|Mie",
+    "_meta": {
+      "title": "Collect Count: 首段全收 / 后续min(76,len-5)"
+    }
+  },
+  "489": {
+    "inputs": {
+      "expression": "min(a, max(0, b - c))",
+      "values.a": [
+        "476",
+        0
+      ],
+      "values.b": [
+        "417",
+        1
+      ],
+      "values.c": [
+        "464",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "后续段收集帧数"
+    }
+  },
+  "490": {
+    "inputs": {
+      "expression": "min(a, max(0, b - c))",
+      "values.a": [
+        "367",
+        0
+      ],
+      "values.b": [
+        "470",
+        1
+      ],
+      "values.c": [
+        "444",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Load Cap = min(81, 剩余帧)"
+    }
+  },
+  "493": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Collect Start Index 0"
+    }
+  },
+  "494": {
+    "inputs": {
+      "expression": "max(5, ((a - 1) // 4) * 4 + 1) if a > 0 else 5",
+      "values.a": [
+        "417",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "SCAIL Length (4n+1 align)"
+    }
+  },
+  "495": {
+    "inputs": {
+      "expression": "max(1, 1 + a)",
+      "values.a": [
+        "477",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Loop Count (Mie range end, exclusive)"
+    }
+  },
+  "496": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 0
+    },
+    "_meta": {
+      "title": "Previous Frame Count First Iter (0)"
+    }
+  },
+  "497": {
+    "class_type": "MieLoopIfIsFirst|Mie",
+    "inputs": {
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "then_value": [
+        "496",
+        0
+      ],
+      "else_value": [
+        "464",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Previous Frame Count (0 first / 5 else)"
+    }
+  },
+  "502": {
+    "inputs": {
+      "batch_index": -1,
+      "length": 1,
+      "image": [
+        "460",
+        0
+      ]
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "上一段尾帧 (Last 1 of Prev)"
+    }
+  },
+  "503": {
+    "inputs": {
+      "method": "reinhard_lab",
+      "source_stats": "per_frame",
+      "strength": 1,
+      "image_target": [
+        "505",
+        0
+      ],
+      "image_ref": [
+        "502",
+        0
+      ]
+    },
+    "class_type": "ColorTransfer",
+    "_meta": {
+      "title": "段间校色 (ColorTransfer, target=76 pre-dropped)"
+    }
+  },
+  "504": {
+    "inputs": {
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "then_value": [
+        "356",
+        0
+      ],
+      "else_value": [
+        "503",
+        0
+      ]
+    },
+    "class_type": "MieLoopIfIsFirst|Mie",
+    "_meta": {
+      "title": "首段直通 / 后续校色 (target pre-dropped)"
+    }
+  },
+  "505": {
+    "inputs": {
+      "start_index": [
+        "464",
+        0
+      ],
+      "num_frames": [
+        "476",
+        0
+      ],
+      "images": [
+        "356",
+        0
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Pre-Drop 5 Overlap (official-style)"
+    }
+  },
+  "510": {
+    "inputs": {
+      "loop_ctx": [
+        "446",
+        0
+      ],
+      "then_value": [
+        "511",
+        1
+      ],
+      "else_value": [
+        "494",
+        1
+      ]
+    },
+    "class_type": "MieLoopIfIsLast|Mie",
+    "_meta": {
+      "title": "Length Route (Last=向上4n+1 / Else=原494)"
+    }
+  },
+  "511": {
+    "inputs": {
+      "expression": "((a + 3) // 4) * 4 + 1",
+      "values.a": [
+        "417",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Last Iter Length (Round Up 4n+1)"
+    }
+  }
+}

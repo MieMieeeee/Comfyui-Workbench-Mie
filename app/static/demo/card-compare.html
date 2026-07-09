@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>核心卡片容器 — Gradio 默认 vs 方案 B 重度 CSS</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  body {
+    margin: 0;
+    padding: 40px;
+    font-family: var(--font-sans);
+    background: #0a0c10;
+    color: var(--text-primary);
+  }
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .col {
+    background: #14171c;
+    border: 1px solid #2a2d33;
+    border-radius: 12px;
+    padding: 32px;
+  }
+  .col h2 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    color: #f3f4f6;
+  }
+  .col .sub {
+    margin: 0 0 28px 0;
+    font-size: 12px;
+    color: #8b909b;
+  }
+
+  /* ============ LEFT: Gradio 默认卡片模拟 ============ */
+  .gradio-bg {
+    background: #0f1115;
+    padding: 24px;
+    border-radius: 8px;
+  }
+  .gradio-card {
+    background: #15181e;
+    border: 1px solid #2a2d33;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .gradio-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f3f4f6;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2d33;
+  }
+  .gradio-form-row {
+    margin-bottom: 12px;
+  }
+  .gradio-label {
+    font-size: 13px;
+    color: #c2c7d2;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .gradio-input {
+    width: 100%;
+    background: #0c0e12;
+    border: 1px solid #2a2d33;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #f3f4f6;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  .gradio-help {
+    font-size: 12px;
+    color: #8b909b;
+    margin-top: 4px;
+  }
+
+  /* ============ RIGHT: 方案 B override 卡片 ============ */
+  .override-bg {
+    background: var(--bg-app);
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-subtle);
+  }
+  .card-core-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .card-core-elevated {
+    border-color: var(--border-default);
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-hover) 100%);
+  }
+  .card-core-body .form-row {
+    margin-bottom: var(--space-4);
+  }
+  .card-core-body .form-row:last-child {
+    margin-bottom: 0;
+  }
+  .card-core-body label {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+  }
+  .card-core-body .input-override {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-input);
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    box-sizing: border-box;
+    transition: border-color var(--duration-base) var(--ease-out),
+                box-shadow var(--duration-base) var(--ease-out);
+  }
+  .card-core-body .input-override:focus {
+    outline: none;
+    border-color: var(--accent-500);
+    box-shadow: 0 0 0 3px rgba(255, 120, 73, 0.18);
+  }
+  .card-core-body .help {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-2);
+    line-height: var(--leading-normal);
+  }
+
+  /* 注释 */
+  .annotation {
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-overlay);
+    border-left: 3px solid var(--accent-500);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    line-height: 1.7;
+  }
+  .annotation b {
+    color: var(--accent-300);
+    font-weight: 600;
+  }
+  .section-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--space-3);
+  }
+</style>
+</head>
+<body>
+
+<div class="compare-grid">
+
+  <!-- ============ LEFT: BEFORE ============ -->
+  <div class="col">
+    <h2>Before — Gradio 6 默认 Group / Box</h2>
+    <p class="sub">复刻当前 scail2_app.py 渲染出的 gr.Group 视觉</p>
+
+    <div class="gradio-bg">
+      <div class="gradio-card">
+        <div class="gradio-card-title">🎬 SCAIL2 角色替换</div>
+        <div class="gradio-form-row">
+          <span class="gradio-label">主提示词</span>
+          <input class="gradio-input" value="A person walking naturally." readonly>
+        </div>
+        <div class="gradio-form-row">
+          <span class="gradio-label">每段长度 (latent 帧)</span>
+          <input class="gradio-input" value="81" readonly>
+          <div class="gradio-help">每段 latent 帧数。SCAIL-2 段内 KSampler 跑的长度。</div>
+        </div>
+      </div>
+
+      <div class="gradio-card" style="background:#1a1d23;">
+        <div class="gradio-card-title">📜 运行日志</div>
+        <div style="background:#0c0e12;border:1px solid #2a2d33;border-radius:6px;padding:12px;color:#c2c7d2;font-family:var(--font-mono);font-size:13px;line-height:1.6;">
+          ⏳ 上传参考图...<br>
+          ⏳ 上传驱动视频...<br>
+          ⏳ 等待执行...
+        </div>
+      </div>
+
+      <div class="gradio-card">
+        <div class="gradio-card-title">🖼️ 生成结果</div>
+        <div style="height:120px;display:flex;align-items:center;justify-content:center;color:#5f6470;font-size:13px;">
+          (结果未生成)
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation" style="background:#15181e;border-left-color:#2a2d33;color:#8b909b;">
+      <b style="color:#c2c7d2;">观察点:</b><br>
+      · 卡片 8px 圆角 + 1px subtle border,层级靠 padding 区分<br>
+      · 标题底下 hard 1px 分隔线 (硬切感)<br>
+      · 输入框 6px 圆角,跟卡片层级不齐<br>
+      · 卡片之间无间距节奏,叠在一起像表单 flatten<br>
+      · 整张截图看不出"哪个是主操作区"
+    </div>
+  </div>
+
+  <!-- ============ RIGHT: AFTER ============ -->
+  <div class="col">
+    <h2>After — 方案 B (.card-core)</h2>
+    <p class="sub">tokens.css 的 .card-core / .card-core-elevated</p>
+
+    <div class="override-bg">
+      <div class="section-label">单卡片 (常规)</div>
+      <div class="card-core">
+        <div class="card-core-header">
+          <span class="card-core-header-emoji">🎬</span>
+          <span>SCAIL2 角色替换</span>
+        </div>
+        <div class="card-core-body">
+          <div class="form-row">
+            <label>主提示词</label>
+            <input class="input-override" value="A person walking naturally." readonly>
+          </div>
+          <div class="form-row">
+            <label>每段长度 (latent 帧)</label>
+            <input class="input-override" value="81" readonly>
+            <div class="help">每段 latent 帧数。SCAIL-2 段内 KSampler 跑的长度。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:20px;">高亮卡片 (结果区)</div>
+      <div class="card-core card-core-elevated">
+        <div class="card-core-header">
+          <span class="card-core-header-emoji">🖼️</span>
+          <span>生成结果</span>
+        </div>
+        <div class="card-core-body">
+          <div style="height:120px;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:var(--text-sm);">
+            (结果未生成)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation">
+      <b>改造点:</b><br>
+      · 14px 圆角 + shadow-md 默认 / shadow-lg hover,深度感明显<br>
+      · 标题 emoji 18px + 卡片标题 15px semibold,层级清楚<br>
+      · 卡片间距 12px 走 token (--space-3),节奏统一<br>
+      · 输入框 10px 圆角 (跟卡片 14px 错开),focus accent ring<br>
+      · 高亮态 (--elevated) 用渐变 + default border 区别于普通卡<br>
+      · 整张截图"主操作区"一眼可辨 (结果区用 elevated 态)
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
