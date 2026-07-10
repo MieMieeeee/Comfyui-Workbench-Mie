@@ -131,7 +131,10 @@
   max-width: 1400px !important;
   background: var(--bg-app) !important;
 }
-.dark, body {
+:root,
+:root.dark,
+:root .dark,
+body.dark {
   --body-background-fill: var(--bg-app);
   --block-background-fill: var(--bg-card);
   --border-color-primary: var(--border-default);
@@ -140,6 +143,40 @@
   --layout-gap: var(--space-4);
   --block-label-text-color: var(--text-secondary);
   --block-title-text-color: var(--text-primary);
+
+  /* === Gradio 原生 primary 按钮 ===
+   * Gradio Soft 主题把 --button-primary-background-fill 锁成 primary_hue=orange,
+   * dark 下再走到 *primary_600 = #ea580c。这里把 fill/hover/text/border
+   * 全部挂到 --theme-accent-*,切主题/切色调时跟着变。 */
+  --button-primary-background-fill: var(--theme-accent-500);
+  --button-primary-background-fill-hover: var(--theme-accent-400);
+  --button-primary-background-fill-hover-dark: var(--theme-accent-400);
+  --button-primary-text-color: var(--text-on-accent);
+  --button-primary-text-color-hover: var(--text-on-accent);
+  --button-primary-border-color: var(--theme-accent-600);
+
+  /* === Gradio 原生 secondary 按钮 ===
+   * 默认 *neutral_50 在 dark 下仍是纯白块,跟暗背景违和。
+   * 覆盖为 --bg-card / --bg-card-hover。 */
+  --button-secondary-background-fill: var(--bg-card);
+  --button-secondary-background-fill-hover: var(--bg-card-hover);
+  --button-secondary-text-color: var(--text-secondary);
+  --button-secondary-text-color-hover: var(--text-primary);
+  --button-secondary-border-color: var(--border-default);
+  --button-secondary-border-color-hover: var(--border-strong);
+
+  /* === Checkbox 选中态 === 选中色 / 边框 / 高亮背景跟随主题色。 */
+  --checkbox-background-color-selected: var(--theme-accent-500);
+  --checkbox-background-color-selected-hover: var(--theme-accent-400);
+  --checkbox-border-color-selected: var(--theme-accent-500);
+  --checkbox-border-color-selected-hover: var(--theme-accent-400);
+  --checkbox-label-background-fill-selected: var(--theme-accent-glow);
+  --checkbox-label-text-color-selected: var(--text-primary);
+  --checkbox-checkmark-color: var(--text-on-accent);
+
+  /* === Radio / Slider / 通用 accent === */
+  --radio-color: var(--theme-accent-500);
+  --slider-color: var(--theme-accent-500);
   --color-accent: var(--theme-accent-500);
   --color-accent-soft: var(--theme-accent-300);
 }
@@ -208,6 +245,133 @@
   background: var(--bg-card-hover) !important;
   border-color: var(--border-strong) !important;
   color: var(--text-primary) !important;
+}
+
+/* ============================================================
+ * .btn-run-secondary —— 「用相同参数再来」次操作按钮 (视觉降级)
+ * ============================================================
+ * 第四阶段 §C: 整个工作台只有「🚀 开始运行」一个绝对视觉焦点。
+ * 这里洗掉橙色高亮与 accent glow, 改成低彩度深灰底 + 微弱边框,
+ * Light Mode 下转白底灰边。刻意不用 --theme-accent-*,
+ * 否则会跟主按钮抢镜头。
+ */
+.btn-run-secondary {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 140px;
+  padding: var(--space-3) var(--space-5) !important;
+  background: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-base) !important;
+  font-weight: 500 !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-button) !important;
+  box-shadow: var(--shadow-sm) !important;
+  cursor: pointer;
+  transition: background var(--duration-base) var(--ease-out),
+              border-color var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out) !important;
+}
+.btn-run-secondary:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+.btn-run-secondary:active {
+  background: var(--bg-overlay) !important;
+}
+.btn-run-secondary:disabled,
+.btn-run-secondary[disabled] {
+  background: var(--bg-overlay) !important;
+  color: var(--text-faint) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* ============================================================
+ * .primary / .secondary class 直接覆盖 —— 给纯 variant 按钮兜底
+ * ============================================================
+ * 上面 :root.dark{} 块已经把 --button-primary-background-fill 等全部
+ * 挂到 --theme-accent-*,但万一 Gradio 6.x 改内部变量名 / 链路径,这里再
+ * 加一道 class 级 !important 兜底,只覆盖 background/color/border-color
+ * 三属性,不碰 padding/font 这些已被 btn-run-primary/btn-secondary-override
+ * 管过的。
+ */
+.gradio-container button.primary,
+.gradio-container .primary {
+  background: var(--theme-accent-500) !important;
+  color: var(--text-on-accent) !important;
+  border-color: var(--theme-accent-600) !important;
+}
+.gradio-container button.primary:hover,
+.gradio-container .primary:hover {
+  background: var(--theme-accent-400) !important;
+  color: var(--text-on-accent) !important;
+}
+.gradio-container button.secondary,
+.gradio-container .secondary {
+  background: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-default) !important;
+}
+.gradio-container button.secondary:hover,
+.gradio-container .secondary:hover {
+  background: var(--bg-card-hover) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* ============================================================
+ * .btn-run-primary.is-running —— 运行中视觉状态
+ * ============================================================
+ * Gradio 把 run_btn.interactive = False 时,按钮进 :disabled 态,显示变灰。
+ * 单靠 :disabled 用户难以分辨按钮是"空闲"还是"跑完没成功",这里加 .is-running
+ * 类(active 态 + spinner)让"正在跑"这件事一眼看出来。
+ * 由 _run_and_format 在循环开始时给按钮 add class,跑完在 finally 移除。
+ */
+.btn-run-primary.is-running {
+  position: relative;
+  background: linear-gradient(180deg, var(--theme-accent-300) 0%, var(--theme-accent-400) 100%) !important;
+  color: var(--text-on-accent) !important;
+  cursor: progress !important;
+  box-shadow: 0 0 0 3px var(--theme-accent-glow) !important;
+  animation: btn-running-pulse 1.4s var(--ease-out) infinite;
+}
+.btn-run-primary.is-running::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: var(--space-2);
+  border: 2px solid var(--text-on-accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes btn-running-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--theme-accent-glow); }
+  50%      { box-shadow: 0 0 0 6px var(--theme-accent-glow); }
+}
+
+/* :disabled 仍然负责"已结束但失败/超时"的灰显态 ——
+ * 区分:active 跑中状态:is-running 用脉冲/spinner,只 :disabled 不带 is-running
+ * 才是真的变灰(完成/失败后)。 */
+.btn-run-primary:disabled:not(.is-running),
+.btn-run-primary[disabled]:not(.is-running) {
+  background: var(--bg-overlay) !important;
+  color: var(--text-faint) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  filter: none !important;
 }
 
 /* ============================================================
@@ -299,6 +463,182 @@
   padding: var(--space-3) var(--space-4) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
   color: var(--text-secondary) !important;
+}
+
+/* ============================================================
+ * History tab —— 筛选条 + 两栏布局 + 详情卡片 + status badge
+ * (第五阶段:从 10 列扁平表 + JSON 详情,改成 6 列精简表 + 结构化卡片)
+ * ============================================================ */
+
+/* 筛选条:Preset + 状态 pills + 结果数 + 刷新 挤在一行 */
+.history-filter-bar {
+  align-items: center !important;
+  gap: var(--space-3) !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-2) var(--space-4) !important;
+  margin-bottom: var(--space-3) !important;
+}
+.history-filter-bar > * { min-width: 0 !important; }
+.history-filter-preset { background: transparent !important; border: none !important; }
+.history-filter-preset .wrap > label { display: none !important; }
+.history-count {
+  color: var(--text-muted) !important;
+  font-size: var(--text-sm) !important;
+  white-space: nowrap !important;
+  align-self: center !important;
+  padding: 0 var(--space-2) !important;
+}
+.history-count p { margin: 0 !important; }
+
+/* 状态 pills (history 专用):pill 形 segmented control */
+.history-filter-status label {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 999px !important;
+  padding: var(--space-1) var(--space-3) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-secondary) !important;
+  cursor: pointer !important;
+  transition: all var(--duration-fast) var(--ease-out) !important;
+}
+.history-filter-status label:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-default) !important;
+}
+.history-filter-status label.selected {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--theme-accent-500) !important;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+/* 详情列容器:卡片底 + 圆角,和左列表视觉对齐 */
+.history-detail-col {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-4) !important;
+  min-width: 0 !important;
+}
+
+/* 详情卡片内部 */
+.detail-empty {
+  color: var(--text-muted) !important;
+  font-size: var(--text-sm) !important;
+  padding: var(--space-6) var(--space-3) !important;
+  text-align: center !important;
+  background: var(--bg-overlay) !important;
+  border-radius: var(--radius-sm) !important;
+}
+.detail-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-3) !important;
+}
+.detail-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--space-2) !important;
+}
+.detail-fields {
+  display: grid !important;
+  grid-template-columns: max-content 1fr !important;
+  gap: var(--space-2) var(--space-3) !important;
+  font-size: var(--text-sm) !important;
+}
+.detail-field { display: contents !important; }
+.detail-label {
+  color: var(--text-muted) !important;
+  white-space: nowrap !important;
+}
+.detail-value {
+  color: var(--text-secondary) !important;
+  word-break: break-all !important;
+  min-width: 0 !important;
+}
+.detail-value code {
+  background: var(--bg-overlay) !important;
+  padding: 1px var(--space-1) !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 0.85em !important;
+}
+.detail-error {
+  color: var(--color-error) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.85em !important;
+  background: var(--color-error-bg) !important;
+  padding: var(--space-1) var(--space-2) !important;
+  border-radius: var(--radius-sm) !important;
+  display: inline-block !important;
+}
+.detail-prompt {
+  border-top: 1px solid var(--border-subtle) !important;
+  padding-top: var(--space-3) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-1) !important;
+}
+.detail-prompt-body {
+  font-size: var(--text-sm) !important;
+  color: var(--text-secondary) !important;
+  background: var(--bg-overlay) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: var(--space-2) var(--space-3) !important;
+  line-height: 1.5 !important;
+  max-height: 12em !important;
+  overflow-y: auto !important;
+}
+
+/* Status badge —— 表格里 status 列的小色块 */
+.status-badge {
+  display: inline-block !important;
+  padding: 2px var(--space-2) !important;
+  border-radius: 999px !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  border: 1px solid transparent !important;
+}
+.status-badge-success {
+  background: var(--color-success-bg) !important;
+  color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+.status-badge-failure {
+  background: var(--color-error-bg) !important;
+  color: var(--color-error) !important;
+  border-color: var(--color-error) !important;
+}
+.status-badge-timeout {
+  background: var(--color-warning-bg) !important;
+  color: var(--color-warning) !important;
+  border-color: var(--color-warning) !important;
+}
+.status-badge-running {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border-color: #60a5fa !important;
+}
+.status-badge-unknown {
+  background: var(--bg-overlay) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--border-default) !important;
+}
+
+/* Dataframe 列宽微调:status badge 不挤、prompt 截断列允许换行 */
+.custom-dataframe table td { vertical-align: middle !important; }
+.custom-dataframe table td:nth-child(2) {
+  white-space: nowrap !important;
+  min-width: 80px !important;
+}
+.custom-dataframe table td:nth-child(5) {
+  white-space: normal !important;
+  word-break: break-word !important;
 }
 
 /* ============================================================
@@ -688,5 +1028,16 @@
   .error-banner-inner,
   .error-banner-inner b {
     color: #b91c1c !important;
+  }
+
+  /* Light mode 下「用相同参数再来」次按钮: 白底灰边, 继续保持低彩度 */
+  .btn-run-secondary {
+    background: #ffffff !important;
+    color: var(--text-secondary) !important;
+    border-color: var(--border-default) !important;
+  }
+  .btn-run-secondary:hover {
+    background: var(--bg-card-hover) !important;
+    border-color: var(--border-strong) !important;
   }
 }

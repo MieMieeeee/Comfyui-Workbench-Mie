@@ -47,7 +47,7 @@ SaaS / 着陆页式的装饰（hero 卡 / gradient / SVG illustration）一律�
 | 加载示例素材 | 📥 | `gr.Button("📥 加载示例素材", ...)` |
 | 随机提示词 | 🎲 | `gr.Button("🎲 随机提示词", ...)` 和 `🎲 随机3条` |
 | 开始运行 | 🚀 | `gr.Button("🚀 开始运行", variant="primary", size="lg", scale=3)` |
-| 用相同参数再来 | 🔁 | 跑成功后出现的次按钮，hidden 在 success 前 |
+| 用相同参数再来 | 🔁 | 跑成功后出现的次按钮，`.btn-run-secondary` 降级样式，hidden 在 success 前 |
 | 输出区（图片 / 视频） | 🖼 / 🗂 | gallery / video 嵌入输出区 |
 | 完整健康检查 | 🔍 | `gr.Button("🔍 完整健康检查", ...)` |
 | 系统设置 tab 标题 | ⚙️ | `gr.Markdown("## ⚙️ 系统设置")` |
@@ -93,16 +93,38 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 
 ## 4. CSS 自定义类
 
-只有三个自定义 class，在 `build_ui()` 末尾传给 `launch(css=...)`：
+自定义 class 在 `app/static/tokens.css` 里定义（`launch(css=_build_launch_css())` 注入），
 
 | class | 用在哪 | 视觉 |
 | --- | --- | --- |
+| `.btn-run-primary` | 🚀 开始运行（唯一绝对主操作） | 主题色渐变 + glow |
+| `.btn-run-primary.is-running` | 运行中态 | 脉冲 + spinner |
+| `.btn-run-secondary` | 🔁 用相同参数再来（次操作，视觉降级） | 低彩度深灰底 + 微弱边框（Light Mode 白底灰边） |
+| `.btn-secondary-override` | 📥 / 📂 / 🔍 等次按钮兜底 | 次级灰底 |
+| `.card-core` | 主表单 Group / 卡片容器 | 卡片分层底 + 圆角 + 阴影 |
+| `.custom-accordion` | 🔧 高级参数 / 📜 运行日志 Accordion | 透明底 + 主题色左 border |
+  | `.custom-dataframe` | 历史记录 Dataframe | 表格分层 + hover |
+| `.status-badge` + `.status-badge-success/failure/timeout/running/unknown` | 历史记录 Dataframe 状态列 | 圆角胶囊 + 语义色 (绿/红/黄/蓝/灰) |
+| `.history-filter-bar` / `.history-filter-preset` / `.history-filter-status` (`.custom-pills`) / `.history-count` | 历史记录筛选条 | 单行 filter row: Preset dropdown + 状态 pills + 计数 + 刷新 |
+| `.history-detail-col` | 历史记录右侧详情列容器 | 卡片底 + 圆角,跟左列表视觉对齐 |
+| `.detail-card` / `.detail-header` / `.detail-fields` / `.detail-field` (display:contents) / `.detail-label` / `.detail-value` / `.detail-error` | 右侧详情卡片 | 结构化 key-value 网格 + 错误高亮 |
+| `.detail-empty` | "无数据"占位 | 居中 + 灰底 |
+| `.detail-prompt` / `.detail-prompt-body` | 详情卡片底部提示词摘要 | 上分割线 + 12em 内滚动 |
+| `.custom-radio` | 左侧工作流导航 Radio | 卡片化选项 |
 | `.error-banner` | 红条，跑失败 / 超时时显示 | 红底 + 黑字 |
 | `.error-banner-inner` | `.error-banner` 内部 `gr.HTML` | 让 `gr.HTML` 占满 banner 容器 |
 | `.file-fallback` | `_media_to_html` 未知文件类型 / 未知 URL | 灰底 + 下载链接 |
+| `.result-area` | 输出区 (视频 / 图片 / 文本容器) | 最小高度占位 |
+| `.file-dropzone` | gr.File 拖拽区 | 克制虚线 + 激活态主题色 |
+| `.progress-track` / `.progress-bar` / `.progress-text` | gr.Progress 进度条 | 槽隐于背景 + 主题色双段渐变 |
+| `.annotation-block` | Recipe / 警告 / 提示统一视觉 | 左 border + radius-sm + 卡片底 |
 
-新增自定义样式前先想：**Gradio 默认主题能不能直接表达**。能就不加 class；不能再写
-`css.append(...)`，并在本文档登记 class。
+**视觉焦点唯一性约定**：整个工作台只有 🚀 开始运行 一个绝对视觉焦点
+（`.btn-run-primary` 带主题色渐变 + glow）。🔁 用相同参数再来 是次操作，必须用
+`.btn-run-secondary`（刻意不消费 `--theme-accent-*`，低彩度不抢镜头）。
+
+新增自定义样式前先想：**Gradio 默认主题能不能直接表达**。能就不加 class；不能再在
+`tokens.css` 写规则，并在本文档登记 class。
 
 ## 5. 输出媒体渲染
 
@@ -123,6 +145,20 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 `<video>` 标签。Gradio 6 不再支持 `gr.Video(value=url)` 外部源——本约定与该限制
 对齐。
 
+### 5.1 `image_sizes` 预设的「用途标签化」（第四阶段 §B）
+
+`params.json` 里 `image_sizes` 类型的 `presets` 数组支持两种条目形式：
+
+| 形式 | 示例 | 用途 |
+| --- | --- | --- |
+| 纯字符串（向后兼容） | `"1024x1024"` | 老预设 / 极简场景 |
+| `{label, value}` 字典 | `{"label": "🎬 1280×720 ｜ 16:9 (横版封面)", "value": "1280x720"}` | 带比例 + 用途说明，降低用户扫描成本（**推荐**） |
+
+`_build_input_component` 把两种形式归一成 Gradio 的 `(label, value)` 元组。**关键
+不变式**：`parse_sizes` 只吃 `value`，`label` 不进解析路径 —— `value` 必须是
+`parse_sizes` 能严格 fullmatch 的纯净 `WxH`（`1024x1024`，不能是 `1024×1024` 全角或
+带文案）。`default` 数组里的值也必须是 `value`，不能是 `label`。
+
 ## 6. Tab 与布局
 
 | Tab | 内容 |
@@ -132,6 +168,23 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `系统设置` | ComfyUI 地址 + 🔍 完整健康检查 + GPU/VRAM/模型/自定义节点报告 |
 
 `运行` tab 默认选中。第一次切 preset 不请求网络（除 `🔍 完整健康检查` 外）。
+
+### 6.1 运行表单的两栏工作台布局（第四阶段）
+
+每个 preset 的 `_render_workflow_form` 用 `with gr.Row(equal_height=False):` 包两栏，
+从「长表单页面」变成「左右结构的两栏 AI 创作工作台」：
+
+| 栏 | `gr.Column` | 放什么 |
+| --- | --- | --- |
+| **左控制栏** | `scale=5` | ① 输入素材（basic 上传 / 提示词 / 尺寸）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
+| **右作品预览栏** | `scale=6` | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+
+**theme-injector 仍是 `build_ui()` 顶部的全局唯一 `gr.HTML`**，不在本布局内 —— 它要跨
+所有 preset 共用，放进任何一栏都会被 preset 切换的 visibility 影响。两栏只重组
+`_render_workflow_form` 内部的表单组件，不碰主题注入器。
+
+**组件创建顺序**（事件绑定靠对象引用，与布局无关，但顺序影响组件 id 区间，测试据此
+断言「某组件在哪一栏」）：左栏全部组件 → 右栏全部组件 → 事件绑定。
 
 ## 7. 改 UI 时的检查清单
 

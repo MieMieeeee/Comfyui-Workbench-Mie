@@ -9,10 +9,19 @@ from __future__ import annotations
 
 # bootstrap: 让 `py app/scail2_app.py` 能跑
 import sys as _sys
+import os as _os
 from pathlib import Path as _Path
 _REPO_ROOT = _Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_REPO_ROOT))
+
+# --- 离线自包含开关(必须在 import gradio 之前设置)---
+# 本 WebUI 配套 ComfyUI 整合包发布,必须在无外网环境下也能正常打开。
+# 这些环境变量切断 Gradio / huggingface_hub 的所有外网探测(telemetry /
+# 版本检查 / 模型仓库 ping),避免离线时 SPA 卡在加载界面。
+_os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
+_os.environ.setdefault("HF_HUB_OFFLINE", "1")
+_os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 import json
 import logging
@@ -41,8 +50,19 @@ _LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(filename=str(_LOG_PATH), level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
 _log = logging.getLogger("scail2_app")
 
+# 跨 tab 状态：历史记录点 "🔄 加载到运行" 需要跳到“运行” tab + 切 preset + 填表单，
+# 这些组件在 build_ui 里创建，build_ui 赋值到这三个模块变量，_build_history_tab 里读取。
+_ALL_INPUTS_FLAT: list = []
+_WF_RADIO_REF = None  # type: ignore[assignment]
+_TABS_REF = None  # type: ignore[assignment]
+_SKIP_AUTO_LOAD: set = set()  # 后续要被快速取消，临时标记“下一次 wf_radio.change 跳过自动填表单”
 
-PRESET_NAME = "sca12_replace"
+
+def _iter_preset_names():
+    """顺序返回所有 preset name（与 build_ui 里 preset_inputs_map 的顺序一致）。
+    build_ui 里是走 config.list_workflows()（按 order 排序），这里复用同一个函数。"""
+    return [w["name"] for w in config.list_workflows()]
+
 
 
 # --- 预估段数 / 帧数探测 ---
@@ -170,8 +190,20 @@ def _build_input_component(spec):
             info=spec.get("help"),
         )
     if typ == "image_sizes":
+        # presets 支持「用途标签化」(第四阶段 §B): 每条可以是
+        #   "1024x1024"                          纯字符串(向后兼容)
+        #   {"label": "🎬 1280×720 ｜ 16:9", "value": "1280x720"}   带用途文案
+        # 归一成 Gradio 的 (label, value) 元组。parse_sizes 只吃 value，
+        # label 不进解析路径 —— 保持严格 fullmatch 契约不变。
+        raw = spec.get("presets", ["1024x1024", "1280x720", "720x1280"])
+        choices = []
+        for p in raw:
+            if isinstance(p, dict) and "value" in p:
+                choices.append((p.get("label", p["value"]), p["value"]))
+            else:
+                choices.append((p, p))
         return gr.CheckboxGroup(
-            choices=spec.get("presets", ["1024x1024", "1280x720", "720x1280"]),
+            choices=choices,
             value=spec.get("default", ["1024x1024"]),
             label=label,
             info=spec.get("help"),
@@ -227,6 +259,8 @@ def example_to_form_values(preset_name):
             values.append(_resolve_example_file(ex.get("drive_video")))
         elif typ == "prompt_pool":
             values.append(ex.get("prompt", spec.get("default", "")))
+        elif typ == "image_sizes":
+            values.append(list(ex.get("sizes") or spec.get("default") or []))
         elif nid == "362":
             values.append(ex.get("ref_prompt", spec.get("default", "")))
         elif nid == "348":
@@ -235,6 +269,55 @@ def example_to_form_values(preset_name):
             values.append(ex.get("main_prompt", spec.get("default", "")))
         elif nid == "479":
             values.append(ex.get("segments", spec.get("default", 0)))
+        elif spec.get("field") == "seed":
+            values.append(ex.get("seed", spec.get("default", 0)))
+        else:
+            values.append(spec.get("default"))
+    return values
+
+
+def _manifest_to_form_values(preset_name, manifest):
+    """把 manifest 数据映射回 user_facing_inputs 顺序的表单值。
+
+    与 example_to_form_values 对称，但数据来源是运行历史而不是 preset.example。
+    - 复用 _resolve_example_file 解析文件字段（example 走 staged path，manifest 走原始 basename）
+    - seed / sizes / ref_prompt / drive_prompt / main_prompt 都是可选的，老 manifest 里没有就回退 spec.default
+    - 调用方需要保证 manifest["preset"] == preset_name（点击 rerun 时已校验）
+    """
+    if not manifest:
+        cfg = config.preset_config(preset_name)
+        return [spec.get("default") for spec in cfg["user_facing_inputs"]]
+    cfg = config.preset_config(preset_name)
+    values = []
+    for spec in cfg["user_facing_inputs"]:
+        nid = str(spec.get("node_id", ""))
+        typ = spec.get("type")
+        field = spec.get("field", "")
+        if typ == "file:image":
+            values.append(_resolve_example_file(manifest.get("reference_image", "")))
+        elif typ == "file:video":
+            values.append(_resolve_example_file(manifest.get("drive_video", "")))
+        elif typ == "prompt_pool":
+            values.append(manifest.get("prompt_text", spec.get("default", "")))
+        elif typ == "image_sizes":
+            sizes = manifest.get("sizes")
+            values.append(list(sizes or spec.get("default") or []))
+        elif field == "seed":
+            seed = manifest.get("seed")
+            values.append(seed if seed is not None else spec.get("default", 0))
+        elif nid == "362":
+            values.append(manifest.get("ref_prompt", spec.get("default", "")))
+        elif nid == "348":
+            values.append(manifest.get("drive_prompt", spec.get("default", "")))
+        elif nid == "360":
+            # 老 manifest 只存了 prompt_text（折叠三个 prompt），回退到它
+            values.append(manifest.get("main_prompt", manifest.get("prompt_text", spec.get("default", ""))))
+        elif nid == "367":
+            values.append(manifest.get("frames_per_segment", spec.get("default", 81)))
+        elif nid == "464":
+            values.append(manifest.get("pre_drop_frames", spec.get("default", 5)))
+        elif nid == "479":
+            values.append(manifest.get("max_segments", spec.get("default", 0)))
         else:
             values.append(spec.get("default"))
     return values
@@ -284,43 +367,6 @@ def _is_comfy_input_file(filename):
         return False
     return (config.COMFY_INPUT_DIR / filename).exists()
 
-
-def _download_output_to_local(url, timeout=120):
-    """把 ComfyUI /view URL 的输出下载到本地临时文件，返回本地路径。
-
-    当前未在生产路径调用 —— 本机 ComfyUI 时 /view 由浏览器直连即可，不用缓存。
-    保留是因为本 WebUI 配套 ComfyUI 启动器发布，下一步可能支持"WebUI 在本机、ComfyUI
-    在局域网另一台机器"：那时 /view 跨域 / 内网访问会受限，本地缓存就必要了。
-
-    实现要点（如果未来接上）：
-    - Gradio 6 的 gr.Video 不支持外部 URL，postprocess 后 url=None 前端黑屏；
-    - 把 /view 下载到 `.output_cache/`（CWD 下，gradio 接受）后喂本地路径。
-    - 失败返回 None（上层显示状态文字，不崩）。
-    - timeout 较长（120s）因为视频文件可能较大（几 MB ~ 几十 MB）。
-    """
-    import tempfile
-    try:
-        resp = scail2_client.requests.get(url, timeout=timeout, stream=True)
-        if resp.status_code != 200:
-            return None
-        # 从 URL 或 Content-Disposition 取文件名（保留扩展名让 gradio 识别 MIME）
-        from urllib.parse import urlparse, parse_qs
-        qs = parse_qs(urlparse(url).query)
-        filename = (qs.get("filename") or ["output"])[0]
-        # 临时目录在 CWD 下（gradio 接受 CWD 内文件）
-        cache_dir = config.REPO_ROOT / ".output_cache"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        # 用时间戳避免重名
-        from datetime import datetime
-        ts = datetime.now().strftime("%H%M%S_%f")
-        dst = cache_dir / f"{ts}_{Path(filename).name}"
-        with dst.open("wb") as f:
-            for chunk in resp.iter_content(chunk_size=65536):
-                if chunk:
-                    f.write(chunk)
-        return str(dst)
-    except Exception:
-        return None
 
 
 def _resolve_upload_name(file_value, kind="image"):
@@ -532,6 +578,10 @@ def run_workflow(preset_name, *component_values):
                 cache_hit=False,
                 output=final_output,
                 error=final_error,
+                # SCAIL2 三个独立 prompt 给历史 → 运行 还原用
+                ref_prompt=replacements.get("362", {}).get("text", ""),
+                drive_prompt=replacements.get("348", {}).get("text", ""),
+                main_prompt=replacements.get("360", {}).get("text", ""),
             )
             history.write_manifest(manifest)
             _log.debug(f"manifest written: {prompt_id_final[:8]}, est_seg={est_seg}")
@@ -684,10 +734,12 @@ def run_image_workflow(preset_name, *component_values):
             cache_hit=False,
             output=primary,
             error=final_error,
+            # zimage 文生图：seed + 实际跑的尺寸
+            seed=seed_val,
+            sizes=[f"{w}x{h}" for w, h in sizes],
         )
         # 文生图特有：记录全部尺寸输出 + 每尺寸 prompt_id
         manifest["outputs"] = all_outputs
-        manifest["sizes"] = [f"{w}x{h}" for w, h in sizes]
         manifest["prompt_ids"] = prompt_ids
         history.write_manifest(manifest)
         _log.debug(f"[run_image] manifest written, {len(all_outputs)} outputs")
@@ -699,92 +751,60 @@ def run_image_workflow(preset_name, *component_values):
     yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
 
 
-# --- History tab ---
-
-def _history_rows():
-    runs = history.list_runs()
-    rows = []
-    for r in runs:
-        rows.append([
-            r.get("created_at", "?")[:19].replace("T", " "),
-            r.get("status", "?"),
-            r.get("preset", "?"),
-            r.get("estimated_segments", "-") if r.get("estimated_segments") else "-",
-            f"{r.get('duration_sec', '?')}s",
-            "✅" if r.get("cache_hit") else "—",
-            r.get("reference_image", ""),
-            r.get("drive_video", ""),
-            r.get("prompt_text", "")[:50],
-            r.get("prompt_id", "?")[:8],
-        ])
-    return rows
-
-
-def _history_latest_detail():
-    runs = history.list_runs(limit=1)
-    if not runs:
-        return None, None, "_还没有 run 记录。去“运行” tab 跑一次。_"
-    r = runs[0]
-    media_html = "<div style='color:#6b7280;padding:20px'>无输出文件</div>"
-    if r.get("output"):
-        view_url = history.make_view_url(
-            r["output"]["filename"],
-            r["output"].get("subfolder", ""),
-            r["output"].get("type", "output"),
-        )
-        is_image = r.get("preset") == "zimage" or \
-                   str(r["output"].get("filename", "")).endswith((".png", ".jpg", ".jpeg", ".webp"))
-        media_html = _media_to_html(view_url, is_image)
-    md_lines = [
-        f"**Prompt ID**: `{r.get('prompt_id', '?')}`",
-        f"**状态**: {r.get('status', '?')}",
-        f"**Preset**: {r.get('preset', '?')}",
-        f"**参考图**: {r.get('reference_image', '?')}",
-        f"**驱动视频**: {r.get('drive_video', '?')}",
-        f"**提示词**: {r.get('prompt_text', '?')}",
-        f"**每段长度**: {r.get('frames_per_segment', '?')}",
-        f"**段间长度**: {r.get('pre_drop_frames', '?')}",
-        f"**驱动视频帧数**: {r.get('video_frames', '?')}",
-        f"**预估段数**: {r.get('estimated_segments', '?')}",
-        f"**耗时**: {r.get('duration_sec', '?')}s",
-        f"**Cache hit**: {r.get('cache_hit', False)}",
-        f"**开始**: {r.get('created_at', '?')}",
-        f"**结束**: {r.get('finished_at', '?')}",
-    ]
-    if r.get("error"):
-        md_lines.append(f"**错误**: {r['error']}")
-    if r.get("output"):
-        dl_url = history.make_view_url(r["output"]["filename"],
-                                        r["output"].get("subfolder", ""), r["output"].get("type", "output"))
-        md_lines.append(f"**下载**: [{r['output']['filename']}]({dl_url})")
-    return json.dumps(r, ensure_ascii=False, indent=2), media_html, "\n".join(md_lines)
-
-
-def _refresh_history():
-    return _history_rows(), *_history_latest_detail()
-
-
 def _run_row(run: dict[str, Any]) -> list[str]:
-    """把一条 manifest 拍平成 Dataframe 一行。"""
+    """把一条 manifest 拍平成 Dataframe 一行 (6 列精简版)。
+
+    status 列返回 HTML badge 字符串,Dataframe 会按字符串渲染;其余列保持纯文本。
+    详细字段(参考图 / 驱动视频 / cache / 段数估 / 参数组)放到详情卡片。
+    """
+    status = run.get("status", "unknown")
+    badge = (
+        f"<span class='status-badge status-badge-{status}'>"
+        f"{_status_label(status)}</span>"
+    )
+    prompt = run.get("prompt_text", "") or ""
+    if len(prompt) > 60:
+        prompt = prompt[:60] + "…"
     return [
         run.get("created_at", "?")[:19].replace("T", " "),
-        run.get("status", "?"),
+        badge,
         run.get("preset", "?"),
-        run.get("estimated_segments", "-") if run.get("estimated_segments") else "-",
         f"{run.get('duration_sec', '?')}s",
-        "✅" if run.get("cache_hit") else "—",
-        run.get("reference_image", ""),
-        run.get("drive_video", ""),
-        run.get("prompt_text", "")[:50],
+        prompt,
         run.get("prompt_id", "?")[:8],
     ]
 
 
-def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[Any, str, str]:
-    """从单条 manifest 构造 detail (json, media_html, markdown)。"""
+def _status_label(status: str) -> str:
+    """把内部状态值翻译成中文短标签(badge 显示用)。"""
+    return {
+        "success": "✓ 成功",
+        "failure": "✗ 失败",
+        "timeout": "⚠ 超时",
+        "running": "● 运行中",
+    }.get(status, status or "未知")
+
+
+def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[str, str, str, str]:
+    """从单条 manifest 构造 detail (summary_html, media_html, json_str, prompt_md)。
+
+    summary_html 是一段结构化 HTML(卡片化展示关键字段),media_html 是输出预览,
+    json_str 是原始 manifest JSON(给隐藏 manifest 组件 + rerun 用),
+    prompt_md 是带代码块包裹的提示词全文(给 "提示词全文" accordion 用)。
+    """
+    empty = (
+        "<div class='detail-empty'>选中一条记录查看详情</div>",
+        "<div class='detail-empty'>—</div>",
+        "",
+        "",
+    )
     if not run:
-        return None, "<div style='color:#6b7280;padding:20px'>没有匹配的运行记录</div>", "_没有匹配记录。_"
-    media_html = "<div style='color:#6b7280;padding:20px'>无输出文件</div>"
+        return empty
+
+    status = run.get("status", "unknown")
+    badge_html = f"<span class='status-badge status-badge-{status}'>{_status_label(status)}</span>"
+
+    media_html = "<div class='detail-empty'>无输出文件</div>"
     if run.get("output"):
         view_url = history.make_view_url(
             run["output"]["filename"],
@@ -793,45 +813,136 @@ def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[Any, str, str]:
         )
         is_image = run.get("preset") == "zimage" or                    str(run["output"].get("filename", "")).endswith((".png", ".jpg", ".jpeg", ".webp"))
         media_html = _media_to_html(view_url, is_image)
-    md_lines = [
-        f"**Prompt ID**: `{run.get('prompt_id', '?')}`",
-        f"**状态**: {run.get('status', '?')}",
-        f"**Preset**: {run.get('preset', '?')}",
-        f"**参考图**: {run.get('reference_image', '?')}",
-        f"**驱动视频**: {run.get('drive_video', '?')}",
-        f"**提示词**: {run.get('prompt_text', '?')}",
-        f"**每段长度**: {run.get('frames_per_segment', '?')}",
-        f"**段间长度**: {run.get('pre_drop_frames', '?')}",
-        f"**驱动视频帧数**: {run.get('video_frames', '?')}",
-        f"**预估段数**: {run.get('estimated_segments', '?')}",
-        f"**耗时**: {run.get('duration_sec', '?')}s",
-        f"**Cache hit**: {run.get('cache_hit', False)}",
-        f"**开始**: {run.get('created_at', '?')}",
-        f"**结束**: {run.get('finished_at', '?')}",
-    ]
+
+    # 关键字段卡片(表格被简化后,详情须补上这些)
+    fields = []
+    fields.append(("Preset", run.get("preset", "?")))
+    fields.append(("Prompt ID", f"<code>{run.get('prompt_id', '?')}</code>"))
+    fields.append(("开始", _fmt_time(run.get("created_at"))))
+    fields.append(("结束", _fmt_time(run.get("finished_at"))))
+    fields.append(("耗时", f"{run.get('duration_sec', '?')}s"))
+    fields.append(("Cache hit", "是" if run.get("cache_hit") else "否"))
+
+    preset = run.get("preset", "")
+    if preset == "zimage":
+        sizes = run.get("sizes") or []
+        if sizes:
+            fields.append(("尺寸", " / ".join(str(s) for s in sizes)))
+        seed = run.get("seed")
+        if seed is not None:
+            fields.append(("Seed", str(seed)))
+    else:
+        ref = run.get("reference_image") or "—"
+        drive = run.get("drive_video") or "—"
+        fields.append(("参考图", _truncate(ref, 40)))
+        fields.append(("驱动视频", _truncate(drive, 40)))
+        if run.get("frames_per_segment") is not None:
+            fields.append(("每段帧数", str(run["frames_per_segment"])))
+        if run.get("pre_drop_frames") is not None:
+            fields.append(("段间帧数", str(run["pre_drop_frames"])))
+        if run.get("video_frames") is not None:
+            fields.append(("驱动总帧数", str(run["video_frames"])))
+        if run.get("estimated_segments") is not None:
+            fields.append(("预估段数", str(run["estimated_segments"])))
+
     if run.get("error"):
-        md_lines.append(f"**错误**: {run['error']}")
+        fields.append(("错误", f"<span class='detail-error'>{_escape(run['error'])}</span>"))
     if run.get("output"):
-        dl_url = history.make_view_url(run["output"]["filename"],
-                                        run["output"].get("subfolder", ""), run["output"].get("type", "output"))
-        md_lines.append(f"**下载**: [{run['output']['filename']}]({dl_url})")
-    return json.dumps(run, ensure_ascii=False, indent=2), media_html, "\n".join(md_lines)
+        dl_url = history.make_view_url(
+            run["output"]["filename"],
+            run["output"].get("subfolder", ""),
+            run["output"].get("type", "output"),
+        )
+        fields.append(("输出", f"<a href='{dl_url}' target='_blank'>{run['output']['filename']}</a>"))
+
+    summary_html = _render_summary_html(badge_html, fields, run.get("prompt_text", "") or "")
+    json_str = json.dumps(run, ensure_ascii=False, indent=2)
+    prompt_md = _wrap_prompt_markdown(run.get("prompt_text", "") or "")
+    return summary_html, media_html, json_str, prompt_md
 
 
-def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]], Any, str, str]:
-    """按 preset + status 过滤后,刷新 dataframe 和详情。"""
+def _wrap_prompt_markdown(text):
+    """把提示词包成 markdown 代码块(供 accordion 用)。空文本返空串。"""
+    if not text:
+        return ""
+    return f"```\n{text}\n```"
+
+
+def _fmt_time(iso):
+    """精简 ISO 时间到分钟。空/无效返 "—"。"""
+    if not iso or not isinstance(iso, str):
+        return "—"
+    return iso[:19].replace("T", " ") or "—"
+
+
+def _truncate(text, max_len):
+    if not text:
+        return "—"
+    text = str(text)
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
+
+
+def _escape(text):
+    """轻量 HTML 转义(用于用户输入文本场景,避免页面报错)。"""
+    if text is None:
+        return ""
+    s = str(text)
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def _render_summary_html(badge_html, fields, prompt):
+    """拼装详情卡片:顶部 badge + 关键字段 + prompt 预览。"""
+    field_rows = "".join(
+        f"<div class='detail-field'><span class='detail-label'>{_escape(k)}</span>"
+        f"<span class='detail-value'>{v}</span></div>"
+        for k, v in fields
+    )
+    prompt_block = ""
+    if prompt:
+        prompt_block = (
+            "<div class='detail-prompt'>"
+            "<div class='detail-label'>提示词</div>"
+            f"<div class='detail-prompt-body'>{_escape(prompt)}</div>"
+            "</div>"
+        )
+    return (
+        "<div class='detail-card'>"
+        f"<div class='detail-header'>{badge_html}</div>"
+        f"<div class='detail-fields'>{field_rows}</div>"
+        f"{prompt_block}"
+        "</div>"
+    )
+
+
+def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]], str, str, str, str, str]:
+    """按 preset + status 过滤后,刷新 dataframe + 详情。
+
+    返回: (rows, summary_html, media_html, json_str, prompt_md, count_label)
+    count_label 是屏幕只读的记录数提示,例如 "共 12 条"。
+    """
     p = preset if preset and preset != "全部" else None
     s_arg = status if status and status != "全部" else None
     runs = history.list_runs(preset=p, status=s_arg)
     rows = [_run_row(r) for r in runs]
-    detail = _make_detail_from_run(runs[0] if runs else None)
-    return rows, *detail
+    summary_html, media_html, json_str, prompt_md = _make_detail_from_run(runs[0] if runs else None)
+    count_label = f"共 {len(runs)} 条"
+    return rows, summary_html, media_html, json_str, prompt_md, count_label
 
 
 def _build_history_tab():
-    """历史记录 tab:支持按 preset 和 status 过滤。"""
+    """历史记录 tab:左 Dataframe + 右详情卡片的两栏布局。
+
+    表格列从 10 列精简到 6 列(时间 / 状态 badge / preset / 耗时 / prompt / id),
+    详细字段(参考图 / 驱动视频 / cache / 段数估 / 参数组 / 输出文件)挪到右侧详情
+    卡片。详情默认展示 badge + 关键字段 + 提示词摘要,提示词全文与原始 manifest
+    折叠收起;rerun 按钮始终可见,直接把 manifest 喂回运行表单。
+    """
     gr.Markdown("## 历史记录")
-    gr.Markdown(f"manifest 存在 `{config.RUNS_DIR}`。点「刷新」或切换过滤条件重新读取。")
+    gr.Markdown(
+        f"manifest 目录 `{config.RUNS_DIR}`。切换过滤条件或点「🔃 刷新」重新读取。"
+    )
 
     workflows = config.list_workflows()
     preset_options = [("全部", "全部")] + [(w["display_name"], w["name"]) for w in workflows]
@@ -842,53 +953,119 @@ def _build_history_tab():
         ("超时", "timeout"),
     ]
 
-    with gr.Row():
+    # 筛选条:Preset 下拉 + 状态 pills + 结果数 + 刷新,挤在一行
+    with gr.Row(elem_classes=["history-filter-bar"]):
         preset_filter = gr.Dropdown(
-            choices=preset_options,
-            value="全部",
-            label="Preset",
-            scale=2,
+            choices=preset_options, value="全部", label="Preset",
+            scale=3, elem_classes=["history-filter-preset"],
         )
         status_filter = gr.Radio(
-            choices=status_options,
-            value="全部",
-            label="状态",
-            scale=3,
+            choices=status_options, value="全部", label="状态",
+            scale=4, elem_classes=["history-filter-status", "custom-pills"],
         )
-        refresh_btn = gr.Button("刷新", variant="secondary", scale=1)
+        count_label = gr.Markdown(
+            value="共 0 条", elem_classes=["history-count"],
+        )
+        refresh_btn = gr.Button("🔃 刷新", variant="secondary", scale=1)
 
-    df = gr.Dataframe(
-        headers=["时间", "状态", "preset", "段数估", "耗时", "cache", "ref", "drive", "prompt", "id"],
-        interactive=False, wrap=True,
-        elem_classes=["custom-dataframe"],
-    )
+    # 两栏:左 7 Dataframe / 右 5 详情
     with gr.Row():
-        with gr.Column(scale=1):
-            detail_json = gr.JSON(label="最新 manifest")
-            detail_md = gr.Markdown()
-        with gr.Column(scale=1):
-            detail_media = gr.HTML(label="预览", value="<div style='color:#6b7280;padding:20px'>切换过滤条件查看</div>")
+        with gr.Column(scale=7, elem_classes=["history-list-col"]):
+            df = gr.Dataframe(
+                headers=["时间", "状态", "preset", "耗时", "prompt", "id"],
+                # 第 2 列 (状态) 用 html 渲染,让 _run_row 返回的 badge 标签生效
+                # (Gradio 6 默认把 HTML 当字符串 escape)
+                datatype=["str", "html", "str", "str", "str", "str"],
+                # 列宽按内容优先级: prompt 摘要最宽,id 最窄
+                column_widths=["17%", "11%", "14%", "9%", "37%", "12%"],
+                interactive=False, wrap=True,
+                elem_classes=["custom-dataframe"],
+            )
+        with gr.Column(scale=5, elem_classes=["history-detail-col"]):
+            detail_summary = gr.HTML(
+                value="<div class='detail-empty'>选中一条记录查看详情</div>",
+                elem_classes=["detail-summary-wrap"],
+            )
+            detail_media = gr.HTML(
+                value="<div class='detail-empty'>—</div>",
+                label="输出预览",
+            )
+            with gr.Accordion(
+                "📝 提示词全文", open=False, elem_classes=["custom-accordion"]
+            ):
+                detail_prompt_md = gr.Markdown(value="")
+            # 隐藏 manifest JSON 组件,专门给 rerun 用 (Gradio JSON 自动反序列化)
+            detail_manifest = gr.JSON(value={}, visible=False)
+            rerun_btn = gr.Button(
+                "🔁 加载到运行", variant="primary",
+                elem_classes=["btn-run-primary"],
+            )
 
     # 三个事件源都触发同一个 handler
-    for trigger in (refresh_btn, preset_filter.change, status_filter.change):
-        pass
-    refresh_btn.click(
-        fn=_refresh_history_filtered,
-        inputs=[preset_filter, status_filter],
-        outputs=[df, detail_json, detail_media, detail_md],
-    )
-    preset_filter.change(
-        fn=_refresh_history_filtered,
-        inputs=[preset_filter, status_filter],
-        outputs=[df, detail_json, detail_media, detail_md],
-    )
-    status_filter.change(
-        fn=_refresh_history_filtered,
-        inputs=[preset_filter, status_filter],
-        outputs=[df, detail_json, detail_media, detail_md],
-    )
+    # outputs: rows, summary_html, media_html, json_str, prompt_md, count_label
+    event_outputs = [df, detail_summary, detail_media, detail_manifest, detail_prompt_md, count_label]
+    event_inputs = [preset_filter, status_filter]
+    refresh_btn.click(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
+    preset_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
+    status_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
 
-    return df, detail_json, detail_md, detail_media, refresh_btn
+    # Rerun: 从历史记录加载到运行表单。点击后会:
+    #   1. 切到"运行" tab (JS 前置器)
+    #   2. 选中该 manifest 对应的 preset (会触发 wf_radio.change, 该 change 会调
+    #      example_to_form_values, 但我们随后在 .then() 里用 manifest 覆盖默认值)
+    #   3. 用 manifest 里的 prompt/sizes/seed/file 填表单
+    def _stage_rerun(manifest):
+        """Step 1: 选 preset + 跳过下次自动填表单。返回 manifest 给下一步。
+        Tab 切换由 JS 前置器处理(gr.update(selected=...) 对 Tabs 不生效)。"""
+        if not manifest:
+            return gr.update(), gr.update()
+        preset = manifest.get("preset") or "zimage"
+        _SKIP_AUTO_LOAD.add(preset)
+        return gr.update(value=preset), gr.update(value=manifest)
+
+    def _fill_from_manifest(preset_name, manifest):
+        """Step 2: 用 manifest 填表单。在 wf_radio.change 之后跑,覆盖 example 自动填。"""
+        if not preset_name or not manifest:
+            return [gr.update() for _ in _ALL_INPUTS_FLAT]
+        target_values = _manifest_to_form_values(preset_name, manifest)
+        result = []
+        for name in _iter_preset_names():
+            try:
+                cfg = config.preset_config(name)
+                n = len(cfg["user_facing_inputs"])
+            except Exception:
+                n = 0
+            if name == preset_name:
+                if len(target_values) < n:
+                    target_values = target_values + [None] * (n - len(target_values))
+                result.extend(target_values[:n])
+            else:
+                result.extend([gr.update() for _ in range(n)])
+        return result
+
+    if _TABS_REF is not None and _WF_RADIO_REF is not None and _ALL_INPUTS_FLAT:
+        _rerun_js = """
+(manifest) => {
+  if (!manifest) return null;
+  const tabs = document.querySelectorAll('button[role="tab"]');
+  if (tabs && tabs.length > 0 && tabs[0]) tabs[0].click();
+  return null;
+}
+"""
+        rerun_btn.click(
+            fn=_stage_rerun,
+            inputs=[detail_manifest],
+            outputs=[_WF_RADIO_REF, detail_manifest],
+            js=_rerun_js,
+        ).then(
+            fn=_fill_from_manifest,
+            inputs=[_WF_RADIO_REF, detail_manifest],
+            outputs=_ALL_INPUTS_FLAT,
+        )
+    else:
+        _log.warning("history rerun btn disabled: build_ui not yet wired (refs None)")
+
+    return df, detail_manifest, detail_summary, detail_media, refresh_btn, rerun_btn
 
 
 
@@ -1070,6 +1247,31 @@ def _is_image_preset(preset_cfg):
     """preset 是文生图类（输出 image）还是视频类。"""
     return preset_cfg.get("output_kind") == "image" or preset_cfg.get("category") == "image"
 
+
+def _render_preview_prompt_html(prompt: str, sizes: list) -> str:
+    """把 example 的 prompt + sizes 渲染成右栏“示例预览”卡里要展示的 HTML。
+
+    - sizes 在 prompt 之前一行小灰字,展示实际跑的尺寸
+    - prompt 用 <pre> 等宽保留换行 + <details> 默认收起,避免长 prompt 占太多视觉空间
+    """
+    parts = []
+    if sizes:
+        parts.append(
+            "<div style='font-size:12px;color:#6b7280;margin:0 0 6px'>"
+            "📐 尺寸: " + chr(44).join(sizes) + "</div>",
+        )
+    if prompt:
+        esc = prompt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        parts.append(
+            "<details>"
+            "<summary style='cursor:pointer;font-size:12px;color:#9ba1a8'>"
+            "📝 完整提示词(点击展开)</summary>"
+            "<pre style='white-space:pre-wrap;font-size:12px;line-height:1.55;"
+            "padding:10px;background:var(--block-background-fill,rgba(0,0,0,0.04));"
+            "border-radius:6px;max-height:240px;overflow:auto;margin:8px 0 0'>"
+            + esc + "</pre>" + "</details>",
+        )
+    return "".join(parts)
 
 def _media_to_html(media, is_image: bool) -> str:
     """把 run 函数 yield 的 media 转成 HTML。
@@ -1259,6 +1461,86 @@ def _category_icon(cat: str) -> str:
     return _CATEGORY_ICON.get(cat, chr(0x1F4E6))
 
 
+def _yield_run_stream(
+    run_fn,
+    preset_name: str,
+    vals: tuple,
+    *,
+    is_image: bool,
+    on_status_done=None,
+):
+    """包装 run_fn 流式输出 -- 纯生成器逻辑(不依赖 Gradio 组件引用)。
+
+    run_fn(preset_name, *vals) 是个 generator,yield (status_msg, media) 元组。
+    这里把它包成面向 Gradio 输出的 6-tuple 流:
+      (status_text, media_html, error_update, re_run_visible_update,
+       open_dir_msg_update, last_media)
+
+    Args:
+        on_status_done: 可选回调(status_msg, vals)。当某条 status 以
+            ✅ 开头时调用 -- 调用方用来触发 _save_last_run / 显示 last_btn。
+
+    关键行为(对应 zimage 跑完图不显示的回归):
+        run_fn 自然结束后,最后一次 yield 仍保留最后生成的 media(若有),
+        不重置成 None -- 否则前端 output_box 会被 _media_to_html(None, ...)
+        覆盖成等待结果占位,用户看不到刚生成的图/视频。
+    """
+    log: list[str] = []
+    last_media = None
+
+    try:
+        for status_msg, media in run_fn(preset_name, *vals):
+            log.append(status_msg)
+            if media:
+                last_media = media
+
+            err_visible = False
+            err_html = ""
+            if status_msg.startswith(chr(0x274C)):
+                err_visible = True
+                inner = status_msg.lstrip(chr(0x274C)).strip()
+                err_html = ("<div class='error-banner-inner'>"
+                            f"<b>上次运行失败</b><br>{inner}</div>")
+            elif status_msg.startswith(chr(0x23F0)):
+                err_visible = True
+                inner = status_msg.lstrip(chr(0x23F0)).strip()
+                err_html = ("<div class='error-banner-inner'>"
+                            f"<b>运行超时</b><br>{inner}</div>")
+
+            show_re_run = status_msg.startswith(chr(0x2705))
+            if show_re_run and on_status_done is not None:
+                on_status_done(status_msg, vals)
+
+            yield (
+                chr(10).join(log[-12:]),
+                _media_to_html(media, is_image),
+                gr.update(value=err_html, visible=err_visible),
+                gr.update(visible=show_re_run),
+                gr.update(value="", visible=False),
+                last_media,
+            )
+    except Exception as exc:
+        _log.exception("_yield_run_stream 异常: %s", exc)
+        log.append(chr(0x274C) + " " + repr(exc))
+        yield (
+            chr(10).join(log[-12:]),
+            _media_to_html(last_media, is_image),
+            gr.update(value=f"<div class='error-banner-inner'><b>运行异常</b><br>{exc!r}</div>", visible=True),
+            gr.update(visible=False),
+            gr.update(value="", visible=False),
+            last_media,
+        )
+
+    yield (
+        chr(10).join(log[-12:]),
+        _media_to_html(last_media, is_image),
+        gr.update(value="", visible=False),
+        gr.update(visible=False),
+        gr.update(value="", visible=False),
+        last_media,
+    )
+
+
 def _render_workflow_form(preset_name):
     """渲染单个 preset 的卡片式表单。
 
@@ -1287,149 +1569,224 @@ def _render_workflow_form(preset_name):
         f"<span style='color:#9ba1a8'>{preset_cfg.get('description', '')}</span>"
     )
 
-    # [输入组件]
+    # ===== 第四阶段 §A：两栏工作台布局 =====
+    # with gr.Row(equal_height=False) 包左右两栏:
+    #   左控制栏 gr.Column(scale=5): basic 输入 + 高级参数 + 段数预估 + 示例按钮 + 🚀 开始运行
+    #   右预览栏 gr.Column(scale=6): 📜 运行日志 + 错误条 + 结果区 + 🔁 再来 + 打开输出目录
+    # 组件创建顺序保证: 左栏全部组件 → 右栏全部组件 (事件绑定在两栏关闭后才做,
+    # 引用的都是已存在的组件对象,不受布局影响)。
     inputs_by_nid: dict[str, object] = {}
-    basic_file_specs = [s for s in specs if s.get("tier", "basic") == "basic"
-                        and s["type"] in ("file:image", "file:video")]
+    basic_specs = [s for s in specs if s.get("tier", "basic") == "basic"]
     advanced_specs = [s for s in specs if s.get("tier") == "advanced"]
-    basic_param_specs = [s for s in specs if s.get("tier", "basic") == "basic"
-                         and s["type"] not in ("file:image", "file:video")]
 
-    if basic_file_specs:
-        with gr.Group(elem_classes=["step-card", "card-core"]):
-            gr.Markdown("**① 输入素材**")
-            for spec in basic_file_specs:
-                comp = _create_one_input(spec)
-                inputs_by_nid[str(spec["node_id"])] = comp
+    with gr.Row(equal_height=False):
+        # ============ 左控制栏 ============
+        with gr.Column(scale=5):
+            # [输入组件]
+            # basic 组件按 user_facing_inputs 原始顺序渲染(不拆 file/param 两组),这样作者在
+            # params.json 里把"抠图词"排在对应上传文件后面,UI 上就紧跟在一起 —— 例如
+            # 参考图(30) → 参考图抠图词(362) → 驱动视频(369) → 驱动视频抠图词(348)。
+            # advanced 组件仍折叠进"🔧 高级参数"。
+            if basic_specs:
+                with gr.Group(elem_classes=["step-card", "card-core"]):
+                    gr.Markdown("**① 输入素材**")
+                    for spec in basic_specs:
+                        comp = _create_one_input(spec)
+                        inputs_by_nid[str(spec["node_id"])] = comp
 
-    if basic_param_specs:
-        with gr.Group(elem_classes=["step-card", "card-core"]):
-            gr.Markdown("**② 参数**")
-            for spec in basic_param_specs:
-                comp = _create_one_input(spec)
-                inputs_by_nid[str(spec["node_id"])] = comp
+            if advanced_specs:
+                with gr.Accordion("🔧 高级参数(一般不用改)", open=False, elem_classes=["custom-accordion"]):
+                    for spec in advanced_specs:
+                        comp = _create_one_input(spec)
+                        inputs_by_nid[str(spec["node_id"])] = comp
 
-    if advanced_specs:
-        with gr.Accordion("🔧 高级参数(一般不用改)", open=False, elem_classes=["custom-accordion"]):
-            for spec in advanced_specs:
-                comp = _create_one_input(spec)
-                inputs_by_nid[str(spec["node_id"])] = comp
+            inputs = [inputs_by_nid[str(s["node_id"])] for s in specs]
 
-    inputs = [inputs_by_nid[str(s["node_id"])] for s in specs]
+            # 段数预估(仅视频类 preset)
+            if not is_image:
+                _drive_idx = next((i for i, s in enumerate(specs) if s["type"] == "file:video"), None)
+                _per_seg_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "367"), None)
+                _pre_drop_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "464"), None)
+                _max_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "479"), None)
+                if _drive_idx is not None:
+                    est_segments = gr.Markdown("📊 **预估段数**: 上传驱动视频后显示")
+                    _est_inputs = [inputs[_drive_idx]]
+                    if _per_seg_idx is not None:
+                        _est_inputs.append(inputs[_per_seg_idx])
+                    if _pre_drop_idx is not None:
+                        _est_inputs.append(inputs[_pre_drop_idx])
+                    if _max_idx is not None:
+                        _est_inputs.append(inputs[_max_idx])
+                    for _trigger in _est_inputs:
+                        _trigger.change(fn=_update_est, inputs=_est_inputs, outputs=[est_segments])
 
-    # 段数预估(仅视频类 preset)
-    if not is_image:
-        _drive_idx = next((i for i, s in enumerate(specs) if s["type"] == "file:video"), None)
-        _per_seg_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "367"), None)
-        _pre_drop_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "464"), None)
-        _max_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "479"), None)
-        if _drive_idx is not None:
-            est_segments = gr.Markdown("📊 **预估段数**: 上传驱动视频后显示")
-            _est_inputs = [inputs[_drive_idx]]
-            if _per_seg_idx is not None:
-                _est_inputs.append(inputs[_per_seg_idx])
-            if _pre_drop_idx is not None:
-                _est_inputs.append(inputs[_pre_drop_idx])
-            if _max_idx is not None:
-                _est_inputs.append(inputs[_max_idx])
-            for _trigger in _est_inputs:
-                _trigger.change(fn=_update_est, inputs=_est_inputs, outputs=[est_segments])
+            # [加载示例 / 加载上次参数]
+            has_example = bool(preset_cfg.get("example"))
+            last_run_path = config.LAST_RUN_DIR / f"{preset_name}.json"
+            has_last = last_run_path.exists()
 
-    # [加载示例 / 加载上次参数]
-    has_example = bool(preset_cfg.get("example"))
-    last_run_path = config.LAST_RUN_DIR / f"{preset_name}.json"
-    has_last = last_run_path.exists()
+            with gr.Row():
+                ex_btn = (gr.Button("📥 加载示例素材", variant="secondary", size="sm", scale=1)
+                          if has_example else None)
+                last_btn = gr.Button(
+                    "📂 加载上次成功参数",
+                    variant="secondary",
+                    size="sm",
+                    scale=1,
+                    visible=has_last,
+                )
 
-    with gr.Row():
-        ex_btn = (gr.Button("📥 加载示例素材", variant="secondary", size="sm", scale=1)
-                  if has_example else None)
-        last_btn = gr.Button(
-            "📂 加载上次成功参数",
-            variant="secondary",
-            size="sm",
-            scale=1,
-            visible=has_last,
-        )
+            # [运行] 唯一绝对主操作按钮 (左栏底部)
+            run_btn = gr.Button(
+                "🚀 开始运行", variant="primary", size="lg",
+                elem_classes=["btn-run-primary"],
+            )
 
-    # [运行日志] 折叠(默认收起,跑起来自动展开)
-    with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
-        status_box = gr.Textbox(
-            value="等待运行,或点上方「加载示例素材」",
-            label="状态",
-            interactive=False,
-            lines=4, max_lines=10,
-        )
+        # ============ 右作品预览栏 ============
+        with gr.Column(scale=6):
+            # [示例预览] —— 当 preset 的 example 含 preview_image 时常驻展示,
+            # 让用户在未运行前就能看到 "这个 preset 跑出来是什么样"。
+            # 可见性由 preset 决定,与 ex_btn.click 无关(数据本身就是 preset 的)。
+            _ex_cfg = preset_cfg.get("example") or {}
+            _preview_image_raw = _ex_cfg.get("preview_image")
+            # preview_image 可能是 http(s):// URL、项目内相对路径、或旧的 "/file=..." 写法。
+            # Gradio 6.20 的 gr.Image 接受 PIL/ndarray/pathlib.Path/str(本地路径或 URL)。
+            # 项目内路径走 config.REPO_ROOT 拼绝对;URL 直接传(走 http 拉取)。
+            if _preview_image_raw and not _preview_image_raw.startswith(("http://", "https://")):
+                if _preview_image_raw.startswith("/file="):
+                    _rel = _preview_image_raw[len("/file="):].replace("/", __import__("os").sep)
+                else:
+                    _rel = _preview_image_raw.replace("/", __import__("os").sep)
+                _preview_image_url = str(config.REPO_ROOT / _rel)
+            else:
+                _preview_image_url = _preview_image_raw
+            _preview_caption = _ex_cfg.get("preview_caption", "")
+            _preview_prompt = _ex_cfg.get("prompt", "")
+            _preview_sizes = list(_ex_cfg.get("sizes") or [])
+            _has_preview = bool(_preview_image_url)
+            with gr.Group(visible=_has_preview, elem_classes=["card-core"]):
+                gr.Markdown("**📷 示例预览**")
+                _caption_md = gr.Markdown(value=_preview_caption, visible=bool(_preview_caption))
+                _preview_img = gr.Image(
+                    value=_preview_image_url,
+                    show_label=False,
+                    interactive=False,
+                    elem_classes=["result-area"],
+                )
+                _prompt_html = gr.HTML(
+                    value=_render_preview_prompt_html(_preview_prompt, _preview_sizes),
+                    visible=bool(_preview_prompt or _preview_sizes),
+                )
 
-    # [错误高亮] 默认隐藏
-    error_box = gr.HTML(value="", visible=False, elem_classes=["error-banner"])
+            # [运行日志] 折叠(默认收起,跑起来自动展开)
+            with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
+                status_box = gr.Textbox(
+                    value="等待运行,或点上方「加载示例素材」",
+                    label="状态",
+                    interactive=False,
+                    lines=4, max_lines=10,
+                )
 
-    # [运行 + 再来一次]
-    run_fn = run_image_workflow if is_image else run_workflow
-    with gr.Row():
-        run_btn = gr.Button("🚀 开始运行", variant="primary", size="lg", scale=3, elem_classes=["btn-run-primary"])
-        re_run_btn = gr.Button(
-            "🔁 用相同参数再来",
-            variant="secondary",
-            size="lg",
-            scale=2,
-            visible=False,
-            elem_classes=["btn-run-primary"],
-        )
+            # [错误高亮] 默认隐藏
+            error_box = gr.HTML(value="", visible=False, elem_classes=["error-banner"])
 
-    # [生成结果]
-    output_box = gr.HTML(
-        value="<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>",
-        elem_classes=["result-area"],
-        label="生成结果",
-    )
+            # [生成结果]
+            output_box = gr.HTML(
+                value="<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>",
+                elem_classes=["result-area"],
+                label="生成结果",
+            )
 
-    # [打开输出目录]
-    open_dir_msg = gr.Markdown(value="", visible=False)
-    open_dir_btn = gr.Button("📂 打开 ComfyUI 输出目录", variant="secondary", size="sm")
+            # [次级操作] 🔁 用相同参数再来 (视觉降级, 不抢主按钮焦点)
+            re_run_btn = gr.Button(
+                "🔁 用相同参数再来",
+                variant="secondary",
+                size="lg",
+                visible=False,
+                elem_classes=["btn-run-secondary"],
+            )
+
+            # [打开输出目录]
+            open_dir_msg = gr.Markdown(value="", visible=False)
+            open_dir_btn = gr.Button("📂 打开 ComfyUI 输出目录", variant="secondary", size="sm")
 
     # === 事件绑定 ===
+    run_fn = run_image_workflow if is_image else run_workflow
+    #
+    # 运行按钮的两个状态 update:
+    #   _RUN_BTN_RUNNING —— 切到 "⏳ 正在运行…" + .is-running + 禁用 → spinner / pulse 立刻出来
+    #   _RUN_BTN_RESTING —— 还原 "🚀 开始运行" + .btn-run-primary + 可点
+    # Gradio .click() 触发 generator 时,每次 yield 都会把 update 推给对应 output。
+    # generator 自然结束(StopIteration)→ finally 跑完 → 控制流继续往下走 → 最后一次
+    # yield RESTING,前端按钮立刻从 "正在运行…" 切回 "开始运行"。
+    # 设计要点(为什么不在 _render_workflow_form 外层包 wrapper):
+    #   wrapper 会破坏 generator 与 Gradio streaming 协议,改 Inner 实现的成本远高于在
+    #   同一函数内做状态收尾。
+    _RUN_BTN_RUNNING = gr.update(
+        value=chr(0x23F3) + " " + "正在运行…",
+        elem_classes=["btn-run-primary", "is-running"],
+        interactive=False,
+    )
+    _RUN_BTN_RESTING = gr.update(
+        value=chr(0x1F680) + " " + "开始运行",
+        elem_classes=["btn-run-primary"],
+        interactive=True,
+    )
+
     def _run_and_format(*vals):
         """包装 run_fn:累积日志、错误高亮、跑完存 last_run。
 
-        yields: (status_text, media_html, error_update, re_run_visible_update, open_dir_msg_update)
+        yields: (status_text, media_html, error_update, re_run_visible_update,
+                 open_dir_msg_update, run_btn_update)
+        run_btn_update 是第 6 项 -- 每次 yield 都带上按钮态。
+
+        业务逻辑(log 累积 / 错误高亮 / media 保留)在 _yield_run_stream,
+        这里只处理 Gradio 组件引用:按钮 interactive 切换 + last_run 持久化。
         """
-        log: list[str] = []
         run_btn.interactive = False
         re_run_btn.visible = False
         error_box.visible = False
         open_dir_msg.visible = False
+
+        def _on_done(_status_msg, _vals):
+            _save_last_run(preset_name, _vals)
+            last_btn.visible = True
+
+        log_text = ""
+        last_media = None
         try:
-            for status_msg, media in run_fn(preset_name, *vals):
-                log.append(status_msg)
-                err_visible = False
-                err_html = ""
-                if status_msg.startswith(chr(0x274C)):
-                    err_visible = True
-                    inner = status_msg.lstrip(chr(0x274C)).strip()
-                    err_html = ("<div class='error-banner-inner'>"
-                                f"<b>上次运行失败</b><br>{inner}</div>")
-                elif status_msg.startswith(chr(0x23F0)):
-                    err_visible = True
-                    inner = status_msg.lstrip(chr(0x23F0)).strip()
-                    err_html = ("<div class='error-banner-inner'>"
-                                f"<b>运行超时</b><br>{inner}</div>")
-
-                show_re_run = status_msg.startswith(chr(0x2705))
-                if show_re_run:
-                    _save_last_run(preset_name, vals)
-                    last_btn.visible = True
-
+            for status_msg, media_html, err_upd, re_run_upd, open_dir_upd, last_media in _yield_run_stream(
+                run_fn=run_fn,
+                preset_name=preset_name,
+                vals=vals,
+                is_image=is_image,
+                on_status_done=_on_done,
+            ):
+                log_text = status_msg
                 yield (
-                    chr(10).join(log[-12:]),
-                    _media_to_html(media, is_image),
-                    gr.update(value=err_html, visible=err_visible),
-                    gr.update(visible=show_re_run),
-                    gr.update(value="", visible=False),
+                    status_msg,
+                    media_html,
+                    err_upd,
+                    re_run_upd,
+                    open_dir_upd,
+                    _RUN_BTN_RUNNING,
                 )
         finally:
             run_btn.interactive = True
 
-    run_click_outputs = [status_box, output_box, error_box, re_run_btn, open_dir_msg]
+        # 最终 yield:按钮切回 RESTING,media_html 用 last_media(若有),
+        # 保留刚生成的图/视频,不要被 _media_to_html(None, ...) 覆盖成占位。
+        yield (
+            log_text,
+            _media_to_html(last_media, is_image),
+            gr.update(value="", visible=False),
+            gr.update(visible=False),
+            gr.update(value="", visible=False),
+            _RUN_BTN_RESTING,
+        )
+
+
+    run_click_outputs = [status_box, output_box, error_box, re_run_btn, open_dir_msg, run_btn]
     run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
     re_run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
 
@@ -1444,6 +1801,8 @@ def _render_workflow_form(preset_name):
         msg = _open_output_dir_action()
         return gr.update(value=msg, visible=True)
     open_dir_btn.click(fn=_open_dir_and_show, outputs=[open_dir_msg])
+
+    return inputs
 
 
 # 深色主题 CSS（按建议文档配色：背景深灰、卡片分层、统一圆角间距）
@@ -1544,16 +1903,31 @@ def _apply_theme(theme_id: str) -> str:
     return f"<style>:root {{\n{decls}\n}}</style>"
 
 
-def _build_launch_css() -> list[str]:
+def _build_launch_css() -> str:
     """组装 launch(css=...) 的入参。包含 tokens.css 全文 + 默认主题 + 默认模式。
 
-    返回 list[str] 是 Gradio 6 的契约:每段一个独立 <style>。
-    默认 mode 是 "auto" (由浏览器 media query 决定),所以默认模式下
+    返回**单个 CSS 字符串**(Gradio 6 的 launch(css=...) 签名是 str | None,
+    不是 list)。Gradio 内部会用 CSSStyleSheet.replaceSync 解析这个字符串,
+    再自己包 <style>; 必须是纯 CSS(不带 <style> 标签),且必须是 str 不是 list —
+    早期版本误传 list[str] 导致 replaceSync 收到 object → 前端
+    "e.replace is not a function" → 页面永远卡在"加载中"。
+
+    默认 mode 是 "auto"(由浏览器 media query 决定),所以默认模式下
     surface override 是空的,不会跟 @media 块冲突。
     """
     tokens = _load_tokens_css()
     default_combined = _apply_combined(_DEFAULT_THEME_ID, _DEFAULT_MODE)
-    return [tokens, default_combined]
+    # _apply_combined 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
+    default_css = _strip_style_tag(default_combined)
+    # 合并成单个字符串(Gradio 6 不接受 list)
+    return f"{tokens}\n{default_css}"
+
+
+def _strip_style_tag(html: str) -> str:
+    """把 "<style>...</style>" 里的 CSS 内容剥出来。无标签时原样返回。"""
+    import re as _re
+    m = _re.match(r"\s*<style[^>]*>(.*)</style>\s*$", html, _re.S)
+    return m.group(1) if m else html
 
 
 def _get_theme_desc(tid: str) -> str:
@@ -1663,14 +2037,20 @@ def build_ui():
         return f"{icon} {w['display_name']}{suffix}"
     full_choices = [(_wf_label(w), w["name"]) for w in workflows]
 
-    # Gradio 6: theme/css 传给 launch() 而非 Blocks()。这里只用 title,
-    # theme/css 由 main() 在 launch 时注入(见 THEME / CSS 模块常量)。
-    # 不可见的色彩注入器 —— 主题切换时把 <style>:root{}</style> 写到 value,
-    # DOM 里的 :root 变量即刻刷新,所有消费 --theme-* 的组件毫秒级变色。
-    theme_injector = gr.HTML(value=_apply_theme(_DEFAULT_THEME_ID), visible=False, elem_id="theme-injector")
+    # analytics_enabled=False —— 切断前端向 huggingface.co 发 telemetry 的外网请求。
+    # footer_links=[] —— 去掉底部"API"/"gradio"等外链(点击会跳外站)。
+    # 本 WebUI 必须完全本地自包含,任何外网依赖都会在离线/弱网下导致 SPA 卡在加载界面。
+    with gr.Blocks(title="ComfyUI Web Workflow", analytics_enabled=False) as demo:
+        # 色彩注入器 —— 主题切换时把 <style>:root{}</style> 写到 value,
+        # DOM 里的 :root 变量即刻刷新,所有消费 --theme-* 的组件毫秒级变色。
+        # visible 必须 True:Gradio 6 对 visible=False 的组件不渲染 DOM,回调写入的
+        # 新 <style> 不会出现在页面上 → 主题切换没效果。<style> 标签本身在浏览器里
+        # 是 display:none(CSS 标准),所以 visible=True 也不会占视觉空间。
+        # 必须在 Blocks 上下文内创建:否则它会被分配组件 ID 但不进 components 列表,
+        # 导致 layout 树引用不存在的组件 -> Svelte 前端渲染卡死在"加载中"。
+        theme_injector = gr.HTML(value=_apply_theme(_DEFAULT_THEME_ID), visible=True, elem_id="theme-injector")
 
-    with gr.Blocks(title="ComfyUI Web Workflow") as demo:
-        with gr.Tabs():
+        with gr.Tabs() as main_tabs:
             with gr.Tab("运行"):
                 with gr.Row():
                     # ============ LEFT COLUMN ============
@@ -1728,13 +2108,14 @@ def build_ui():
                         # 关键改动:每个 preset 预渲染到自己 Group 里,通过 visibility 切换。
                         # 这样切换 workflow 时组件不被销毁,表单状态自动保留。
                         preset_panel_groups: dict[str, object] = {}
+                        preset_inputs_map: dict[str, list] = {}
                         for wf in workflows:
                             with gr.Group(
                                 visible=(wf["name"] == default_wf),
                                 elem_id=f"panel-{wf['name']}",
                             ) as g:
                                 preset_panel_groups[wf["name"]] = g
-                                _render_workflow_form(wf["name"])
+                                preset_inputs_map[wf["name"]] = _render_workflow_form(wf["name"])
 
                         # 切换 visibility 的 handler
                         def _switch_panel(name):
@@ -1748,6 +2129,47 @@ def build_ui():
                             outputs=list(preset_panel_groups.values()),
                         )
 
+                        # Auto-load example:切换 preset 时自动把 example 填进表单。
+                        # 让 "📥 加载示例素材" 按钮的语义变成 "重置回 example",而不是 "首次加载"。
+                        # 用户进工作台即可看到完整可跑的示例参数,无需先点按钮。
+                        all_inputs_flat = [inp for _ins in preset_inputs_map.values() for inp in _ins]
+
+                        # 跨 tab 状态：记住全部表单输入 + wf_radio + tabs，供历史 tab 的“加载到运行”按钮使用。
+                        global _ALL_INPUTS_FLAT, _WF_RADIO_REF, _TABS_REF
+                        _ALL_INPUTS_FLAT = all_inputs_flat
+                        _WF_RADIO_REF = wf_radio
+                        _TABS_REF = main_tabs
+
+                        def _auto_load_example(name):
+                            result = []
+                            for preset_name, _ins in preset_inputs_map.items():
+                                if preset_name == name:
+                                    if preset_name in _SKIP_AUTO_LOAD:
+                                        _SKIP_AUTO_LOAD.discard(preset_name)
+                                        # rerun 已经用 manifest 填表单了，跳过以免覆盖
+                                        result.extend([gr.update() for _ in _ins])
+                                    else:
+                                        try:
+                                            result.extend(example_to_form_values(preset_name))
+                                        except Exception:
+                                            result.extend([inp.value for inp in _ins])
+                                else:
+                                    # 非激活 preset:用 gr.update() 保持原状态,不触发变更
+                                    result.extend([gr.update() for _ in _ins])
+                            return result
+
+                        wf_radio.change(
+                            fn=_auto_load_example,
+                            inputs=[wf_radio],
+                            outputs=all_inputs_flat,
+                        )
+
+                        # 首次进入页面时,加载 default preset 的 example
+                        demo.load(
+                            fn=lambda: _auto_load_example(default_wf),
+                            outputs=all_inputs_flat,
+                        )
+
                         gr.Markdown(
                             f"<small style='color:#6b7280'>"
                             f"限制: 参考图 ≤{config.MAX_IMAGE_MB}MB / 驱动视频 ≤{config.MAX_VIDEO_MB}MB / "
@@ -1759,7 +2181,7 @@ def build_ui():
                 _build_history_tab()
 
             with gr.Tab("系统设置"):
-                _build_settings_tab()
+                _build_settings_tab(theme_injector)
 
     return demo
 
@@ -1775,12 +2197,17 @@ def main():
     # Gradio 6.x: generator function (yield) must explicitly queue() to dispatch
     demo.queue()
     # Gradio 6: theme/css 从 launch() 注入（不再放 Blocks 构造函数）
+    # allowed_paths: 项目内的示例图等静态资源走 /gradio_api/file= 路由时,
+    # Gradio 6 默认只允许 cache_dir,需要显式把 app/static/examples 加进去。
     demo.launch(
         server_name=config.GRADIO_HOST,
         server_port=config.GRADIO_PORT,
         show_error=True,
         theme=THEME,
         css=CSS,
+        footer_links=[],
+        enable_monitoring=False,
+        allowed_paths=[config.REPO_ROOT / "app" / "static" / "examples"],
     )
 
 
