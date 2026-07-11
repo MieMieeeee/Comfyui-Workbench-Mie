@@ -63,13 +63,10 @@ def _fake_upload_side_effect():
 
 def _run_with(tmp_path, captured, fake_patch, preset_name="sca12_replace"):
     ref, drive = _make_ref_and_drive(tmp_path)
-    # 新 sca12_motion schema: image, 362 text, 348 text, 360 text, 469 video, 469 frame_load_cap int, 367 int, 464 int
-    # sca12_replace schema 仍是: image, 362 text, 369 video, 348 text, 360 text, 367 int, 464 int, 479 int
-    is_motion = (preset_name == "sca12_motion")
-    if is_motion:
-        positional_args = (str(ref), "animal", "human", "a person walking", str(drive), 0, 81, 5)
-    else:
-        positional_args = (str(ref), "animal", str(drive), "human", "a person walking", 81, 5, 2)
+    # 两个 SCAIL2 preset 现在共用同一份 workflow (scail2_motion_transfer_final.json) + 同一 schema.
+    # positional_args 按 user_facing_inputs 顺序: image, 362 text, 348 text, 360 text,
+    #                                              469 video, 469 frame_load_cap int, 367 int, 464 int
+    positional_args = (str(ref), "animal", "human", "a person walking", str(drive), 0, 81, 5)
     with patch.object(scail2_app.scail2_client, "load_workflow_template", return_value=_synthetic_workflow()), \
          patch.object(scail2_app.scail2_client, "patch_workflow", side_effect=fake_patch), \
          patch.object(scail2_app.scail2_client, "upload", side_effect=_fake_upload_side_effect()), \
@@ -83,17 +80,21 @@ def _run_with(tmp_path, captured, fake_patch, preset_name="sca12_replace"):
 
 
 def test_also_patch_writes_same_drive_to_extra_node(tmp_path):
-    """also_patch 列出的 node 必须拿到和主 node 同一份 drive_name。"""
+    """also_patch 列出的 node 必须拿到和主 node 同一份 drive_name。
+
+    sca12_replace 现在用跟 sca12_motion 同一份 workflow: 主驱动在 469 (VHS_LoadVideo),
+    also_patch 同步到 543 (per-iter loader)。
+    """
     captured = {}
     def _fake_patch(wf, replacements, preset_config=None, validate_after=True):
         captured["replacements"] = replacements
         return wf
     reps = _run_with(tmp_path, captured, _fake_patch, "sca12_replace")
     assert reps is not None, "patch_workflow 没被调用"
-    assert "369" in reps and reps["369"].get("video"), "主 node 369 没被 patch"
-    assert "469" in reps and reps["469"].get("video"), "also_patch node 469 没被 patch"
-    assert reps["369"]["video"] == reps["469"]["video"], "两个 node 的 video 必须是同一份"
-    assert reps["369"]["video"].endswith("drive.mp4"), f"video 字段值错: {reps['369']['video']!r}"
+    assert "469" in reps and reps["469"].get("video"), "主 node 469 没被 patch"
+    assert "543" in reps and reps["543"].get("video"), "also_patch node 543 没被 patch"
+    assert reps["469"]["video"] == reps["543"]["video"], "两个 node 的 video 必须是同一份"
+    assert reps["469"]["video"].endswith("drive.mp4"), f"video 字段值错: {reps['469']['video']!r}"
 
 
 def test_also_patch_motion_preset_also_works(tmp_path):
@@ -131,12 +132,16 @@ def test_also_patch_empty_list_is_equivalent_to_no_alsopatch(tmp_path, monkeypat
         return wf
     reps = _run_with(tmp_path, captured, _fake_patch, "sca12_replace")
     assert reps is not None
-    assert "369" in reps
-    assert "469" not in reps, "also_patch 缺省时不应写到 469"
+    assert "469" in reps
+    assert "543" not in reps, "also_patch 缺省时不应写到 543"
 
 
 def test_also_patch_does_not_lose_primary_field_when_node_id_matches(tmp_path, monkeypatch):
-    """also_patch 包含主 node id 时，不应把主字段（field）覆盖或丢失。"""
+    """also_patch 包含主 node id 时, 不应把主字段 (field) 覆盖或丢失。
+
+    在新 schema 下让 sca12_replace 的 also_patch 强制改成 [{node_id: '469', field: 'video'}],
+    即主节点也作为镜像 target — 主节点 (469) 的 video 字段必须保留下来。
+    """
     from app import config, scail2_app
     real = config.preset_config
     def _patched(name):
@@ -146,7 +151,7 @@ def test_also_patch_does_not_lose_primary_field_when_node_id_matches(tmp_path, m
             cfg = copy.deepcopy(cfg)
             for spec in cfg["user_facing_inputs"]:
                 if spec.get("type") == "file:video":
-                    spec["also_patch"] = [{"node_id": "369", "field": "video"}]
+                    spec["also_patch"] = [{"node_id": "469", "field": "video"}]
         return cfg
     monkeypatch.setattr(config, "preset_config", _patched)
     monkeypatch.setattr(scail2_app, "config", config)
@@ -156,8 +161,8 @@ def test_also_patch_does_not_lose_primary_field_when_node_id_matches(tmp_path, m
         return wf
     reps = _run_with(tmp_path, captured, _fake_patch, "sca12_replace")
     assert reps is not None
-    assert "369" in reps
-    assert reps["369"].get("video", "").endswith("drive.mp4")
+    assert "469" in reps
+    assert reps["469"].get("video", "").endswith("drive.mp4")
 
 
 def test_validator_does_not_inspect_also_patch_node():
@@ -182,9 +187,8 @@ def test_validator_does_not_inspect_also_patch_node():
 def test_also_patch_schema_appears_in_params_json():
     """params.json 里两个 SCAIL2 preset 必须显式声明 also_patch, 否则用户在 UI 看不出。
 
-    不同 preset 用了不同架构:
-    - sca12_replace (老 workflow): 主驱动在 369, also_patch 同步到 469
-    - sca12_motion (新 workflow): 主驱动在 469, also_patch 同步到 543 (per-iter loader)
+    两个 preset 现在共用同一份 workflow (scail2_motion_transfer_final.json) + 同一架构:
+    主驱动在 469 (VHS_LoadVideo), also_patch 同步到 543 (per-iter loader)。
     不变量: 两个 node 视频必须绑同一份, 所以 also_patch 必须有 target 且 != 主节点。
     """
     import json

@@ -2,10 +2,10 @@
   "schema_version": 4,
   "presets": {
     "sca12_replace": {
-      "workflow_file": "sca12_uncached.json",
+      "workflow_file": "scail2_motion_transfer_final.json",
       "display_name": "SCAIL2 角色替换",
       "category": "video",
-      "order": 10,
+      "order": 30,
       "description": "把参考图里的角色替换到驱动视频中（保持视频原有动作）。node 353 = true。",
       "fixed_patches": {
         "353": {
@@ -28,21 +28,13 @@
           "max_chars": 100,
           "default": "human",
           "help": "告诉系统从参考图里抠出什么主体。常用：human / person / animal。",
-          "tier": "basic"
-        },
-        {
-          "node_id": "369",
-          "field": "video",
-          "label": "驱动视频",
-          "type": "file:video",
           "tier": "basic",
-          "also_patch": [
+          "mirror_to": [
             {
-              "node_id": "469",
-              "field": "video"
+              "node_id": "541",
+              "field": "text"
             }
-          ],
-          "also_patch_reason": "node 469 (Load Video Full Source) 取整段视频的音频 + 元信息, 必须和 node 369 (Drive Slice) 用同一份驱动视频, 否则音频丢失 / 帧数不匹配 / 报 Start index is out of range"
+          ]
         },
         {
           "node_id": "348",
@@ -52,21 +44,54 @@
           "max_chars": 100,
           "default": "human",
           "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
-          "tier": "basic"
+          "tier": "basic",
+          "mirror_to": [
+            {
+              "node_id": "540",
+              "field": "text"
+            }
+          ]
         },
         {
           "node_id": "360",
           "field": "text",
-          "label": "主提示词",
+          "label": "正向提示词",
           "type": "text",
-          "max_chars": 2000,
-          "default": "A woman is dancing.",
+          "max_chars": 500,
+          "default": "the woman is dancing",
+          "placeholder": "描述最终视频的主运动 / 表情 / 氛围, ≤500 字符。",
+          "help": "模型用的正向提示词。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "469",
+          "field": "video",
+          "label": "驱动视频",
+          "type": "file:video",
+          "tier": "basic",
+          "also_patch": [
+            {
+              "node_id": "543",
+              "field": "video"
+            }
+          ]
+        },
+        {
+          "node_id": "469",
+          "field": "frame_load_cap",
+          "label": "最高帧数",
+          "type": "int",
+          "min": 0,
+          "max": 5000,
+          "default": 0,
+          "step": 1,
+          "help": "限制驱动视频加载的最大帧数。0 = 加载全部视频(按 81 帧/段 自动切片); >0 = 只加载前 N 帧。",
           "tier": "basic"
         },
         {
           "node_id": "367",
           "field": "value",
-          "label": "每段长度 (latent 帧)",
+          "label": "段长度 (latent 帧)",
           "type": "int",
           "min": 20,
           "max": 200,
@@ -86,18 +111,6 @@
           "step": 1,
           "help": "每段开头跳过的帧数，避免段头黑屏。高级参数。",
           "tier": "advanced"
-        },
-        {
-          "node_id": "479",
-          "field": "int_range_end",
-          "label": "最大循环段数",
-          "type": "int",
-          "min": 0,
-          "max": 200,
-          "default": 0,
-          "step": 1,
-          "help": "0 = 按驱动视频自动算段数；>0 = 强制只跑 N 段（限长）。高级参数。",
-          "tier": "advanced"
         }
       ],
       "example": {
@@ -106,11 +119,11 @@
         "ref_prompt": "human",
         "drive_prompt": "human",
         "main_prompt": "A woman is dancing.",
-        "segments": 0,
         "preview_prompt": "A woman is dancing.",
         "preview_caption": "🎬 SCAIL2 角色替换 · 驱动视频 scail-2_00038-audio.mp4",
         "preview_image": "app/static/examples/sca12_replace_3seg.png",
-        "preview_video": "app/static/examples/sca12_replace_3seg.mp4"
+        "preview_video": "app/static/examples/sca12_replace_3seg.mp4",
+        "frame_load_cap": 0
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -273,7 +286,7 @@
       "workflow_file": "zimage.json",
       "display_name": "文生图 (Z-Image-Turbo)",
       "category": "image",
-      "order": 30,
+      "order": 10,
       "description": "Z-Image-Turbo 文生图 workflow，9 节点。正向提示词 + 多尺寸 + seed。提示词可从内置池随机或手填。",
       "user_facing_inputs": [
         {

@@ -72,19 +72,24 @@ def test_render_form_duplicate_node_id_each_spec_gets_its_own_component():
         )
 
 
-def test_render_form_sca12_replace_still_one_component_per_spec():
-    """旧 schema (每个 node 仅一个 spec) 仍应工作 —— 防止 spec-indexed 重构回归。
+def test_render_form_sca12_replace_one_component_per_spec():
+    """sca12_replace 现在跟 sca12_motion 共用 schema (驱动在 469 同时挂 video + int),
+    8 个 spec -> 8 个 flat component, 不能因为 dict-by-node_id 丢 component。
 
-    sca12_replace: 8 个 spec, 8 个不同 node_id, flat 长度 == spec 长度。
+    回归锁: flat[i] 对应 specs[i] (按 spec 顺序), 不因同 node 重复写而错位。
     """
     cfg = config.preset_config("sca12_replace")
     specs = cfg["user_facing_inputs"]
     with gr.Blocks():
         flat = scail2_app._render_workflow_form("sca12_replace")
-    assert len(flat) == len(specs),         f"sca12_replace flat 长度 {len(flat)} != specs {len(specs)}"
-    # 且每个 node_id 都唯一 (无重复)
-    seen_ids = set()
-    for spec in specs:
-        nid = str(spec["node_id"])
-        assert nid not in seen_ids, f"sca12_replace spec node_id 重复: {nid}"
-        seen_ids.add(nid)
+    assert len(flat) == len(specs), \
+        f"sca12_replace flat 长度 {len(flat)} != specs {len(specs)}"
+    file_spec_idx = next(i for i, s in enumerate(specs) if s.get("type") == "file:video")
+    int_spec_idx = next(i for i, s in enumerate(specs)
+                       if s.get("type") == "int" and str(s["node_id"]) == "469")
+    assert isinstance(flat[file_spec_idx], gr.File), \
+        f"sca12_replace spec[{file_spec_idx}] (file:video) 应是 gr.File, 实际 {type(flat[file_spec_idx]).__name__}"
+    assert isinstance(flat[int_spec_idx], gr.Number), \
+        f"sca12_replace spec[{int_spec_idx}] (int) 应是 gr.Number, 实际 {type(flat[int_spec_idx]).__name__}"
+    assert id(flat[file_spec_idx]) != id(flat[int_spec_idx]), \
+        "sca12_replace file:video 和 int 两个 469 spec 必须是不同 component 对象"

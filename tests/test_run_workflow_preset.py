@@ -69,8 +69,8 @@ def test_run_workflow_accepts_preset_name(patched_client):
 
 def _replace_values(ref, drive):
     """sca12_replace preset 的 8 个 user_facing_inputs 对应的值（按 params.json 顺序）。"""
-    # 30 image, 362 text, 369 video, 348 text, 360 text, 367 int, 464 int, 479 int
-    return [str(ref), "animal", str(drive), "human", "a person walking", 81, 5, 2]
+    # 30 image, 362 text, 348 text, 360 text, 469 video, 469 frame_load_cap int, 367 int, 464 int
+    return [str(ref), "animal", "human", "a person walking", str(drive), 0, 81, 5]
 
 
 def test_run_workflow_uses_correct_preset_template(patched_client):
