@@ -1692,7 +1692,12 @@ def _render_workflow_form(preset_name):
     #   右预览栏 gr.Column(scale=6): 📜 运行日志 + 错误条 + 结果区 + 🔁 再来 + 打开输出目录
     # 组件创建顺序保证: 左栏全部组件 → 右栏全部组件 (事件绑定在两栏关闭后才做,
     # 引用的都是已存在的组件对象,不受布局影响)。
-    inputs_by_nid: dict[str, object] = {}
+    # 按 spec index 存 component —— 同一 node 上多 spec (例如 469 同时挂
+    # file:video + int frame_load_cap) 各自独立, dict-by-node_id 会把前一个覆盖。
+    # 原先的 dict 实现在 sca12_motion 上崩: spec[4] (469 file:video) 被 spec[5]
+    # (469 int) 覆盖, flat[4] 变成 int, example_to_form_values 返回的路径字符串
+    # 落到 gr.Number 里 → TypeError "type str doesn't define __round__ method"。
+    spec_to_comp: list = [None] * len(specs)
     basic_specs = [s for s in specs if s.get("tier", "basic") == "basic"]
     advanced_specs = [s for s in specs if s.get("tier") == "advanced"]
 
@@ -1707,29 +1712,34 @@ def _render_workflow_form(preset_name):
             if basic_specs:
                 with gr.Group(elem_classes=["step-card", "card-core"]):
                     gr.Markdown("**① 输入素材**")
-                    for spec in basic_specs:
+                    for spec_idx, spec in enumerate(specs):
+                        if spec.get("tier", "basic") != "basic":
+                            continue
                         comp = _create_one_input(spec)
-                        # int_random 返回 [Checkbox, Number] 两组件,
-                        # 其他类型返回单组件 — 都按 node_id 收进 dict
-                        inputs_by_nid[str(spec["node_id"])] = comp
+                        # int_random 返回 [Checkbox, Number] 两组件, 其他返回单组件
+                        spec_to_comp[spec_idx] = comp
 
             if advanced_specs:
                 with gr.Accordion("🔧 高级参数(一般不用改)", open=False, elem_classes=["custom-accordion"]):
-                    for spec in advanced_specs:
+                    for spec_idx, spec in enumerate(specs):
+                        if spec.get("tier") != "advanced":
+                            continue
                         comp = _create_one_input(spec)
-                        inputs_by_nid[str(spec["node_id"])] = comp
+                        spec_to_comp[spec_idx] = comp
 
             # 重建扁平 inputs 列表 (int_random 拆 2 个, 其他 1 个)。
-            # 后续 run_btn.click / ex_btn.click / last_btn.click 都按 flat inputs
-            # 传给 run_image_workflow; run_image_workflow 内部按 spec 类型决定
-            # 是否合并 int_random 的 2 个值为 1 个 seed。
+            # 按 spec index 严格对齐 —— 同一 node 上的多 spec 也各占自己的 flat 位置,
+            # example_to_form_values / run_workflow 都是 spec 序遍历, 这里必须保证
+            # flat[i] 对应 specs[i] (而不是按 node_id 拼接 —— 会造成重复或丢失)。
             inputs = []
-            for s in specs:
-                c = inputs_by_nid[str(s["node_id"])]
-                if isinstance(c, list):
-                    inputs.extend(c)
+            for spec_idx, comp in enumerate(spec_to_comp):
+                if comp is None:
+                    # 防御性: 某个 spec 没创建对应组件不该发生, 但跳过也别让整页崩
+                    continue
+                if isinstance(comp, list):
+                    inputs.extend(comp)
                 else:
-                    inputs.append(c)
+                    inputs.append(comp)
 
             # 段数预估(仅视频类 preset)
             if not is_image:
