@@ -138,3 +138,74 @@ def test_demo_load_lambda_runs_without_error():
     # default preset 应被标记
     assert default_wf in scail2_app._AUTO_LOADED
     scail2_app._AUTO_LOADED.clear()
+
+
+# ---- output_box 默认填 example (review 2026-07-11) ----
+
+def test_output_box_initial_value_is_example_preview():
+    """output_box (生成结果) 初始值应是 example.preview_image / preview_video 渲染出来的 HTML,
+    不是 \u201c\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c\u201d 占位符.
+
+    设计: 默认参数 = example, 用户打开工作流后第一眼看到 example 跑出来的效果.
+    跑了之后 _run_and_format 会用实际生成结果覆盖这个默认值.
+    """
+    import gradio as gr
+    with gr.Blocks() as demo:
+        scail2_app._render_workflow_form("zimage")
+    output_boxes = [
+        b for b in demo.blocks.values()
+        if isinstance(b, gr.HTML) and "result-area" in (getattr(b, "elem_classes", None) or [])
+    ]
+    assert len(output_boxes) == 1, f"zimage 应只有 1 个 result-area, 实际 {len(output_boxes)}"
+    val = output_boxes[0].value or ""
+    assert "\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c" not in val, (
+        f"output_box 初始值不应再是占位符 \u201c\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c\u201d, 实际:\n{val[:300]}"
+    )
+    assert "result-area-default" in val, (
+        f"output_box 初始值应含 result-area-default class 标记\u793a\u4f8b\u9ed8\u8ba4\u72b6\u6001:\n{val[:300]}"
+    )
+    # \u5e94\u5305\u542b zimage \u793a\u4f8b\u56fe
+    assert "zimage_720x1280_0001.png" in val, (
+        f"output_box \u5e94\u663e\u793a zimage \u793a\u4f8b\u56fe, \u5b9e\u9645:\n{val[:300]}"
+    )
+
+
+def test_output_box_uses_preview_video_for_sca12_presets():
+    """sca12_motion / sca12_replace 有 preview_video, output_box 应渲染 <video> 标签."""
+    import gradio as gr
+    for preset_name in ("sca12_motion", "sca12_replace"):
+        with gr.Blocks() as demo:
+            scail2_app._render_workflow_form(preset_name)
+        output_boxes = [
+            b for b in demo.blocks.values()
+            if isinstance(b, gr.HTML) and "result-area" in (getattr(b, "elem_classes", None) or [])
+        ]
+        assert len(output_boxes) == 1
+        val = output_boxes[0].value or ""
+        assert "<video" in val, f"{preset_name}: 应渲染 <video> 标签, 实际:\n{val[:300]}"
+        # 视频文件名应出现
+        assert f"{preset_name}_3seg.mp4" in val, (
+            f"{preset_name}: 应引用 {preset_name}_3seg.mp4, 实际:\n{val[:300]}"
+        )
+        # caption 标记示例状态
+        assert "\u793a\u4f8b\u6548\u679c" in val, (
+            f"{preset_name}: 应有 \u201c\u793a\u4f8b\u6548\u679c\u201d caption 提示这是默认状态"
+        )
+
+
+def test_output_box_caption_mentions_default_params():
+    """output_box 的 \u793a\u4f8b\u6548\u679c caption \u5e94\u660e\u786e\u8bf4\u660e\u201c\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\u201d, 用户能分清\u793a\u4f8b\u4e0e\u5b9e\u9645\u8fd0\u884c\u7ed3\u679c.
+
+    跑了之后这个 caption \u4f1a\u88ab\u8986\u76d6, \u4e0d\u4f1a\u5e72\u6270\u5b9e\u9645\u8f93\u51fa\u7684\u9605\u8bfb.
+    """
+    import gradio as gr
+    with gr.Blocks() as demo:
+        scail2_app._render_workflow_form("zimage")
+    output_boxes = [
+        b for b in demo.blocks.values()
+        if isinstance(b, gr.HTML) and "result-area" in (getattr(b, "elem_classes", None) or [])
+    ]
+    val = output_boxes[0].value or ""
+    assert "\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c" in val, (
+        f"caption \u5e94\u660e\u786e\u8bf4\u660e\u201c\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\u201d, \u5b9e\u9645:\n{val}"
+    )

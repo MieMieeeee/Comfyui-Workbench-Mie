@@ -122,6 +122,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `.error-banner-inner` | `.error-banner` 内部 `gr.HTML` | 让 `gr.HTML` 占满 banner 容器 |
 | `.file-fallback` | `_media_to_html` 未知文件类型 / 未知 URL | 灰底 + 下载链接 |
 | `.result-area` | 输出区 (视频 / 图片 / 文本容器) | 最小高度占位 |
+| `.result-area-default` | output_box 默认值（example 预览）包装器 | padding 8px, 包含示例说明 |
 | `.file-dropzone` | gr.File 拖拽区 | 克制虚线 + 激活态主题色 |
 | `.progress-track` / `.progress-bar` / `.progress-text` | gr.Progress 进度条 | 槽隐于背景 + 主题色双段渐变 |
 | `.annotation-block` | Recipe / 警告 / 提示统一视觉 | 左 border + radius-sm + 卡片底 |
@@ -184,7 +185,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | 栏 | `gr.Column` | 放什么 |
 | --- | --- | --- |
 | **左控制栏** | `scale=4` (min_width=380) | 顶部 **运行状态条**（review P2，跨 idle/running/success/failure/timeout 五态）→ ① 输入素材（basic 上传 / 提示词 / 尺寸，section-header 风格，不嵌套 card-core）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
-| **右作品预览栏** | `scale=7` (min_width=460) | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+| **右作品预览栏** | `scale=7` (min_width=460) | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区（默认显示 example 预览）→ 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
 
 第六阶段 review 调整: 左 scale 从 5 改 4, 右 scale 从 6 改 7, 给预览图更大空间。
 在 1280px 视口下预览列从 ~430px 涨到 ~687px (1.6x); 1920px 下从 ~800px 涨到 ~1095px,

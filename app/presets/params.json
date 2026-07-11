@@ -119,7 +119,9 @@
         "ref_prompt": "human",
         "drive_prompt": "human",
         "main_prompt": "A woman is dancing.",
-        "frame_load_cap": 0
+        "frame_load_cap": 0,
+        "preview_image": "app/static/examples/sca12_replace_3seg.png",
+        "preview_video": "app/static/examples/sca12_replace_3seg.mp4"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -256,7 +258,9 @@
         "drive_prompt": "human",
         "main_prompt": "the woman is dancing",
         "frame_load_cap": 0,
-        "segments": 0
+        "segments": 0,
+        "preview_image": "app/static/examples/sca12_motion_3seg.png",
+        "preview_video": "app/static/examples/sca12_motion_3seg.mp4"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -342,7 +346,8 @@
         "sizes": [
           "720x1280"
         ],
-        "seed": 900259427766747
+        "seed": 900259427766747,
+        "preview_image": "app/static/examples/zimage_720x1280_0001.png"
       },
       "output_kind": "image",
       "do_not_modify_warnings": [

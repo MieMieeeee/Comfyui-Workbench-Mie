@@ -1902,10 +1902,14 @@ def _render_workflow_form(preset_name):
         # —— 直接把右侧空白吃掉,主图成为真正主角 (review P0 / 副标题 3)。
         # min_width=460 保证极窄窗口下预览区不会塌缩。
         with gr.Column(scale=7, min_width=460):
-            # [示例预览已移除] (review 2026-07-11)
-            # 原来这里有个“示例预览”卡片, 常驻展示 example 里的 preview_image / preview_video.
-            # 现在默认参数 = example, 跑出来就是这张图 —— 示例预览和最终输出区重复了.
-            # 只留 “生成结果”区 (output_box) 作为最终输出图位置.
+            # [示例预览 → 输出区默认值] (review 2026-07-11)
+            # 原来为了避免示例预览卡和生成结果区重复, 刚刚把预览卡整个删了.
+            # 但默认参数 = example, 跑出来就是 example 里的那张图, “让别人直接看到”
+            # (看到这个工作流能产出什么) 是个真实需求. 重新表达:
+            #   - 不再独立“示例预览”卡片
+            #   - 直接把 example.preview_image / preview_video 填进 output_box 作为默认值
+            #   - 跑了之后 _run_and_format 会用实际生成结果覆盖这个默认值
+            #   - 默认值上有个小说明“示例效果”, 跑完后被覆盖不影响
 
             # [运行日志] 折叠(默认收起,跑起来自动展开)
             with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
@@ -1919,13 +1923,31 @@ def _render_workflow_form(preset_name):
             # [错误高亮] 默认隐藏
             error_box = gr.HTML(value="", visible=False, elem_classes=["error-banner"])
 
-            # [生成结果]
+            # [生成结果] -- 默认填 example 的 preview, 跑了之后被覆盖.
+            def _resolve_preview_path(raw):
+                if not raw: return None
+                if raw.startswith(("http://", "https://")): return raw
+                if raw.startswith("/file="):
+                    _rel = raw[len("/file="):].replace("/", __import__("os").sep)
+                else:
+                    _rel = raw.replace("/", __import__("os").sep)
+                return str(config.REPO_ROOT / _rel)
+            _ex_for_default = preset_cfg.get("example") or {}
+            _pv_video_raw = _ex_for_default.get("preview_video")
+            _pv_image_raw = _ex_for_default.get("preview_image")
+            if _pv_video_raw:
+                _pv_url = _resolve_preview_path(_pv_video_raw)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<video controls style='max-width:100%;border-radius:8px'>\n<source src='SRC_PLACEHOLDER'/></video>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+            elif _pv_image_raw:
+                _pv_url = _resolve_preview_path(_pv_image_raw)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<img src='SRC_PLACEHOLDER' style='max-width:100%;border-radius:8px'/>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+            else:
+                _default_output_html = "<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>"
             output_box = gr.HTML(
-                value="<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>",
+                value=_default_output_html,
                 elem_classes=["result-area"],
                 label="生成结果",
             )
-
             # [次级操作] 🔁 用相同参数再来 (视觉降级, 不抢主按钮焦点)
             re_run_btn = gr.Button(
                 "🔁 用相同参数再来",

@@ -191,29 +191,30 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
 `docs/ADDING_WORKFLOWS.md` \u00a72.4 有完整的 "项目规矩" 段, 加新 preset 之前先看.
 
 
-## UI 简化: 移除示例预览卡片 (review 2026-07-11)
+## UI 行为: output_box 默认填 example 预览 (review 2026-07-11)
 
-以前右栏顶部有个常驻的\u201c示例预览\u201d卡, 展示 example 里的 preview_image / preview_video.
-现在默认参数 = example, 跑出来的就是这张图, 跟生成结果区重复了. 删了.
+之前一轮 commit 把\u201c示例预览\u201d独立卡删了 (因为和最终输出区重复). 但默认参数 = example,
+跑出来就是 example 里的那张图, \u201c\u8ba9\u522b\u4eba\u76f4\u63a5\u770b\u5230\u201d(\u770b\u5230\u8fd9\u4e2a\u5de5\u4f5c\u6d41\u80fd\u4ea7\u51fa\u4ec0\u4e48) \u662f\u771f\u5b9e\u9700\u6c42.
+\u91cd\u65b0\u8868\u8fbe: \u4e0d\u518d\u72ec\u7acb\u5361\u7247, \u76f4\u63a5\u628a example \u7684\u9884\u89c8\u56fe\u586b\u8fdb\u53f3\u680f\u201c\u751f\u6210\u7ed3\u679c\u201d\u533a\u4f5c\u4e3a\u9ed8\u8ba4\u503c.
 
-行为变化:
-  - 删除前: 右栏 = \u793a\u4f8b\u9884\u89c8 + \u8fd0\u884c\u65e5\u5fd7 + \u751f\u6210\u7ed3\u679c
-  - 删除后: 右栏 = \u8fd0\u884c\u65e5\u5fd7 + \u751f\u6210\u7ed3\u679c (\u751f\u6210\u7ed3\u679c\u533a\u662f\u6700\u7ec8\u8f93\u51fa\u56fe\u4f4d\u7f6e)
+\u8def\u5f84:
+  - `_render_workflow_form` \u91cc\u8bfb example.preview_video / preview_image
+  - \u89e3\u6790\u8def\u5f84\uff08\u9879\u76ee\u5185\u8def\u5f84\u6216 http(s) URL\uff09
+  - \u751f\u6210 HTML \u586b\u5165 output_box.value
+  - \u4e0a\u9762\u6709\u4e2a\u5c0f\u8bf4\u660e \u201c\u793a\u4f8b\u6548\u679c\uff08\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\uff09\u201d
 
-代码侧:
-  - `app/scail2_app.py` 删了 `_render_workflow_form` 里的示例预览 Group
-  - 删了 `_render_preview_prompt_html` 函数
-  - `app/presets/params.json` example 块里的 `preview_image` / `preview_video` /
-    `preview_caption` / `preview_prompt` 全删了
-  - `app/static/examples/` 里只剩 `scail2_drive_00038.mp4` (作 drive_video 示例),
-    其它 preview 文件 (sca12_*_3seg, zimage_720x1280_0001) 都删了
+\u8dd1\u4e86\u4e4b\u540e:
+  - `_run_and_format` \u4e0e _yield_run_stream \u8fd8\u662f\u8d70\u539f\u6709\u8def\u5f91: \u6bcf\u6b21 yield \u90fd\u4f1a\u7528 _media_to_html \u91cd\u7b97 output_box.value
+  - \u7b2c\u4e00\u6b21 yield \u5c31\u4f1a\u8986\u76d6\u9ed8\u8ba4\u7684\u793a\u4f8b\u56fe, \u8dd1\u5b8c\u6700\u540e\u4e00\u6b21 yield \u4fdd\u7559\u6700\u540e\u4e00\u5f20\u751f\u6210\u56fe
+  - \u4e0d\u9700\u8981\u989d\u5916\u4fee\u6539\u8dd1\u52a8\u903b\u8f91
 
-文档:
-  - `docs/ADDING_WORKFLOWS.md` \u00a72.4 key 表里删了 preview_image / preview_caption 两行,
-    删了 \u201c#### \u793a\u4f8b\u9884\u89c8\u5361\u201d 小节
-  - `docs/UI_STYLE.md` 删了 `.preview-card` class 行,
-    右栏布局说明里去掉了 \u201c\u793a\u4f8b\u9884\u89c8\u201d 一项
+\u6d4b\u8bd5:
+  - tests/test_preset_must_have_example.py \u65b0\u589e 3 \u4e2a case:
+    - output_box \u521d\u59cb\u503c\u4e0d\u662f\u5360\u4f4d\u7b26, \u662f example \u9884\u89c8 HTML
+    - sca12 \u89c6\u9891\u7c7b preset \u8dd1 <video> \u6807\u7b7e (\u4f18\u5148 preview_video)
+    - caption \u5305\u542b \u201c\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\u201d
 
-测试:
-  - `tests/test_css_theming.py` 里 .preview-card 引用换成 \u201c\u751f\u6210\u7ed3\u679c / \u7cfb\u7edf\u7ea7 Group\u201d
-  - 没新增/删除 unit test (现有 test 不依赖 preview 块)
+\u8d44\u4ea7:
+  - \u6062\u590d\u4e86 sca12_motion_3seg.{png,mp4} / sca12_replace_3seg.{png,mp4} / zimage_720x1280_0001.png
+    \u8fd9 5 \u4e2a\u4e0a\u4e00\u8f6e\u5220\u4e86\u7684 preview \u8d44\u4ea7
+  - params.json \u91cc\u7684 preview_image / preview_video \u91cd\u65b0\u52a0\u8d70, \u4f5c\u4e3a output_box \u9ed8\u8ba4\u503c\u7684\u6570\u636e\u6e90

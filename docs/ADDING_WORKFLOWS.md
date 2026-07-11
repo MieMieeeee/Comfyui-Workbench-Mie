@@ -124,6 +124,15 @@ UI 启动链路:
   - 文件值应是该 preset "典型 / 最佳" 的输入, 不是随便填的废数据
 
 这个契约被 `tests/test_preset_must_have_example.py` 锁住, 缺 example 的 preset 进不去合并. 如果你要加个"仅内部用 / 暂不公开"的 preset, 也要填 example -- 只是文件名填个 placeholder 即可.
+
+示例效果在 output_box 默认显示 (review 2026-07-11):
+  - example 里的 preview_image / preview_video 会被填进右栏“生成结果”区 (在用户打开工作流后第一眼看到)
+  - 跩跡后 _run_and_format 会用实际生成结果覆盖这个默认值
+  - 默认值上有小说明“示例效果”, 用户能区分示例与实际运行结果
+  - 资产路径: project 内路径推荐 例 pp/static/examples/zimage_720x1280_0001.png
+  - 资产命名: {preset}_{size_slug}_{counter}.png (例 sca12_motion_3seg.png / zimage_720x1280_0001.png)
+  - 视频类 preset: 同时填 preview_image (作为 video poster/fallback) 和 preview_video, preview_video 会被优先选择
+
 example key 跟 user_facing_inputs 的约定如下:
 
 | example key | 填哪个组件 |
@@ -136,6 +145,9 @@ example key 跟 user_facing_inputs 的约定如下:
 | `segments` | `node_id=479` 的 int |
 | `prompt` | `prompt_pool` 的文本框 |
 | `sizes` | `image_sizes` 的多选框(预设数组,如 `["720x1280"]`) |
+| `preview_image` | output_box (生成结果) 初始显示, 见下
+| `preview_video` | output_box (生成结果) 初始显示, 视频类 preset 用, 优先于 preview_image
+| `preview_caption` | (历史字段, 当前未用) |
 
 文件值自动从 `config.COMFY_INPUT_DIR` 找(只要你把示例放到该目录就行),然后 stage 到项目内 `.examples_cache/` (Gradio 6 安全限制)。
 
