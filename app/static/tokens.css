@@ -642,6 +642,127 @@ body.dark {
 }
 
 /* ============================================================
+ * .run-status-bar —— 顶部运行状态条 (review P2)
+ * ============================================================
+ * 贴在表单顶部,跨 idle/running/success/failure/timeout 五态切换视觉。
+ * 让『正在运行』不再只是按钮上一行字,而是占据固定条带的强视觉信号:
+ *   - running: 主题色左边框 + 脉冲动画 + spinner
+ *   - success: 绿色左边框 + check icon
+ *   - failure: 红色左边框 + x icon
+ *   - timeout: 黄色左边框 + 时钟 icon
+ *   - idle:    灰色低饱和度, 提示用户『可点击下方按钮开始』
+ * 视觉上『低姿态但始终在画面顶部』, 用户瞄一眼就知道现在是什么状态 → review P2 副标题 1。
+ */
+.run-status-container {
+  margin-bottom: var(--space-3) !important;
+}
+.run-status-bar {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-left: 3px solid var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-secondary) !important;
+  min-height: 44px;
+  transition: border-color var(--duration-base) var(--ease-out),
+              background var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out);
+}
+.run-status-icon {
+  font-size: var(--text-lg);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.run-status-bar.run-status-running .run-status-icon {
+  animation: run-status-spin 1.4s linear infinite;
+  display: inline-block;
+}
+.run-status-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.run-status-msg {
+  color: var(--text-muted);
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.run-status-elapsed {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: 2px var(--space-2);
+  background: var(--bg-overlay);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* idle */
+.run-status-bar.run-status-idle {
+  border-left-color: var(--border-default);
+  color: var(--text-muted);
+}
+.run-status-bar.run-status-idle .run-status-label {
+  color: var(--text-secondary);
+}
+
+/* running */
+.run-status-bar.run-status-running {
+  border-left-color: var(--theme-accent-500);
+  background: linear-gradient(90deg, var(--bg-card) 0%, var(--bg-card-hover) 100%) !important;
+  color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--theme-accent-glow);
+  animation: run-status-pulse 2s var(--ease-out) infinite;
+}
+.run-status-bar.run-status-running .run-status-elapsed {
+  color: var(--theme-accent-300);
+  border: 1px solid var(--theme-accent-glow);
+}
+@keyframes run-status-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--theme-accent-glow); }
+  50%      { box-shadow: 0 0 0 6px var(--theme-accent-glow); }
+}
+@keyframes run-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* success */
+.run-status-bar.run-status-success {
+  border-left-color: var(--color-success);
+  background: var(--color-success-bg) !important;
+}
+.run-status-bar.run-status-success .run-status-label {
+  color: var(--color-success);
+}
+
+/* failure */
+.run-status-bar.run-status-failure {
+  border-left-color: var(--color-error);
+  background: var(--color-error-bg) !important;
+}
+.run-status-bar.run-status-failure .run-status-label {
+  color: var(--color-error);
+}
+
+/* timeout */
+.run-status-bar.run-status-timeout {
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-bg) !important;
+}
+.run-status-bar.run-status-timeout .run-status-label {
+  color: var(--color-warning);
+}
+
+/* Light mode 微调 .run-status-bar 的已耗时颜色 —— 合并到主 light mode 块, 避免 _extract_at_rule_block 找到错块 */
+/* ============================================================
  * .sizes-cards —— 「尺寸选项」多选卡片
  * ============================================================
  * 复用 .custom-radio 的卡片视觉,但换成 multi-select(checkbox-group)。
@@ -1112,3 +1233,8 @@ body.dark {
     border-color: var(--border-strong) !important;
   }
 }
+
+  /* review P2: Light mode 下 .run-status-bar 的已耗时数字用更深主题色,在白底上更醒目 */
+  .run-status-bar.run-status-running .run-status-elapsed {
+    color: var(--theme-accent-600);
+  }

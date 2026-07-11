@@ -396,7 +396,7 @@ def test_run_and_format_closure_final_yield_preserves_zimage():
     yields = list(target_fn("a prompt", ["1024x1024"], 0))
 
     last = yields[-1]
-    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd, status_bar_upd = last
     assert chr(0x7B49) not in media_html, (
         f"BUG: 闭包收尾 yield 把刚生成的图覆盖成等待结果占位; got media_html={media_html!r}"
     )
@@ -418,7 +418,7 @@ def test_run_and_format_closure_final_yield_preserves_video():
     yields = list(target_fn("ref.png", "drive.mp4", 81, 5, 0))
 
     last = yields[-1]
-    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd, status_bar_upd = last
     assert chr(0x7B49) not in media_html, (
         f"BUG: 视频闭包收尾 yield 把生成的视频覆盖成占位; got media_html={media_html!r}"
     )
@@ -437,5 +437,5 @@ def test_run_and_format_closure_no_media_yields_placeholder():
     yields = list(target_fn("a prompt", ["1024x1024"], 0))
 
     last = yields[-1]
-    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd, status_bar_upd = last
     assert chr(0x7B49) in media_html

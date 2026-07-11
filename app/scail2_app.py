@@ -1390,6 +1390,47 @@ def _render_preview_prompt_html(prompt: str, sizes: list) -> str:
         )
     return "".join(parts)
 
+def _format_elapsed(seconds):
+    """把秒数格式化成 mm:ss, 例如 75 -> '01:15'。review P2 让用户感知运行已耗时。"""
+    s = max(0, int(seconds))
+    return f"{s // 60:02d}:{s % 60:02d}"
+
+
+def _now_ts():
+    """返回当前时间戳 (秒), 给 status_bar 算已耗时。"""
+    import time
+    return time.monotonic()
+
+
+def _render_status_html(state, msg, elapsed_str=''):
+    """生成 run-status-bar 的 HTML 内容,根据运行状态切视觉。
+
+    state ∈ {idle, running, success, failure, timeout}: 决定颜色 + 图标。
+    elapsed_str: 已耗时字符串(例如 '00:42'),只在 running 时显示。
+    review P2 副标题 2: 让'运行中'成为全局主状态, 状态感更强。
+    """
+    icons = {'idle': chr(0x23F8), 'running': chr(0x1F504), 'success': chr(0x2705), 'failure': chr(0x274C), 'timeout': chr(0x23F0)}
+    state_cn = {'idle': '等待运行', 'running': '正在运行', 'success': '已完成', 'failure': '运行失败', 'timeout': '运行超时'}
+    icon = icons.get(state, '•')
+    label = state_cn.get(state, state)
+    if msg:
+        for prefix in (chr(0x23F3), chr(0x2705), chr(0x274C), chr(0x23F0)):
+            if msg.startswith(prefix):
+                msg = msg[len(prefix):].strip()
+                break
+        if len(msg) > 60:
+            msg = msg[:60] + chr(0x2026)
+    elapsed_html = ('<span class="run-status-elapsed">' + chr(0x23F1) + ' ' + elapsed_str + '</span>') if elapsed_str else ''
+    return (
+        '<div class="run-status-bar run-status-' + state + '">'
+        + '<span class="run-status-icon">' + icon + '</span>'
+        + '<span class="run-status-label">' + label + '</span>'
+        + '<span class="run-status-msg">' + (msg or '') + '</span>'
+        + elapsed_html
+        + '</div>'
+    )
+
+
 def _media_to_html(media, is_image: bool) -> str:
     """把 run 函数 yield 的 media 转成 HTML。
 
@@ -1706,6 +1747,14 @@ def _render_workflow_form(preset_name):
         # scale=4 + min_width=380:保证表单控件(尤其是带 info 的输入)有足够宽度,
         # 而右预览栏用 scale=7 拿走剩余 64% → review P0「预览自然扩展」。
         with gr.Column(scale=4, min_width=380):
+            # P2 顶部运行状态条 (review 副标题 2: 让运行中成为全局主状态)
+            #   状态: idle / running / success / failure / timeout
+            #   内容: 图标 + 状态中文 + 最新一条 status_msg + 已耗时 (mm:ss)
+            # 默认 idle, 运行中由 _run_and_format 持续 yield 更新。
+            status_bar = gr.HTML(
+                value=_render_status_html('idle', '点击下方按钮开始, 或先点上方「加载示例素材」'),
+                elem_classes=["run-status-container"],
+            )
             # [输入组件]
             # basic 组件按 user_facing_inputs 原始顺序渲染(不拆 file/param 两组),这样作者在
             # params.json 里把"抠图词"排在对应上传文件后面,UI 上就紧跟在一起 —— 例如
@@ -1905,6 +1954,9 @@ def _render_workflow_form(preset_name):
         re_run_btn.visible = False
         error_box.visible = False
         open_dir_msg.visible = False
+        # P2: 切到 running 状态 + 记录开始时间 (elapsed timer)
+        status_bar.value = _render_status_html('running', '', '00:00')
+        _run_start_ts = _now_ts()
 
         def _on_done(_status_msg, _vals):
             _save_last_run(preset_name, _vals)
@@ -1921,6 +1973,16 @@ def _render_workflow_form(preset_name):
                 on_status_done=_on_done,
             ):
                 log_text = status_msg
+                # P2: 根据 status_msg 前缀切换状态条 (✅→success, ❌/⏰→failure/timeout, 其它→running)
+                _state = 'running'
+                if status_msg.startswith(chr(0x2705)):
+                    _state = 'success'
+                elif status_msg.startswith(chr(0x274C)):
+                    _state = 'failure'
+                elif status_msg.startswith(chr(0x23F0)):
+                    _state = 'timeout'
+                _elapsed = _format_elapsed(_now_ts() - _run_start_ts)
+                _status_bar_update = gr.update(value=_render_status_html(_state, status_msg, _elapsed))
                 yield (
                     status_msg,
                     media_html,
@@ -1928,10 +1990,24 @@ def _render_workflow_form(preset_name):
                     re_run_upd,
                     open_dir_upd,
                     _RUN_BTN_RUNNING,
+                    _status_bar_update,
                 )
         finally:
             run_btn.interactive = True
 
+        # P2: 根据最后 status_msg 决定状态条终态
+        _final_state = 'idle'
+        if log_text.startswith(chr(0x2705)):
+            _final_state = 'success'
+        elif log_text.startswith(chr(0x274C)):
+            _final_state = 'failure'
+        elif log_text.startswith(chr(0x23F0)):
+            _final_state = 'timeout'
+        elif log_text:
+            # 跑完但 log_text 末尾没有特殊前缀 (异常退出), 仍归 success 让按钮可见
+            _final_state = 'success'
+        _final_elapsed = _format_elapsed(_now_ts() - _run_start_ts)
+        _final_status_bar = gr.update(value=_render_status_html(_final_state, log_text, _final_elapsed if _final_state == 'running' else ''))
         # 最终 yield:按钮切回 RESTING,media_html 用 last_media(若有),
         # 保留刚生成的图/视频,不要被 _media_to_html(None, ...) 覆盖成占位。
         yield (
@@ -1941,10 +2017,12 @@ def _render_workflow_form(preset_name):
             gr.update(visible=False),
             gr.update(value="", visible=False),
             _RUN_BTN_RESTING,
+            _final_status_bar,
         )
 
 
-    run_click_outputs = [status_box, output_box, error_box, re_run_btn, open_dir_msg, run_btn]
+    # P2: status_bar 作为第 7 个 output —— 跟 run_btn 一起 morph, 实时反映运行状态
+    run_click_outputs = [status_box, output_box, error_box, re_run_btn, open_dir_msg, run_btn, status_bar]
     run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
     re_run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
 
