@@ -6,10 +6,10 @@
       "display_name": "SCAIL2 角色替换",
       "category": "video",
       "order": 10,
-      "description": "把参考图里的角色替换到驱动视频中（保持视频原有动作）。node 353 = false。",
+      "description": "把参考图里的角色替换到驱动视频中（保持视频原有动作）。node 353 = true。",
       "fixed_patches": {
         "353": {
-          "value": false
+          "value": true
         }
       },
       "user_facing_inputs": [
@@ -23,12 +23,12 @@
         {
           "node_id": "362",
           "field": "text",
-          "label": "参考图主体识别关键词",
+          "label": "参考图抠图提示词",
           "type": "text",
           "max_chars": 100,
-          "default": "animal",
-          "help": "帮助系统识别参考图里要抠出的主体。常用：animal / human / person。高级参数，一般不用改。",
-          "tier": "advanced"
+          "default": "human",
+          "help": "告诉系统从参考图里抠出什么主体。常用：human / person / animal。",
+          "tier": "basic"
         },
         {
           "node_id": "369",
@@ -40,12 +40,12 @@
         {
           "node_id": "348",
           "field": "text",
-          "label": "驱动视频主体识别关键词",
+          "label": "驱动视频抠图提示词",
           "type": "text",
           "max_chars": 100,
           "default": "human",
-          "help": "帮助系统识别驱动视频里要抠出的主体。常用：human / person / animal。高级参数，一般不用改。",
-          "tier": "advanced"
+          "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
+          "tier": "basic"
         },
         {
           "node_id": "360",
@@ -122,10 +122,10 @@
       "display_name": "SCAIL2 动作迁移",
       "category": "video",
       "order": 20,
-      "description": "把驱动视频里的动作迁移到参考图角色上（保持参考图角色样貌）。node 353 = true。",
+      "description": "把驱动视频里的动作迁移到参考图角色上（保持参考图角色样貌）。node 353 = false。",
       "fixed_patches": {
         "353": {
-          "value": true
+          "value": false
         }
       },
       "user_facing_inputs": [
@@ -139,12 +139,12 @@
         {
           "node_id": "362",
           "field": "text",
-          "label": "参考图主体识别关键词",
+          "label": "参考图抠图提示词",
           "type": "text",
           "max_chars": 100,
           "default": "human",
-          "help": "帮助系统识别参考图里要抠出的主体。常用：animal / human / person。高级参数，一般不用改。",
-          "tier": "advanced"
+          "help": "告诉系统从参考图里抠出什么主体。常用：human / person / animal。",
+          "tier": "basic"
         },
         {
           "node_id": "369",
@@ -156,12 +156,12 @@
         {
           "node_id": "348",
           "field": "text",
-          "label": "驱动视频主体识别关键词",
+          "label": "驱动视频抠图提示词",
           "type": "text",
           "max_chars": 100,
           "default": "human",
-          "help": "帮助系统识别驱动视频里要抠出的主体。常用：human / person / animal。高级参数，一般不用改。",
-          "tier": "advanced"
+          "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
+          "tier": "basic"
         },
         {
           "node_id": "360",
@@ -260,11 +260,26 @@
             "720x1280"
           ],
           "presets": [
-            "1024x1024",
-            "1280x720",
-            "720x1280",
-            "1024x1280",
-            "1280x1024"
+            {
+              "label": "🖼 1024×1024 ｜ 1:1 (正方形通用)",
+              "value": "1024x1024"
+            },
+            {
+              "label": "🎬 1280×720 ｜ 16:9 (横版封面/视频帧)",
+              "value": "1280x720"
+            },
+            {
+              "label": "📱 720×1280 ｜ 9:16 (竖版手机壁纸)",
+              "value": "720x1280"
+            },
+            {
+              "label": "📕 1024×1280 ｜ 4:5 (竖版海报/社媒)",
+              "value": "1024x1280"
+            },
+            {
+              "label": "🖥 1280×1024 ｜ 5:4 (横版桌面/展示)",
+              "value": "1280x1024"
+            }
           ],
           "help": "勾选要生成的尺寸(每个尺寸出一张图)。多 size 走预设多选,不开自由文本输入。"
         },
@@ -274,14 +289,20 @@
           "label": "随机种子 (0=随机)",
           "type": "int",
           "min": 0,
-          "max": 1000000000000,
+          "max": 9223372036854775807,
           "default": 0,
           "step": 1,
           "help": "0 = 每个尺寸用独立随机种子；>0 = 固定种子（同提示词+种子出同图）。"
         }
       ],
       "example": {
-        "prompt": "Photorealistic, ultra-detailed medium close-up portrait of a young woman with soft natural lighting."
+        "prompt": "Photorealistic, ultra-detailed portrait of a young woman with long dark hair and bangs, wearing a bright yellow and white off-the-shoulder dress with ruffled sleeves and a flowing skirt featuring a circular geometric pattern, standing slightly turned in a lush green forest with dappled sunlight filtering through the trees, soft natural lighting, warm golden hour glow, shallow depth of field with blurred foliage background, gentle expression and slightly open mouth, hand resting on her hip, detailed fabric texture and natural skin tones, vibrant outdoor atmosphere, 85mm lens feel, soft focus on background, serene and dreamy mood.",
+        "sizes": [
+          "720x1280"
+        ],
+        "preview_image": "app/static/examples/zimage_720x1280_0001.png",
+        "preview_caption": "🖼 720×1280 ｜ 9:16 ｜ 黄裙森林光影",
+        "seed": 900259427766747
       },
       "output_kind": "image",
       "do_not_modify_warnings": [
