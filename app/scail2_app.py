@@ -1476,6 +1476,46 @@ def _render_status_html(state, msg, elapsed_str=''):
     )
 
 
+def _media_ext_from_url(src):
+    """从 URL / 路径里取文件扩展名 (含 query 参数里的 filename).
+    ComfyUI /view URL 结构: /view?filename=NAME&type=output&subfolder=SUBFOLDER
+    直接 endswith 在 src 上不工作 (URL 后面跟 &type=...&subfolder=...), 需解析
+    query 取 filename 的扩展名. 其它 HTTP URL (http://x/clip.mp4) 走 path
+    的扩展名; 本地路径走 Path.suffix.
+    返回小写扩展名, e.g. ".mp4" / ".png" / "" (无法识别).
+    """
+    from urllib.parse import urlparse, parse_qs, unquote
+    from pathlib import PurePosixPath
+    if not src or not isinstance(src, str):
+        return ""
+    # 本地路径: 走 Path.suffix
+    if not src.startswith("http"):
+        from pathlib import Path as _P
+        return _P(src).suffix.lower()
+    # HTTP URL: 优先 path 扩展名; 若是裸端点 (如 /view), 退回 query param 里的 filename
+    try:
+        parsed = urlparse(src)
+    except Exception:
+        return ""
+    path_ext = PurePosixPath(parsed.path).suffix.lower()
+    if path_ext:
+        return path_ext
+    # query 里找 filename-like value, 按常见 key 顺序: filename (ComfyUI), f (测试用), name, file
+    qs = parse_qs(parsed.query, keep_blank_values=False)
+    for key in ("filename", "f", "name", "file"):
+        for v in qs.get(key, []):
+            ext = PurePosixPath(unquote(v)).suffix.lower()
+            if ext:
+                return ext
+    # 兜底: 找 query 里第一个有扩展名的 value
+    for values in qs.values():
+        for v in values:
+            ext = PurePosixPath(unquote(v)).suffix.lower()
+            if ext:
+                return ext
+    return ""
+
+
 def _media_to_html(media, is_image: bool) -> str:
     """把 run 函数 yield 的 media 转成 HTML。
 
@@ -1506,16 +1546,16 @@ def _media_to_html(media, is_image: bool) -> str:
     if not src or not isinstance(src, str):
         return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
 
-    low_src = src.lower()
+    ext = _media_ext_from_url(src)
     video_ext = (".mp4", ".mov", ".webm", ".gif")
     image_ext = (".png", ".jpg", ".jpeg", ".webp")
 
     # HTTP URL
     if src.startswith("http"):
-        if low_src.endswith(video_ext):
+        if ext in video_ext:
             return ("<div style=\"padding:8px\"><video controls autoplay style=\"max-width:100%;border-radius:8px\">"
                     "<source src=\"" + src + "\"/></video></div>")
-        if low_src.endswith(image_ext):
+        if ext in image_ext:
             return "<div style=\"padding:8px\"><img src=\"" + src + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
         # 未知 HTTP 路径(可能 ComfyUI output 是 JSON / 3D / 等)
         return ("<div class=\"file-fallback\">📄 未知输出格式: <code>" + src[:80] + "</code></div>")
@@ -1527,10 +1567,10 @@ def _media_to_html(media, is_image: bool) -> str:
         try:
             rel = src_path.relative_to(config.REPO_ROOT)
             file_url = "/file=" + str(rel).replace(chr(92), "/")
-            if low_src.endswith(video_ext):
+            if ext in video_ext:
                 return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:8px\">"
                         "<source src=\"" + file_url + "\"/></video></div>")
-            if low_src.endswith(image_ext):
+            if ext in image_ext:
                 return "<div style=\"padding:8px\"><img src=\"" + file_url + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
             # 未知扩展名本地文件:显示 banner + 下载链接
             return ("<div class=\"file-fallback\">"

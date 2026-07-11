@@ -439,3 +439,66 @@ def test_run_and_format_closure_no_media_yields_placeholder():
     last = yields[-1]
     status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd, status_bar_upd = last
     assert chr(0x7B49) in media_html
+
+
+# ---- _media_ext_from_url ----
+
+def test_media_ext_comfyui_view_url_with_filename_query():
+    """ComfyUI /view URL 的扩展名从 filename= query param 取, 不靠 URL endswith.
+
+    bug 故事: 旧实现 _media_to_html 用 low_src.endswith(('.mp4', ...)) 判断视频,
+    ComfyUI /view URL 结构是 /view?filename=...mp4&type=output&subfolder=...,
+    URL 末尾是 &subfolder=... 而不是 .mp4 -> endswith 不命中 -> 误判成未知输出格式
+    (banner 显示 \u201c\u672a\u77e5\u8f93\u51fa\u683c\u5f0f: <url>\u201d 而不是 <video> 标签).
+    """
+    # 真实生产 URL (用户截图)
+    url = "http://127.0.0.1:8188/view?filename=scail-2_00094-audio.mp4&type=output&subfolder=SCAIL-2"
+    assert scail2_app._media_ext_from_url(url) == ".mp4"
+    # 出来的 HTML 应含 <video> 标签, 不是 \u672a\u77e5\u8f93\u51fa banner
+    out = scail2_app._media_to_html(url, is_image=False)
+    assert "<video" in out, f"\u672a\u77e5\u8f93\u51fa banner: {out!r}"
+    assert "\u672a\u77e5\u8f93\u51fa" not in out
+
+
+def test_media_ext_simple_url_still_works():
+    """直接 URL (http://x/clip.mp4) 路径扩展名要正确识别 (回归保护)."""
+    assert scail2_app._media_ext_from_url("http://x/clip.mp4") == ".mp4"
+    assert scail2_app._media_ext_from_url("http://x/y.png") == ".png"
+    assert scail2_app._media_ext_from_url("http://x/clip.MOV") == ".mov"
+
+
+def test_media_ext_query_param_short_f():
+    """测试用 URL (用 ?f= 而不是 ?filename=) 也要识别. 这是 tests/test_ui_helpers.py
+    里的 fake URL 模式 -- 单元测试要兼容它."""
+    assert scail2_app._media_ext_from_url("http://127.0.0.1:8188/view?f=clip_00001.mp4") == ".mp4"
+    assert scail2_app._media_ext_from_url("http://127.0.0.1:8188/view?f=z_00001_.png") == ".png"
+
+
+def test_media_ext_local_path():
+    """本地路径用 Path.suffix."""
+    assert scail2_app._media_ext_from_url(r"C:/foo/bar.mp4") == ".mp4"
+    assert scail2_app._media_ext_from_url("/tmp/img.PNG") == ".png"
+
+
+def test_media_ext_no_extension():
+    """没扩展名 / 空串 / None 不崩."""
+    assert scail2_app._media_ext_from_url("http://x/view") == ""
+    assert scail2_app._media_ext_from_url("") == ""
+    assert scail2_app._media_ext_from_url(None) == ""
+
+
+def test_media_to_html_comfyui_view_url_renders_video_tag():
+    """端到端: ComfyUI /view URL 在 _media_to_html 渲染成 <video> 而不是 \u672a\u77e5\u8f93\u51fa banner."""
+    url = "http://127.0.0.1:8188/view?filename=scail-2_00094-audio.mp4&type=output&subfolder=SCAIL-2"
+    out = scail2_app._media_to_html(url, is_image=False)
+    assert "<video" in out
+    assert "controls" in out
+    assert url in out
+    assert "\u672a\u77e5\u8f93\u51fa" not in out
+
+
+def test_media_to_html_comfyui_view_url_with_f_param():
+    """测试用 f= query param 的 ComfyUI /view URL 也要正确."""
+    url = "http://127.0.0.1:8188/view?f=clip_00001.mp4"
+    out = scail2_app._media_to_html(url, is_image=False)
+    assert "<video" in out, f"got: {out!r}"

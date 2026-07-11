@@ -153,3 +153,26 @@ preset 的所有 input **重置回 example**, 用户上传/输入的内容直接
   - 原闭包 `def _auto_load_example(name)` 在 `build_ui` 里, 单测拿不到
   - 提取成 `_resolve_auto_load_updates(preset_inputs_map, name)` 之后, 测试用
     `_realistic_preset_inputs_map()` 构造最小 inputs 即可验证契约
+
+
+## Known gotcha \u2014 ComfyUI /view URL has trailing query params (review 2026-07-11)
+
+`scail2_client.get_output_url` 拼出来的 URL 结构是
+  `http://<host>/view?filename=NAME&type=output&subfolder=SUBFOLDER`
+
+旧实现 `_media_to_html` 用 `low_src.endswith(('.mp4', '.mov', ...))` 判断视频.
+URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
+"\u672a\u77e5\u8f93\u51fa\u683c\u5f0f" banner, 用户看不到视频.
+
+**修法**: 新增 helper `_media_ext_from_url(src)`, 解析 URL 提取扩展名:
+  1. 本地路径 -> `Path.suffix`
+  2. HTTP URL -> 先看 `path.suffix`; 裸端点 (如 /view) 退回 query param
+  3. query 里按 `filename` (ComfyUI) -> `f` (测试用) -> `name` -> `file` 顺序找
+  4. 兜底: 第一个有扩展名的 query value
+
+**位置**:
+  - `_media_ext_from_url` 在 `app/scail2_app.py`, `_media_to_html` 之前
+  - `_media_to_html` 里 4 处 `low_src.endswith(...)` 全改成 `ext in (...)`
+  - 测试在 `tests/test_ui_helpers.py` 末尾 (7 个新 case, 锁 ComfyUI /view URL 渲染成 <video>)
+
+**为啥不能直接 `endswith` URL**: query string 里 filename 不是 URL 末端子串.
