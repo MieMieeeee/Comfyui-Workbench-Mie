@@ -240,10 +240,14 @@ def _build_input_component(spec):
             )
         return [checkbox, number]
     if typ == "int":
-        return gr.Slider(
+        # 用 gr.Number 不用 gr.Slider: Gradio 6.20.0 的 Slider 在 advanced panel
+        # 里视觉 chrome (track/thumb/value display) 渲染挂掉, 留下 status-tracker
+        # 永久 loading。int_random 用的就是 Number, 已知能渲染。
+        return gr.Number(
+            value=spec["default"],
             minimum=spec["min"], maximum=spec["max"],
-            value=spec["default"], step=spec.get("step", 1), label=label,
-            info=spec.get("help"),
+            step=spec.get("step", 1), precision=0,
+            label=label, info=spec.get("help"),
         )
     raise ValueError(f"unknown input type: {typ}")
 
@@ -2017,8 +2021,13 @@ def _build_launch_css() -> str:
     default_combined = _apply_combined(_DEFAULT_THEME_ID, _DEFAULT_MODE)
     # _apply_combined 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
     default_css = _strip_style_tag(default_combined)
+    # Gradio 6.20.0 workaround: advanced accordion 里的 status-tracker 永远不消失,
+    # 遮住真实组件 (gr.Number / gr.Slider 都有这个 bug)。强制隐藏 .custom-accordion
+    # 里的 status-tracker, 让 Number 输入框 + 最小/最大值显示能看见。运行进度仍
+    # 由 运行日志 文本框显示, 不影响用户感知。
+    accordion_status_tracker_fix = "/* Gradio 6.20.0 workaround: hide stuck status-tracker in accordions */ .custom-accordion [data-testid='status-tracker'] { display: none !important; }"
     # 合并成单个字符串(Gradio 6 不接受 list)
-    return f"{tokens}\n{default_css}"
+    return f"{tokens}\n{default_css}\n{accordion_status_tracker_fix}"
 
 
 def _strip_style_tag(html: str) -> str:
