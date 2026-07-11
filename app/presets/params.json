@@ -102,11 +102,15 @@
       ],
       "example": {
         "reference_image": "halfbody.png",
-        "drive_video": "video-13.mp4",
+        "drive_video": "scail2_drive_00038.mp4",
         "ref_prompt": "human",
         "drive_prompt": "human",
         "main_prompt": "A woman is dancing.",
-        "segments": 3
+        "segments": 0,
+        "preview_prompt": "A woman is dancing.",
+        "preview_caption": "🎬 SCAIL2 角色替换 · 驱动视频 scail-2_00038-audio.mp4",
+        "preview_image": "app/static/examples/sca12_replace_3seg.png",
+      "preview_video": "app/static/examples/sca12_replace_3seg.mp4"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -225,11 +229,15 @@
       ],
       "example": {
         "reference_image": "halfbody.png",
-        "drive_video": "video-13.mp4",
+        "drive_video": "scail2_drive_00038.mp4",
         "ref_prompt": "human",
         "drive_prompt": "human",
         "main_prompt": "A woman is dancing.",
-        "segments": 3
+        "segments": 0,
+        "preview_prompt": "A woman is dancing.",
+        "preview_caption": "🎬 SCAIL2 动作迁移 · 驱动视频 scail-2_00038-audio.mp4",
+        "preview_image": "app/static/examples/sca12_motion_3seg.png",
+      "preview_video": "app/static/examples/sca12_motion_3seg.mp4"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -303,7 +311,7 @@
           "label": "种子值",
           "type": "int_random",
           "min": 0,
-          "max": 9223372036854775807,
+          "max": 9223372036854776000,
           "default": 0,
           "random_default": true,
           "step": 1,
