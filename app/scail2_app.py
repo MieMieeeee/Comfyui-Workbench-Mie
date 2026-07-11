@@ -1760,9 +1760,13 @@ def _render_workflow_form(preset_name):
             # params.json 里把"抠图词"排在对应上传文件后面,UI 上就紧跟在一起 —— 例如
             # 参考图(30) → 参考图抠图词(362) → 驱动视频(369) → 驱动视频抠图词(348)。
             # advanced 组件仍折叠进"🔧 高级参数"。
+            # P4 卡片套娃 flatten —— review 副标题 1:
+            # 原结构是 step-card + card-core 双层卡片(两个边框 + 双层阴影),
+            # 视觉上『套娃』感强。这里去掉 card-core, 只保留 section-header 风格分隔;
+            # 主结果区(右栏 result-area)和系统级 Group(如 settings) 仍保留卡片。
             if basic_specs:
-                with gr.Group(elem_classes=["step-card", "card-core"]):
-                    gr.Markdown("**① 输入素材**")
+                with gr.Group(elem_classes=["step-card"]):
+                    gr.Markdown("**① 输入素材**", elem_classes=["section-header"])
                     for spec_idx, spec in enumerate(specs):
                         if spec.get("tier", "basic") != "basic":
                             continue
@@ -1862,8 +1866,9 @@ def _render_workflow_form(preset_name):
             _preview_prompt = _ex_cfg.get("preview_prompt") or _ex_cfg.get("prompt") or ""
             _preview_sizes = list(_ex_cfg.get("sizes") or [])
             _has_preview = bool(_preview_image_url or _preview_video_url)
-            with gr.Group(visible=_has_preview, elem_classes=["card-core"]):
-                gr.Markdown("**🎬 示例预览**" if _preview_kind == "video" else "**📷 示例预览**")
+            # P4: 示例预览区去掉 card-core, 改用 section-header + 轻量卡片
+            with gr.Group(visible=_has_preview, elem_classes=["preview-card"]):
+                gr.Markdown("**🎬 示例预览**" if _preview_kind == "video" else "**📷 示例预览**", elem_classes=["section-header"])
                 _caption_md = gr.Markdown(value=_preview_caption, visible=bool(_preview_caption))
                 if _preview_kind == "video":
                     _preview_vid = gr.Video(
@@ -2298,48 +2303,58 @@ def build_ui():
                     # scale=0 + min_width=200 让导航固定 200px,其余宽度全部给主工作区。
                     # 原 scale=1 把主区宽度乘 1/5 = 224px,导致主区内容被压扁 → review P0。
                     with gr.Column(scale=0, min_width=200):
-                        wf_search = gr.Textbox(
-                            label="🔍 搜索",
-                            placeholder="按名称筛选...",
-                            show_label=False,
-                            container=False,
-                            max_lines=1,
-                        )
-                        gr.Markdown("## 🎬 工作流")
-                        wf_radio = gr.Radio(
-                            choices=full_choices,
-                            value=default_wf,
-                            label="选择工作流",
-                            show_label=False,
-                            container=False,
-                            elem_id="wf-nav",
-                            elem_classes=["custom-radio"],
-                        )
+                        # P3 左侧导航拆组 —— review 副标题 1/2
+                        # 原结构把『导航』(搜索 + 工作流列表) 和『系统状态』(ComfyUI 连通 + 刷新)
+                        # 混在一列,用户难以分辨『这是入口』还是『这是状态栏』。
+                        # 拆成两个独立 Group + 中间 divider → review P3 副标题 1/2。
 
-                        # 搜索 → 过滤 choices
-                        def _filter_choices(query, current):
-                            q = (query or "").strip().lower()
-                            if not q:
-                                new_choices = full_choices
-                            else:
-                                new_choices = [
-                                    (label, val) for (label, val) in full_choices
-                                    if q in label.lower() or q in val.lower()
-                                ]
-                            if not new_choices:
-                                new_value = None
-                            else:
-                                new_value = current if any(v == current for _, v in new_choices) else new_choices[0][1]
-                            return gr.update(choices=new_choices, value=new_value)
-                        wf_search.change(
-                            fn=_filter_choices,
-                            inputs=[wf_search, wf_radio],
-                            outputs=[wf_radio],
-                        )
+                        # ===== 导航 Group =====
+                        with gr.Group(elem_classes=["nav-group"]):
+                            gr.Markdown("**导航**")
+                            wf_search = gr.Textbox(
+                                label="🔍 搜索",
+                                placeholder="按名称筛选...",
+                                show_label=False,
+                                container=False,
+                                max_lines=1,
+                            )
+                            wf_radio = gr.Radio(
+                                choices=full_choices,
+                                value=default_wf,
+                                label="选择工作流",
+                                show_label=False,
+                                container=False,
+                                elem_id="wf-nav",
+                                elem_classes=["custom-radio"],
+                            )
+                            # 搜索 → 过滤 choices
+                            def _filter_choices(query, current):
+                                q = (query or "").strip().lower()
+                                if not q:
+                                    new_choices = full_choices
+                                else:
+                                    new_choices = [
+                                        (label, val) for (label, val) in full_choices
+                                        if q in label.lower() or q in val.lower()
+                                    ]
+                                if not new_choices:
+                                    new_value = None
+                                else:
+                                    new_value = current if any(v == current for _, v in new_choices) else new_choices[0][1]
+                                return gr.update(choices=new_choices, value=new_value)
+                            wf_search.change(
+                                fn=_filter_choices,
+                                inputs=[wf_search, wf_radio],
+                                outputs=[wf_radio],
+                            )
 
-                        # ComfyUI 状态指示灯
-                        comfy_status = gr.Markdown(_comfy_status_text())
-                        with gr.Row():
+                        # ----- divider 视觉分隔 -----
+                        gr.HTML('<div class="nav-divider"></div>')
+
+                        # ===== 系统 Group =====
+                        with gr.Group(elem_classes=["nav-group", "nav-group-system"]):
+                            gr.Markdown("**系统**")
+                            comfy_status = gr.Markdown(_comfy_status_text())
                             refresh_status_btn = gr.Button("🔄 刷新状态", size="sm")
                             refresh_status_btn.click(
                                 fn=_comfy_status_text,

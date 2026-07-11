@@ -362,11 +362,23 @@ def test_btn_run_secondary_is_low_chroma_no_glow():
 
 
 def test_step_card_groups_have_card_core_class():
-    """主表单的 .step-card Group 容器需要带 .card-core,否则 token.css 里的卡片样式不生效。"""
+    """主表单的基本输入 Group 必须带 .step-card (review P4 卡片扁平化后保留的视觉分层锚点)。
+
+    第四阶段 §A 引入 .card-core 双层卡片 (step-card + card-core), 但 review P4
+    指出三层卡片视觉嵌套过深, 改成: step-card 不再加边框/阴影, 改用 section-header
+    风格的标题分隔。.card-core 类继续保留在右栏示例预览 (.preview-card 容器)、
+    以及未来需要卡片视觉的模块 (运行结果等), 但基础输入表单不再套它。
+    """
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form("sca12_replace")
-    groups = _by_class(demo, "card-core")
-    assert groups, "Group 没带 elem_classes=['card-core']"
+    # 基本输入表单 (basic spec) 现在只带 .step-card, 不带 .card-core
+    step_groups = _by_class(demo, "step-card")
+    assert step_groups, "Group 没带 elem_classes=[step-card]"
+    # 防止有人不小心把 card-core 重新加回 step-card 上 (review P4 反向锁)
+    for g in step_groups:
+        assert "card-core" not in (g.elem_classes or []), (
+            "review P4 改造后, basic 输入表单不应再套 .card-core (三层卡片套娃)"
+        )
 
 
 def test_advanced_accordion_has_custom_accordion_class():

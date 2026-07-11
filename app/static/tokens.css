@@ -642,6 +642,80 @@ body.dark {
 }
 
 /* ============================================================
+ * .nav-group —— 左侧导航 Group (review P3)
+ * ============================================================
+ * 拆分左栏为两个独立 Group (导航 / 系统), 视觉分组清晰。
+ * 用低饱和度 border 让 Group 之间有区分,但不抢主按钮焦点。
+ */
+.nav-group {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin-bottom: var(--space-3) !important;
+}
+.nav-group .prose {
+  margin: 0 0 var(--space-2) 0 !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted) !important;
+}
+.nav-group-system {
+  margin-top: var(--space-3) !important;
+  padding-top: var(--space-3) !important;
+}
+
+/* divider: 导航/系统 两组之间的视觉分隔 */
+.nav-divider {
+  height: 1px;
+  margin: var(--space-3) 0;
+  background: linear-gradient(90deg, transparent 0%, var(--border-default) 50%, transparent 100%);
+}
+
+/* ============================================================
+ * .section-header / .preview-card / .step-card —— review P4 卡片套娃 flatten
+ * ============================================================
+ * 原结构: 输入素材 / 示例预览 都套 .card-core (粗边框 + 阴影),
+ * 跟外层 page 容器 + main panel 形成『三层卡片套娃』视觉。
+ * 现在:
+ *   - .step-card 不再加边框阴影, 只保留 section-header 风格的标题;
+ *   - .preview-card 是预览图的轻量卡片(保留必要的视觉焦点),
+ *     但去掉 card-core 的阴影, 跟外层 page 区分开但不嵌套。
+ *   - .section-header 是表单内小节标题: 13px 灰字 + 0.5px border-bottom, 既分隔又有呼吸感。
+ */
+.section-header {
+  margin: 0 0 var(--space-3) 0 !important;
+  padding-bottom: var(--space-2) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+.section-header p {
+  margin: 0 !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-md) !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: 0.01em;
+}
+.step-card {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 0 var(--space-4) 0 !important;
+  margin-bottom: var(--space-3) !important;
+  box-shadow: none !important;
+}
+.preview-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-card) !important;
+  padding: var(--space-4) !important;
+  margin-bottom: var(--space-3) !important;
+  box-shadow: none !important;
+}
+
+/* ============================================================
  * .run-status-bar —— 顶部运行状态条 (review P2)
  * ============================================================
  * 贴在表单顶部,跨 idle/running/success/failure/timeout 五态切换视觉。
