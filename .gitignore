@@ -18,15 +18,20 @@ Thumbs.db
 # venv
 .venv/
 venv/
-env/\n
+env/
 
 # 调试截图 + 视觉验收截图 (per-dev / per-CI,不入库)
 app/data/*.png
 app/static/demo/shot_*.png
+# 调试用临时目录 (dom_dump.py / dryrun.py / compare_*/ 等) - 纯 dev 残留
+_frames/
 
 # 上次成功参数 (运行时状态)
-app/data/last_run/\n
+app/data/last_run/
 
 # Codex 内部规划文件
 .zcode/
 notes/
+# 调试 probe 脚本 (Playwright / node) - 单次调试用,不入库
+_inspect_vp.py
+_run_both.log.err

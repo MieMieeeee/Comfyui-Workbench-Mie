@@ -7,13 +7,24 @@ REM  - 先清理占用 8199 端口的旧 Gradio 进程
 REM  - 首次运行自动 pip install -r requirements.txt
 REM  - 启动 Gradio WebUI (8199) 并打开浏览器
 REM  - ComfyUI 地址在 WebUI 的"设置" tab 里配置（默认 127.0.0.1:8188）
+REM  - 完全本地自包含：浏览器用 127.0.0.1 访问（不用 localhost，
+REM    避免 Windows IPv6 优先解析 ::1 但 Gradio 只监听 IPv4 导致回退超时）；
+REM    且禁用 Gradio 所有外网探测（telemetry / 版本检查）。
 REM ============================================================
 
 cd /d "%~dp0"
 
 set "GRADIO_PORT=8199"
-REM 显示用 localhost（本机访问），Gradio 实际监听 0.0.0.0（局域网可访问）
-set "DISPLAY_HOST=localhost"
+REM 用 127.0.0.1 打开浏览器。localhost 会先解析到 IPv6 ::1，但 Gradio 只监听
+REM IPv4 (0.0.0.0)，浏览器要等 ~2 秒超时再回退 127.0.0.1；Gradio 6 的 SPA
+REM 加载有几十个请求，每个都这样回退，累计导致页面"永远加载中"。
+set "DISPLAY_HOST=127.0.0.1"
+
+REM 离线自包含：切断 Gradio / huggingface_hub 的外网探测（telemetry / 版本检查）。
+REM 与 app/scail2_app.py 顶部的 os.environ.setdefault 互为双保险（bat 先设，Python 不覆盖）。
+set "GRADIO_ANALYTICS_ENABLED=False"
+set "HF_HUB_OFFLINE=1"
+set "TRANSFORMERS_OFFLINE=1"
 
 echo ============================================================
 echo   ComfyUI Web Workflow 启动器

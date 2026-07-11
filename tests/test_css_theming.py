@@ -97,6 +97,7 @@ def test_tokens_css_has_required_token(token):
 @pytest.mark.parametrize("selector", [
     ".btn-run-primary",
     ".btn-secondary-override",
+    ".btn-run-secondary",
     ".card-core",
     ".card-core.is-elevated",
     ".custom-accordion",
@@ -233,12 +234,57 @@ def test_apply_theme_each_distinct():
     assert len(set(vals.values())) == 4, f"主题色重复: {vals}"
 
 
-def test_build_launch_css_returns_list_with_tokens():
-    css_list = scail2_app._build_launch_css()
-    assert isinstance(css_list, list)
-    assert any("--bg-app" in s for s in css_list), "tokens.css 没塞进 launch css"
+def test_build_launch_css_returns_string_with_tokens():
+    """launch(css=...) 在 Gradio 6 的签名是 str | None (不是 list)。
+    早期误传 list[str] 会让前端 CSSStyleSheet.replaceSync 收到 object →
+    'e.replace is not a function' → 页面卡死。这里守住 str 契约。"""
+    css = scail2_app._build_launch_css()
+    assert isinstance(css, str), f"launch css 必须是 str, 不是 {type(css).__name__}"
+    assert "--bg-app" in css, "tokens.css 没塞进 launch css"
     # 默认主题也要注入 (coral-orange)
-    assert any("--theme-accent-500" in s for s in css_list), "默认主题色没注入"
+    assert "--theme-accent-500" in css, "默认主题色没注入"
+    # 不以 <style> 标签开头 (Gradio 自己包,传 <style>...</style> 会让
+    # CSSStyleSheet.replaceSync 解析失败)。注释里的 <style> 文字不算。
+    assert not css.lstrip().startswith("<style"), "launch css 不该以 <style> 标签开头"
+
+
+# ============ C2. 模块级 CSS 常量 + analytics 回归防护 ============
+#
+# 这组测试直接锁定 2026-07-10 的页面永久"加载中"回归:
+#   根因是 CSS 被做成 list[str] 传给 launch(css=...),而 Gradio 6 签名是 str|None。
+#   前端 CSSStyleSheet.replaceSync 收到 Array → e.replace is not a function → 渲染崩溃。
+# 单元层守住"传给 launch 的 CSS 一定是 str";E2E 层(test_e2e_browser)守住"页面真能渲染"。
+
+def test_css_module_constant_is_str():
+    """scail2_app.CSS(模块级常量,main() 直接传给 launch(css=CSS))必须是 str。
+
+    回归锁定:这个常量曾是 list[str],Gradio 6 把它原样喂给前端 CSSStyleSheet
+    导致页面永久卡在"加载中"。类型必须停在 str。
+    """
+    assert isinstance(scail2_app.CSS, str), \
+        f"CSS 模块常量必须是 str (Gradio 6 launch 签名), 实际是 {type(scail2_app.CSS).__name__}"
+
+
+def test_css_module_constant_no_style_tag_wrapper():
+    """CSS 常量首尾不能有 <style></style> 包裹。
+
+    Gradio 内部会自己包 <style>; 我们再包一层会让 replaceSync 解析失败。
+    (tokens.css 注释里提到 <style> 字样不算 —— 只检查真正的首尾包裹)
+    """
+    css = scail2_app.CSS
+    assert not css.lstrip().startswith("<style"), "CSS 不该以 <style> 开头"
+    assert not css.rstrip().endswith("</style>"), "CSS 不该以 </style> 结尾"
+
+
+def test_blocks_analytics_disabled():
+    """build_ui() 的 Blocks 必须显式关 analytics。
+
+    回归锁定:analytics_enabled=True 时前端会发 telemetry 到 huggingface.co,
+    离线/弱网环境请求挂起拖慢 SPA 初始化。本项目必须完全本地自包含。
+    """
+    demo = scail2_app.build_ui()
+    assert demo.analytics_enabled is False, \
+        "Blocks 必须传 analytics_enabled=False (本项目完全本地,不发 telemetry)"
 
 
 # ============ D. 组件 elem_classes 契约 ============
@@ -266,13 +312,53 @@ def test_run_btn_has_btn_run_primary_class():
     assert run_label, "btn-run-primary 没贴在开始运行按钮上"
 
 
-def test_rerun_btn_has_btn_run_primary_class():
-    """re_run_btn 也用同一个 .btn-run-primary 类。"""
+def test_rerun_btn_has_btn_run_secondary_class():
+    """re_run_btn (🔁 用相同参数再来) 必须带 .btn-run-secondary，视觉降级为次操作。
+
+    第四阶段指令 §C：整个工作台只有「🚀 开始运行」一个绝对视觉焦点。
+    「用相同参数再来」是次级操作，洗掉橙色高亮与 glow，改成低彩度深灰底 + 微弱边框。
+    旧契约(它跟主按钮共用 .btn-run-primary)已退役。
+    """
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form("sca12_replace")
-    btns = _by_class(demo, "btn-run-primary")
-    rerun_label = next((b.value for b in btns if "用相同参数再来" in str(b.value or "")), None)
-    assert rerun_label, "re_run_btn 缺 elem_classes=['btn-run-primary']"
+    sec_btns = _by_class(demo, "btn-run-secondary")
+    assert sec_btns, "re_run_btn 缺 elem_classes=['btn-run-secondary']"
+    rerun_label = next(
+        (b.value for b in sec_btns if "用相同参数再来" in str(b.value or "")), None
+    )
+    assert rerun_label, "btn-run-secondary 没贴在「用相同参数再来」按钮上"
+    # 反向断言：re_run_btn 不该再带 primary 类（只有 🚀 开始运行 是 primary）
+    prim_btns = _by_class(demo, "btn-run-primary")
+    prim_rerun = next(
+        (b for b in prim_btns if "用相同参数再来" in str(b.value or "")), None
+    )
+    assert prim_rerun is None, "re_run_btn 不该再带 .btn-run-primary（视觉焦点必须唯一）"
+
+
+def test_tokens_css_defines_btn_run_secondary_selector():
+    """.btn-run-secondary 必须在 tokens.css 里定义（指令 §C 要求的次按钮降级样式）。"""
+    text = TOKENS_CSS.read_text(encoding="utf-8")
+    body = _extract_css_block(text, ".btn-run-secondary")
+    assert body is not None, "tokens.css 缺 .btn-run-secondary 块"
+
+
+def test_btn_run_secondary_is_low_chroma_no_glow():
+    """次按钮必须洗掉橙色高亮与 glow：不能用 --theme-accent-*，不能有 box-shadow accent glow。
+
+    第四阶段指令 §C：「确保整个工作台只有"开始运行"一个绝对视觉焦点」。
+    .btn-run-secondary 用低彩度深灰背景 + 微弱边框，Light Mode 转白底灰边。
+    """
+    text = TOKENS_CSS.read_text(encoding="utf-8")
+    body = _extract_css_block(text, ".btn-run-secondary")
+    assert body is not None, "tokens.css 缺 .btn-run-secondary 块"
+    # 不该消费主题强调色（橙/蓝/绿…），否则色彩抢镜
+    assert "--theme-accent-" not in body, \
+        ".btn-run-secondary 消费了 --theme-accent-*，视觉权重没降级（应有唯一焦点）"
+    # 不该有 accent glow 阴影
+    assert "--shadow-accent" not in body, \
+        ".btn-run-secondary 不该带 accent glow 阴影"
+    # 用中性背景（bg-card / bg-overlay / 中性灰）+ 微弱边框
+    assert "border" in body, ".btn-run-secondary 缺边框"
 
 
 def test_step_card_groups_have_card_core_class():
@@ -325,14 +411,20 @@ def test_history_dataframe_has_custom_dataframe_class():
 
 # ============ E. 主题注入器契约 ============
 
-def test_build_ui_has_invisible_theme_injector():
-    """build_ui 必须在顶部放一个不可见 HTML 作为色彩注入器。
-    elem_id=theme-injector,visible=False。"""
+def test_build_ui_has_theme_injector():
+    """build_ui 必须在顶部放一个 HTML 作为色彩注入器。
+    elem_id=theme-injector。
+
+    visible 必须 True:Gradio 6 对 visible=False 的组件不渲染 DOM,回调写入的新 <style>
+    不会出现在页面上 → 主题切换没效果。<style> 标签在浏览器里本身是 display:none
+    (CSS 标准),visible=True 也不占视觉空间。
+    """
     demo = scail2_app.build_ui()
     injectors = [b for b in _all_blocks(demo)
                  if getattr(b, "elem_id", None) == "theme-injector"]
     assert injectors, "build_ui 缺 theme-injector HTML"
-    assert injectors[0].visible is False, "theme-injector 必须 visible=False"
+    assert injectors[0].visible is True, \
+        "theme-injector 必须 visible=True (visible=False 时 Gradio 不渲染 DOM,主题切换无效)"
 
 
 def test_settings_tab_has_theme_picker():
@@ -606,12 +698,8 @@ def test_apply_combined_each_mode_distinct():
 def test_build_launch_css_includes_default_mode():
     """launch CSS 默认应该带 default mode override。auto 时是空的,但其他模式时必须有 surface 覆盖。"""
     # 默认 _DEFAULT_MODE = "auto",所以 launch css 不该含 --bg-app
-    css_list = scail2_app._build_launch_css()
-    flat = "\n".join(css_list)
-    assert "--theme-accent-500" in flat
-    # auto 模式下不应该预写 --bg-app (留给浏览器 media query)
-    # 但如果 _DEFAULT_MODE 不是 auto 就要有 — 这个测试只验 auto 默认路径
-    # (因为未来可能改默认,不做硬性约束)
+    css = scail2_app._build_launch_css()
+    assert "--theme-accent-500" in css
 
 
 # ============ K. 设置 tab 双 radio ============

@@ -300,30 +300,6 @@ def extract_primary_video_output(history: dict[str, Any]) -> dict[str, str] | No
     return None
 
 
-def extract_primary_image_output(history: dict[str, Any]) -> dict[str, str] | None:
-    """从 history.outputs 里抓第一个 image 输出（文生图用）。
-
-    返回 {"filename": ..., "subfolder": ..., "type": "output"} 或 None。
-    """
-    if not history:
-        return None
-    outputs = history.get("outputs", {})
-    if not outputs:
-        return None
-    for node_id in sorted(outputs.keys()):
-        node_out = outputs[node_id]
-        items = node_out.get("images", [])
-        if items and isinstance(items, list):
-            first = items[0]
-            if isinstance(first, dict) and "filename" in first:
-                return {
-                    "filename": first["filename"],
-                    "subfolder": first.get("subfolder", ""),
-                    "type": first.get("type", "output"),
-                }
-    return None
-
-
 def extract_all_image_outputs(history: dict[str, Any]) -> list[dict[str, str]]:
     """从 history.outputs 里抓所有 image 输出（多尺寸文生图用）。
 

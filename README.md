@@ -35,7 +35,6 @@ F:\ComfyUIWebToRunWorkflow\
 │   ├── presets\
 │   │   ├── params.json             ← 所有 preset 的 schema（UI 表单 + 节点映射 + tier 分层 + example）
 │   │   ├── sca12_uncached.json     ← SCAIL-2 视频换脸 workflow（角色替换/动作迁移共用）
-│   │   ├── sca12_cached.json       ← SCAIL-2 视频换脸 workflow（带缓存，备用）
 │   │   ├── zimage.json             ← Z-Image-Turbo 文生图 workflow
 │   │   └── prompts.json            ← 文生图提示词池（22 条精选）
 │   └── data\runs\                  ← 每次运行的 manifest sidecar
@@ -110,8 +109,8 @@ ComfyUI 地址**不需要**在启动前配置 —— WebUI 打开后去"设置" 
 
 | 工作流 | preset | 说明 |
 |---|---|---|
-| SCAIL2 角色替换 | `sca12_replace` | 把参考图角色替换到驱动视频（node 353=false） |
-| SCAIL2 动作迁移 | `sca12_motion` | 把驱动视频动作迁移到参考图角色（node 353=true） |
+| SCAIL2 角色替换 | `sca12_replace` | 把参考图角色替换到驱动视频（node 353=true） |
+| SCAIL2 动作迁移 | `sca12_motion` | 把驱动视频动作迁移到参考图角色（node 353=false） |
 | 文生图 (Z-Image-Turbo) | `zimage` | 文生图，9 节点，支持随机提示词 + 多尺寸批量 |
 
 SCAIL2 两种模式由 workflow 内 node 353 (PrimitiveBoolean `replacement_mode`) 控制，通过 preset 的 `fixed_patches` 字段固定，无需改 workflow JSON。每个输入字段在 `params.json` 标注 `tier: "basic"|"advanced"` 决定它在基础区还是高级折叠区。
@@ -137,6 +136,19 @@ SCAIL2 两种模式由 workflow 内 node 353 (PrimitiveBoolean `replacement_mode
 
 ```bash
 python -m pytest tests/ -v
+```
+
+### E2E 浏览器渲染测试
+
+有一组用真实 Chromium 加载页面的 E2E 测试（锁定"页面永久加载中"类前端 regression），默认不跑：
+
+```bash
+# 首次需装 playwright + 浏览器（开发期依赖，不进整合包）
+pip install -r requirements-dev.txt
+playwright install chromium
+
+# 跑 E2E（加 --e2e 标志）
+python -m pytest tests/ --e2e -v
 ```
 
 ## 状态

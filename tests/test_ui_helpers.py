@@ -224,3 +224,218 @@ def test_render_workflow_form_creates_status_accordion():
                             if isinstance(b, gr.Accordion)]
         assert any("运行日志" in lbl for lbl in accordion_labels), \
             f"{w['name']} 缺 '📜 运行日志' Accordion"
+
+# ---- _yield_run_stream: 收尾 yield 保留最后生成的 media ----
+
+def test_yield_run_stream_final_yield_preserves_image():
+    """Regression: run_fn yield 完 image 后,helper 的最后一次 yield
+    必须把 image HTML 喂给 output_box,不能重置成 None 占位。
+
+    复现用户报告:跑完 zimage 后,运行日志显示 ✅ 全部完成,共 1 张图”
+    但右侧“生成结果”区卡在“等待结果…”占位,看不到图。
+    """
+    from app import scail2_app
+    fake_url = "http://127.0.0.1:8188/view?f=z_00001_.png"
+
+    def fake_run(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield "⏳ 准备生成 1 张图...", None
+        yield "⏳ [1/1] 1024x1024 seed=12345...", []
+        yield "[1/1] ⏳ 00:00 waiting for aabbccdd...", []
+        yield "[1/1] ✅ done in 00:12", []
+        yield "✅ [1/1] 1024x1024 done", [fake_url]
+        yield "✅ 全部完成，共 1 张图", [fake_url]
+
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    assert len(yields) >= 2, "helper should yield at least once per run_fn yield + final"
+    last = yields[-1]
+    # 6-tuple: (status_text, media_html, error_update, re_run_visible_update, open_dir_msg_update, last_media)
+    assert len(last) == 6
+    status_text, media_html, _eu, _ru, _ou, last_media = last
+    # 最终 yield 必须是 image HTML(不能是 “等待结果...”占位)
+    assert "等待结果" not in media_html, (
+        f"final yield clobbered the generated image with placeholder; got {media_html!r}"
+    )
+    assert "<img" in media_html and fake_url in media_html
+    # last_media 字段也保留 URL list(供调用方做收尾 yield)
+    assert last_media == [fake_url]
+
+
+def test_yield_run_stream_final_yield_preserves_video():
+    """视频 preset 的等价回归:SCAIL2 等 video workflow 的最后输出不被覆盖。"""
+    from app import scail2_app
+    fake_url = "http://127.0.0.1:8188/view?f=clip_00001.mp4"
+
+    def fake_run(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield "⏳ [4/5] waiting for ComfyUI...", None
+        yield "✅ done in 00:45", fake_url
+
+    yields = list(scail2_app._yield_run_stream(fake_run, "sca12_replace", ("ref",), is_image=False))
+    last = yields[-1]
+    status_text, media_html, _eu, _ru, _ou, last_media = last
+    assert "等待结果" not in media_html, (
+        f"final yield clobbered the generated video; got {media_html!r}"
+    )
+    assert "<video" in media_html and fake_url in media_html
+    assert last_media == fake_url
+
+
+def test_yield_run_stream_no_media_yields_placeholder():
+    """run_fn 全程没 yield 过非空 media → 收尾 yield 仍走"等待结果…"占位。"""
+    from app import scail2_app
+
+    def fake_run(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield "❌ queue: not connected", None
+
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    last = yields[-1]
+    status_text, media_html, err_upd, _ru, _ou, last_media = last
+    assert "等待结果" in media_html
+    assert last_media is None
+    # 错误 banner 在 ❌ 那一次 yield 应可见
+    # (收尾 yield 会清掉 banner，避免错误状态占据界面)
+    any_err_visible = any(y[2].get("visible") is True for y in yields)
+    assert any_err_visible, "expected at least one yield with err_upd visible=True"
+    # 最后一次 yield (收尾) 会清掉 banner
+    assert last[2].get("visible") is False
+
+
+def test_yield_run_stream_exception_preserves_last_media():
+    """run_fn 中途抛异常 → 异常分支 yield 仍保留之前生成的图/视频。"""
+    from app import scail2_app
+    fake_url = "http://127.0.0.1:8188/view?f=z_00001_.png"
+
+    def fake_run(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield "✅ [1/2] done", [fake_url]
+        raise RuntimeError("simulated network drop")
+
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    # 最后两个 yield:异常分支 + 收尾,都不应覆盖之前的图
+    last = yields[-1]
+    penultimate = yields[-2]
+    _, last_media_html, _, _, _, _ = last
+    _, pen_media_html, _, _, _, _ = penultimate
+    assert fake_url in last_media_html, f"final yield lost image: {last_media_html!r}"
+    assert fake_url in pen_media_html, f"exception yield lost image: {pen_media_html!r}"
+
+
+def test_yield_run_stream_calls_on_status_done_on_check():
+    """run_fn yield ✅ 时,on_status_done 回调被调用(vals 透传)。"""
+    from app import scail2_app
+
+    calls: list[tuple[str, tuple]] = []
+
+    def on_done(status_msg, vals):
+        calls.append((status_msg, vals))
+
+    def fake_run(preset_name, *vals):
+        yield "⏳ preparing...", None
+        yield "✅ done", None
+
+    vals_in = ("prompt-text", ["1024x1024"], 0)
+    list(scail2_app._yield_run_stream(fake_run, "zimage", vals_in, is_image=True, on_status_done=on_done))
+    assert any(s.startswith("✅") for s, _ in calls), f"on_status_done not called: {calls!r}"
+    # vals 透传
+    _, last_vals = calls[-1]
+    assert last_vals == vals_in
+
+
+
+# ---- closure-level: 验证 _run_and_format 闭包本身接对 helper ----
+
+
+def _get_run_and_format_fn(preset_name, fake_run_fn):
+    _DOC = ("渲染 form 并从 Gradio Blocks 里抓 _run_and_format 闭包。\n\n"
+
+            "必须把 fake_run_fn patch 到 scail2_app 上 *before* _render_workflow_form,\n"
+
+            "这样 closure 在 run_fn = run_image_workflow ... 这一行捕获的就是 fake。")
+    import gradio as gr
+    from unittest.mock import patch
+    from app import scail2_app
+
+    is_image = preset_name == "zimage"
+    attr = "run_image_workflow" if is_image else "run_workflow"
+
+    with patch(f"app.scail2_app.{attr}", fake_run_fn), \
+         patch("app.scail2_app._save_last_run"), \
+         gr.Blocks() as demo:
+        scail2_app._render_workflow_form(preset_name)
+
+    for entry in demo.fns.values():
+        if getattr(entry.fn, "__name__", "") == "_run_and_format":
+            return entry.fn
+    raise AssertionError("_run_and_format not found in demo.fns")
+
+
+def test_run_and_format_closure_final_yield_preserves_zimage():
+    """Regression (closure-level): zimage 跑完后,_run_and_format 的最后一次
+    yield 仍要把 image HTML 喂给 output_box,不能重置成等待结果占位。
+
+    这个测试和 _yield_run_stream 的单测区别在于:它走的是真实的
+    _run_and_format 闭包代码路径,能抓住以下单测抓不到的回归:
+      - 有人把 wrapper 删了,直接 inline 旧的 buggy 逻辑(单测照样过)
+      - 有人改了 wrapper 让它不调 _yield_run_stream(单测照样过)
+      - 有人改了 wrapper 的最终 yield 把 media 重置成 None(单测照样过)
+    """
+    fake_url = "http://127.0.0.1:8188/view?f=z_00001_.png"
+
+    def fake_run_image(preset_name, *vals):
+        yield "[READY] preparing image gen...", None
+        yield chr(0x23F3) + " 准备生成 1 张图...", None
+        yield chr(0x23F3) + " [1/1] 1024x1024 seed=12345...", []
+        yield "[1/1] " + chr(0x23F3) + " 00:00 waiting for pid-fake...", []
+        yield "[1/1] " + chr(0x2705) + " done in 00:12", []
+        yield chr(0x2705) + " [1/1] 1024x1024 done", [fake_url]
+        yield chr(0x2705) + " 全部完成，共 1 张图", [fake_url]
+
+    target_fn = _get_run_and_format_fn("zimage", fake_run_image)
+    yields = list(target_fn("a prompt", ["1024x1024"], 0))
+
+    last = yields[-1]
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    assert chr(0x7B49) not in media_html, (
+        f"BUG: 闭包收尾 yield 把刚生成的图覆盖成等待结果占位; got media_html={media_html!r}"
+    )
+    assert "<img" in media_html and fake_url in media_html, (
+        f"BUG: 闭包收尾 yield 缺少 image; got media_html={media_html!r}"
+    )
+
+
+def test_run_and_format_closure_final_yield_preserves_video():
+    """SCAIL2 视频 preset 的等价 closure-level 回归。"""
+    fake_url = "http://127.0.0.1:8188/view?f=clip_00001.mp4"
+
+    def fake_run_video(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield chr(0x23F3) + " [4/5] waiting for ComfyUI...", None
+        yield chr(0x2705) + " done in 00:45", fake_url
+
+    target_fn = _get_run_and_format_fn("sca12_replace", fake_run_video)
+    yields = list(target_fn("ref.png", "drive.mp4", 81, 5, 0))
+
+    last = yields[-1]
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    assert chr(0x7B49) not in media_html, (
+        f"BUG: 视频闭包收尾 yield 把生成的视频覆盖成占位; got media_html={media_html!r}"
+    )
+    assert "<video" in media_html and fake_url in media_html, (
+        f"BUG: 视频闭包收尾 yield 缺少 video 标签; got media_html={media_html!r}"
+    )
+
+
+def test_run_and_format_closure_no_media_yields_placeholder():
+    """run_fn 全程没生成 media → 收尾 yield 仍走等待结果占位(行为不变)。"""
+    def fake_run_fail(preset_name, *vals):
+        yield "[READY] preparing...", None
+        yield chr(0x274C) + " queue: not connected", None
+
+    target_fn = _get_run_and_format_fn("zimage", fake_run_fail)
+    yields = list(target_fn("a prompt", ["1024x1024"], 0))
+
+    last = yields[-1]
+    status_text, media_html, err_upd, re_run_upd, open_dir_upd, btn_upd = last
+    assert chr(0x7B49) in media_html

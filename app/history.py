@@ -120,9 +120,20 @@ def build_manifest(
     cache_hit: bool = False,
     output: dict[str, str] | None = None,
     error: str | None = None,
+    # 完整还原表单所需的字段(可选,只有对应 preset 写才会用到)
+    ref_prompt: str | None = None,
+    drive_prompt: str | None = None,
+    main_prompt: str | None = None,
+    seed: int | None = None,
+    sizes: list[str] | None = None,
 ) -> dict[str, Any]:
-    """组装一份 manifest 字典（不写盘）。"""
-    return {
+    """组装一份 manifest 字典（不写盘）。
+
+    ref_prompt / drive_prompt / main_prompt 给 SCAIL2 用(原 prompt_text 是它们的折叠版,
+    历史 → 运行 还原时需要拆分)。
+    seed / sizes 给 zimage 用(文生图循环多尺寸时记录实际跑的尺寸 + seed)。
+    """
+    out = {
         "prompt_id": prompt_id,
         "created_at": started_at_iso,
         "finished_at": finished_at_iso,
@@ -141,3 +152,9 @@ def build_manifest(
         "output": output,
         "error": error,
     }
+    if ref_prompt is not None: out["ref_prompt"] = ref_prompt
+    if drive_prompt is not None: out["drive_prompt"] = drive_prompt
+    if main_prompt is not None: out["main_prompt"] = main_prompt
+    if seed is not None: out["seed"] = seed
+    if sizes is not None: out["sizes"] = list(sizes)
+    return out

@@ -4,7 +4,7 @@
 
 ```
 +-------------------------+        HTTP         +----------------------------+
-|  浏览器 (用户)            | <-----------------> |  Gradio Web (localhost:7860) |
+|  浏览器 (用户)            | <-----------------> |  Gradio Web (localhost:8199) |
 |  - 上传参考图             |                     |  - scail2_app.py (UI)      |
 |  - 上传驱动视频            |                     |  - scail2_client.py (HTTP) |
 |  - 填提示词               |                     +-------------+--------------+
@@ -33,7 +33,7 @@
 
 **两个进程**：
 - `ComfyUI启动器.exe` → 起 ComfyUI 进程，端口 8188（**已存在，不要碰**）
-- `python scail2_app.py` → 起 Gradio 进程，端口 7860（**新增**）
+- `python scail2_app.py` → 起 Gradio 进程，端口 8199（**新增**，避开 Gradio 默认 7860 和 ComfyUI 的 8188）
 
 两者不共享内存，只通过 HTTP 和磁盘文件交互。
 
@@ -54,7 +54,7 @@ ComfyUI HTTP API (8188)
     |
     |  读
     v
-sca12_uncached.json / sca12_cached.json (workflow 模板)
+sca12_uncached.json (workflow 模板)
 ```
 
 `scail2_client.py` 是**唯一**跟 ComfyUI HTTP API 直接打交道的模块；UI 层只通过 client 暴露的方法（`upload` / `queue_prompt` / `get_history` / `get_output_url`）调用。这样将来要换 FastAPI 时只动 UI 层，client 复用。
@@ -79,7 +79,13 @@ curl -X POST http://127.0.0.1:8188/upload/image \
 { "name": "halfbody.png", "subfolder": "", "type": "input" }
 ```
 
-### 2. `POST /upload/file` — 上传任意文件（视频用这个）
+### 2. ~~`POST /upload/file`~~ — 上传任意文件（视频用这个）
+
+> ⚠️ 当前 ComfyUI 0.24 **只有 `POST /upload/image` 一个端点**（`/upload/file` 返
+> 405），但它接受任意类型文件（mp4/png/jpg 都行），form 字段名固定是 `image`。
+> 视频、图片上传都走 `/upload/image`。详见 `scail2_client.py` 顶部注释 +
+> `UPLOAD_ENDPOINT` 常量。下面这段是历史记录，将来若 ComfyUI 加回 `/upload/file`
+> 端点可重新启用。
 
 ```bash
 curl -X POST http://127.0.0.1:8188/upload/file \
@@ -261,13 +267,13 @@ def run(...):
 # 终端 2：Gradio Web（待开发）
 cd F:\ComfyUIWebToRunWorkflow\app
 python scail2_app.py
-# 浏览器自动开 http://localhost:7860
+# 浏览器自动开 http://localhost:8199
 ```
 
 **局域网共享**（如果要让其他设备访问）：
-- Gradio `launch(server_name="0.0.0.0", server_port=7860)`
-- Windows 防火墙放行 7860
-- 同一 wifi 设备访问 `http://<开发机 IP>:7860`
+- Gradio `launch(server_name="0.0.0.0", server_port=8199)`
+- Windows 防火墙放行 8199
+- 同一 wifi 设备访问 `http://<开发机 IP>:8199`
 
 **公网部署**（如果要给非本地用户用）：
 - 先不要考虑；先在本地跑通
