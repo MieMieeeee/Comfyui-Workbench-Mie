@@ -16,20 +16,24 @@ from app import config, scail2_app
 
 # --- fixed_patches ---
 
-def test_sca12_replace_has_fixed_patches_353_false():
-    """sca12_replace 的 fixed_patches 应设 node 353 = false（角色替换模式）。"""
+def test_sca12_replace_has_fixed_patches_353_true():
+    """sca12_replace(角色替换)的 fixed_patches 应设 node 353 = true。
+
+    node 353 是 PrimitiveBoolean replacement_mode:true = 角色替换, false = 动作迁移。
+    (2026-07-10 修正:之前 true/false 含义配反了。)
+    """
     cfg = config.preset_config("sca12_replace")
     fp = cfg.get("fixed_patches", {})
     assert "353" in fp
-    assert fp["353"]["value"] is False
+    assert fp["353"]["value"] is True
 
 
-def test_sca12_motion_has_fixed_patches_353_true():
-    """sca12_motion 的 fixed_patches 应设 node 353 = true（动作迁移模式）。"""
+def test_sca12_motion_has_fixed_patches_353_false():
+    """sca12_motion(动作迁移)的 fixed_patches 应设 node 353 = false。"""
     cfg = config.preset_config("sca12_motion")
     fp = cfg.get("fixed_patches", {})
     assert "353" in fp
-    assert fp["353"]["value"] is True
+    assert fp["353"]["value"] is False
 
 
 def test_run_workflow_applies_fixed_patches():
@@ -56,11 +60,11 @@ def test_run_workflow_applies_fixed_patches():
              patch.object(scail2_app.scail2_client, "wait_for_completion", return_value=iter(["✅ done"])), \
              patch.object(scail2_app.scail2_client, "get_history", return_value={}), \
              patch.object(scail2_app.scail2_client, "extract_primary_video_output", return_value=None):
-            # sca12_motion: fixed_patches 353=true
+            # sca12_motion: fixed_patches 353=false (动作迁移模式)
             list(scail2_app.run_workflow("sca12_motion", str(ref), "human", str(drive), "human", "test", 81, 5, 2))
-        # patch_workflow 收到的 replacements 应含 node 353 = true
+        # patch_workflow 收到的 replacements 应含 node 353 = false
         assert "353" in captured_replacements
-        assert captured_replacements["353"]["value"] is True
+        assert captured_replacements["353"]["value"] is False
     finally:
         ref.unlink(missing_ok=True)
         drive.unlink(missing_ok=True)
@@ -90,12 +94,21 @@ def test_example_to_form_values_replace():
 
 
 def test_example_to_form_values_zimage():
-    """zimage 的 example 只有 prompt，其它用默认。"""
+    """zimage 的 example 只有 prompt + 一个具体 seed，其它用默认。
+
+    seed 是 int_random: example.seed=900259427766747 -> [False, 900259427766747]
+    (Checkbox=False 因为给了具体值=固定种子; Number=seed value)。
+    所以 values 长度比 user_facing_inputs 多 1 (int_random 拆 2)。
+    """
     values = scail2_app.example_to_form_values("zimage")
     cfg = config.preset_config("zimage")
-    assert len(values) == len(cfg["user_facing_inputs"])
+    # user_facing_inputs=3 (prompt/sizes/seed), int_random 拆 2 -> values=4
+    assert len(values) == len(cfg["user_facing_inputs"]) + 1
     # prompt_pool 字段应是 example.prompt
     assert cfg["example"]["prompt"] in values[0]
+    # seed 部分: [False, 900259427766747]
+    assert values[2] is False
+    assert values[3] == 900259427766747
 
 
 # --- A. example 文件值必须 stage 到 CWD 下（修复 gr.File 安全限制 bug）---

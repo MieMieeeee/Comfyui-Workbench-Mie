@@ -72,18 +72,59 @@ def test_build_input_component_image_sizes_is_checkboxgroup():
     comp = scail2_app._build_input_component(spec)
     assert isinstance(comp, gr.CheckboxGroup)
     # Gradio 6 把字符串 choices 存成 (label, value) 元组；提取 value 验证
-    choice_values = [c[1] if isinstance(c, tuple) else c for c in comp.choices]
+    choice_values = [c[1] if isinstance(c, (tuple, list)) else c for c in comp.choices]
     assert choice_values == ["1024x1024", "1280x720"]
 
 
+def test_build_input_component_image_sizes_accepts_labeled_presets():
+    """image_sizes 的 presets 数组支持 {label, value} 形式，用于「用途标签化」。
+
+    第四阶段指令 §B：把 output_size 选项升级为带比例与用途说明的表述
+    (例：「🎬 1280×720 ｜ 16:9 (横版封面)」)，降低用户扫描成本。
+
+    数据驱动原则：归一化逻辑只在 _build_input_component 内一处做。
+    parse_sizes 仍只吃 value（严格 fullmatch），label 不污染解析路径。
+    纯字符串 presets 向后兼容（见上一个测试）。
+    """
+    spec = {
+        "label": "输出尺寸", "type": "image_sizes", "node_id": "13", "field": "sizes",
+        "default": ["1280x720"],
+        "presets": [
+            {"label": "🖼 1024×1024 ｜ 1:1 (方图)", "value": "1024x1024"},
+            {"label": "🎬 1280×720 ｜ 16:9 (横版封面)", "value": "1280x720"},
+        ],
+    }
+    comp = scail2_app._build_input_component(spec)
+    assert isinstance(comp, gr.CheckboxGroup)
+    choices = list(comp.choices)
+    # value 仍是纯净的 WxH，供 parse_sizes 严格解析
+    values = [c[1] if isinstance(c, (tuple, list)) else c for c in choices]
+    assert values == ["1024x1024", "1280x720"]
+    # label 带用途文案，前端可见
+    labels = [c[0] if isinstance(c, (tuple, list)) else c for c in choices]
+    assert any("16:9" in lab or "横版" in lab for lab in labels), \
+        "label 应带比例/用途说明"
+    # 默认值归一后仍是 value（不是 label）
+    assert list(comp.value) == ["1280x720"], \
+        "default 数组里的值必须是纯净 value，不能是 label"
+
+
 def test_build_form_zimage_has_3_components():
-    """zimage preset 有 3 个 user_facing_inputs（prompt/sizes/seed）。"""
+    """zimage preset 有 3 个 user_facing_inputs（prompt/sizes/seed）。
+
+    seed 是 int_random (Checkbox + Number), 1 个 spec 拆 2 个 component,
+    所以 _build_form 返回 4 个 component, 最后一个是 [Checkbox, Number] pair。
+    """
     cfg = config.preset_config("zimage")
-    comps = scail2_app._build_form(cfg)
-    assert len(comps) == 3
-    assert isinstance(comps[0], gr.Textbox)      # prompt_pool
-    assert isinstance(comps[1], gr.CheckboxGroup)  # image_sizes
-    assert isinstance(comps[2], gr.Slider)        # seed int
+    # int_random 内部用 gr.Row() 包裹 Checkbox+Number, 必须有 Blocks context
+    with gr.Blocks():
+        comps = scail2_app._build_form(cfg)
+    assert len(comps) == 4
+    assert isinstance(comps[0], gr.Textbox)         # prompt_pool
+    assert isinstance(comps[1], gr.CheckboxGroup)   # image_sizes
+    # int_random: Checkbox (随机) + Number (种子值)
+    assert isinstance(comps[2], gr.Checkbox)
+    assert isinstance(comps[3], gr.Number)
 
 
 def test_parse_sizes_preset_string():

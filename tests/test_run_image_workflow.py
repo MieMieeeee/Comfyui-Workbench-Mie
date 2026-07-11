@@ -103,6 +103,7 @@ def test_run_image_workflow_fixed_seed(patched_image_client):
             captured_seeds.append(repl["3"].get("seed"))
         return orig_patch(wf, repl, **kw)
     with patch.object(scail2_app.scail2_client, "patch_workflow", side_effect=spy_patch):
-        _collect(scail2_app.run_image_workflow("zimage", "p", ["1024x1024", "1280x720"], 12345))
+        # int_random: 4th value=Checkbox state (False=固定), 5th value=Number
+        _collect(scail2_app.run_image_workflow("zimage", "p", ["1024x1024", "1280x720"], False, 12345))
     # 固定 seed → 所有尺寸 seed 都是 12345
     assert all(s == 12345 for s in captured_seeds)

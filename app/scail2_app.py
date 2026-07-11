@@ -215,6 +215,30 @@ def _build_input_component(spec):
             label=label,
             info=spec.get("help"),
         )
+    if typ == "int_random":
+        # 「随机 checkbox + 数值 input」组合, 比 Slider 更适合 seed:
+        #   - seed 在实践中只有两种意图: 每跑随机 / 固定值; checkbox 表达
+        #     这个意图比 Slider 直观
+        #   - 输入框支持任意 int64 (Slider 在大值下拖不动)
+        #   - schema 上 min/max 仍跟 ComfyUI 实际能力对齐 (int64)
+        # random_default 决定 checkbox 初始状态: true=默认随机, false=用 default value
+        # example_to_form_values / _manifest_to_form_values 见同文件末尾的 seed 处理
+        with gr.Row():
+            checkbox = gr.Checkbox(
+                label="随机",
+                value=bool(spec.get("random_default", True)),
+                info="勾上则忽略下方数值,每张图独立随机",
+            )
+            number = gr.Number(
+                label=label,
+                value=spec.get("default", 0),
+                minimum=spec.get("min", 0),
+                maximum=spec.get("max", (1 << 63) - 1),
+                step=spec.get("step", 1),
+                precision=0,
+                info=spec.get("help"),
+            )
+        return [checkbox, number]
     if typ == "int":
         return gr.Slider(
             minimum=spec["min"], maximum=spec["max"],
@@ -225,7 +249,21 @@ def _build_input_component(spec):
 
 
 def _build_form(preset_cfg):
-    return [_build_input_component(spec) for spec in preset_cfg["user_facing_inputs"]]
+    """扁平化构建表单组件列表。
+
+    大多数 spec 1 个 spec -> 1 个 component; int_random 是 1 个 spec -> 2 个 components
+    (Checkbox + Number)。返回的列表按 user_facing_inputs 顺序, 但 int_random
+    占 2 个位置 — 调用方需要按 spec 类型决定如何消费 (run_image_workflow 内部
+    会合并 int_random 的 2 个值为单个 seed)。
+    """
+    out = []
+    for spec in preset_cfg["user_facing_inputs"]:
+        c = _build_input_component(spec)
+        if isinstance(c, list):
+            out.extend(c)
+        else:
+            out.append(c)
+    return out
 
 
 def example_to_form_values(preset_name):
@@ -269,8 +307,17 @@ def example_to_form_values(preset_name):
             values.append(ex.get("main_prompt", spec.get("default", "")))
         elif nid == "479":
             values.append(ex.get("segments", spec.get("default", 0)))
-        elif spec.get("field") == "seed":
-            values.append(ex.get("seed", spec.get("default", 0)))
+        elif spec.get("field") == "seed" or spec.get("type") == "int_random":
+            # int_random 在 UI 里是 [Checkbox, Number] 两组件,这里也要返回 2 个值:
+            #  - Checkbox state: example 给具体 seed 时不勾(=固定), 否则按 random_default
+            #  - Number value:   example.seed 的具体值或 spec.default
+            ex_seed = ex.get("seed")
+            if ex_seed is not None and ex_seed != 0:
+                values.append(False)        # 不勾 = 固定
+                values.append(ex_seed)
+            else:
+                values.append(bool(spec.get("random_default", True)))
+                values.append(spec.get("default", 0))
         else:
             values.append(spec.get("default"))
     return values
@@ -302,9 +349,17 @@ def _manifest_to_form_values(preset_name, manifest):
         elif typ == "image_sizes":
             sizes = manifest.get("sizes")
             values.append(list(sizes or spec.get("default") or []))
-        elif field == "seed":
+        elif field == "seed" or spec.get("type") == "int_random":
             seed = manifest.get("seed")
-            values.append(seed if seed is not None else spec.get("default", 0))
+            # manifest 只存最终 seed 值, 没有 "是否随机" 状态。回退规则:
+            # 有具体 seed -> 不勾 Checkbox (=固定值)
+            # 没 seed     -> 勾 Checkbox (=随机, 实际跑时随机生成)
+            if seed is not None:
+                values.append(False)
+                values.append(seed)
+            else:
+                values.append(bool(spec.get("random_default", True)))
+                values.append(spec.get("default", 0))
         elif nid == "362":
             values.append(manifest.get("ref_prompt", spec.get("default", "")))
         elif nid == "348":
@@ -609,24 +664,44 @@ def run_image_workflow(preset_name, *component_values):
     inputs_spec = preset_cfg["user_facing_inputs"]
 
     # 把 component_values 映射到 spec
+    # 大多数 spec 1:1 占用 component_values 1 项; int_random 占 2 项 (Checkbox + Number)。
+    # 用 while + i 推进而不是 zip, 这样 int_random 能一次取 2 个值。
     prompt_text = ""
     sizes_raw = None
     seed_val = 0
     prompt_node_id = None
     sizes_node_id = None
     seed_node_id = None
-    for spec, value in zip(inputs_spec, component_values):
+    i = 0
+    while i < len(inputs_spec):
+        spec = inputs_spec[i]
         typ = spec["type"]
         nid = str(spec["node_id"])
         if typ == "prompt_pool":
-            prompt_text = value or ""
+            prompt_text = component_values[i] or ""
             prompt_node_id = nid
+            i += 1
         elif typ == "image_sizes":
-            sizes_raw = value
+            sizes_raw = component_values[i]
             sizes_node_id = nid
-        elif typ == "int":
-            seed_val = int(value) if value is not None else spec.get("default", 0)
+            i += 1
+        elif typ == "int_random":
+            # component_values[i] = Checkbox state (bool)
+            # component_values[i+1] = Number value
+            randomize = bool(component_values[i]) if component_values[i] is not None else True
+            number_val = component_values[i + 1] if i + 1 < len(component_values) else spec.get("default", 0)
+            # checkbox 勾上 -> seed_val=0 (后续 actual_seed 用 random.randint 生成);
+            # 不勾       -> seed_val=number (固定值)
+            seed_val = 0 if randomize else int(number_val) if number_val is not None else spec.get("default", 0)
             seed_node_id = nid
+            i += 2
+        elif typ == "int":
+            seed_val = int(component_values[i]) if component_values[i] is not None else spec.get("default", 0)
+            seed_node_id = nid
+            i += 1
+        else:
+            # 未来加新 type 在这里兜底,避免 i 死循环
+            i += 1
 
     # prompt 为空 → 用默认（不强制随机，随机由 UI 按钮触发）
     prompt_text = (prompt_text or "").strip() or preset_cfg.get("user_facing_inputs", [{}])[0].get("default", "Photorealistic, ultra-detailed.")
@@ -1592,6 +1667,8 @@ def _render_workflow_form(preset_name):
                     gr.Markdown("**① 输入素材**")
                     for spec in basic_specs:
                         comp = _create_one_input(spec)
+                        # int_random 返回 [Checkbox, Number] 两组件,
+                        # 其他类型返回单组件 — 都按 node_id 收进 dict
                         inputs_by_nid[str(spec["node_id"])] = comp
 
             if advanced_specs:
@@ -1600,7 +1677,17 @@ def _render_workflow_form(preset_name):
                         comp = _create_one_input(spec)
                         inputs_by_nid[str(spec["node_id"])] = comp
 
-            inputs = [inputs_by_nid[str(s["node_id"])] for s in specs]
+            # 重建扁平 inputs 列表 (int_random 拆 2 个, 其他 1 个)。
+            # 后续 run_btn.click / ex_btn.click / last_btn.click 都按 flat inputs
+            # 传给 run_image_workflow; run_image_workflow 内部按 spec 类型决定
+            # 是否合并 int_random 的 2 个值为 1 个 seed。
+            inputs = []
+            for s in specs:
+                c = inputs_by_nid[str(s["node_id"])]
+                if isinstance(c, list):
+                    inputs.extend(c)
+                else:
+                    inputs.append(c)
 
             # 段数预估(仅视频类 preset)
             if not is_image:

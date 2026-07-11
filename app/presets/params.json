@@ -286,13 +286,14 @@
         {
           "node_id": "3",
           "field": "seed",
-          "label": "随机种子 (0=随机)",
-          "type": "int",
+          "label": "种子值",
+          "type": "int_random",
           "min": 0,
           "max": 9223372036854775807,
           "default": 0,
+          "random_default": true,
           "step": 1,
-          "help": "0 = 每个尺寸用独立随机种子；>0 = 固定种子（同提示词+种子出同图）。"
+          "help": "勾上「随机」则忽略数值, 每个尺寸独立随机; 不勾则用下方具体数值 (固定种子)。"
         }
       ],
       "example": {
