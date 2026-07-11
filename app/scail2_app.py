@@ -535,6 +535,17 @@ def run_workflow(preset_name, *component_values):
                 replacements[nid] = {field: ref_name}
             elif typ == "file:video":
                 replacements[nid] = {field: drive_name}
+                # 同一份素材绑多个 node（典型：SCAIL2 的 node 369 Drive Slice + node 469
+                # Full Source 取音频 / 元信息）。必须绑同一份视频，否则音频丢失 / 帧数不匹配
+                # / MieLoopEnd 越界。spec.also_patch 是 [{node_id, field}, ...] 列表，
+                # 同一份 drive_name 写到这些 node 上。
+                for _extra in (spec.get("also_patch") or []):
+                    _enid = str(_extra["node_id"])
+                    _efield = _extra["field"]
+                    if _enid in replacements:
+                        replacements[_enid][_efield] = drive_name
+                    else:
+                        replacements[_enid] = {_efield: drive_name}
             elif typ in ("text", "prompt_pool"):
                 raw = text_by_node.get(nid, "")
                 final = (raw or "").strip() or (spec.get("default") or config.DEFAULT_PROMPT_TEXT)

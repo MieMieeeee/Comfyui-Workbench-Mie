@@ -35,7 +35,14 @@
           "field": "video",
           "label": "驱动视频",
           "type": "file:video",
-          "tier": "basic"
+          "tier": "basic",
+          "also_patch": [
+            {
+              "node_id": "469",
+              "field": "video"
+            }
+          ],
+          "also_patch_reason": "node 469 (Load Video Full Source) 取整段视频的音频 + 元信息, 必须和 node 369 (Drive Slice) 用同一份驱动视频, 否则音频丢失 / 帧数不匹配 / 报 Start index is out of range"
         },
         {
           "node_id": "348",
@@ -151,7 +158,14 @@
           "field": "video",
           "label": "驱动视频",
           "type": "file:video",
-          "tier": "basic"
+          "tier": "basic",
+          "also_patch": [
+            {
+              "node_id": "469",
+              "field": "video"
+            }
+          ],
+          "also_patch_reason": "node 469 (Load Video Full Source) 取整段视频的音频 + 元信息, 必须和 node 369 (Drive Slice) 用同一份驱动视频, 否则音频丢失 / 帧数不匹配 / 报 Start index is out of range"
         },
         {
           "node_id": "348",

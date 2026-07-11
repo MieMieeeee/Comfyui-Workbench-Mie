@@ -119,8 +119,23 @@
 | `main_prompt` | `node_id=360` 的 `text` |
 | `segments` | `node_id=479` 的 int |
 | `prompt` | `prompt_pool` 的文本框 |
+| `sizes` | `image_sizes` 的多选框(预设数组,如 `["720x1280"]`) |
+| `preview_image` | 想要在右栏"示例预览"卡里展示的结果图(项目内路径或 URL) |
+| `preview_caption` | `preview_image` 下方一行说明 |
 
 文件值自动从 `config.COMFY_INPUT_DIR` 找(只要你把示例放到该目录就行),然后 stage 到项目内 `.examples_cache/` (Gradio 6 安全限制)。
+
+#### 示例预览卡(可选)
+
+想让用户在未运行前就看到"这个 preset 跑出来是什么样",在 `example` 里加这三个 key:
+
+- `preview_image`:项目内路径(推荐)或外部 URL。**项目内路径走 `/file=` 路由**,把图 commit 进 `app/static/examples/`(命名 `{preset}_{size_slug}_{counter}.png`,例:`zimage_720x1280_0001.png`)。
+- `preview_caption`:一行说明,例如 `🖼 720×1280 ｜ 9:16 ｜ 黄裙森林光影`。
+- `sizes`:这个示例跑的尺寸,会填到 `image_sizes` 多选框里,也会在预览卡上方一行小灰字展示。
+
+UI 行为:右栏顶部常驻一个"示例预览"卡(只有当 `preview_image` 存在时才显示)。点 "📥 加载示例素材" 会同时把表单字段和预览卡一起同步。
+
+> `preview_image` 推荐项目内路径——便于 commit、可离线、跟工作流绑定。如果必须用外部 URL(如 ComfyUI 实例 `/view` 直链),要明确标注"仅本机可访问",不要写进 README 当作通用引用。
 
 > SCAIL-2 两个 preset 采用 hardcoded 的 `362 / 348 / 360 / 479` node_id 是 SCAIL-2 workflow 内部约定。你的新 workflow 不一定这些 node_id — 照你 workflow 实际的 node_id 写 `user_facing_inputs` 即可。example 的 key 不能全部都用上,不能对上的字段简单留空。
 
@@ -136,6 +151,40 @@ Preset 自带的固定 patch,入队前**先** 应用。适用场景:
 ### 2.6 `do_not_modify_warnings` 怎么写
 
 给接手者看的备忘,不是用户配置。主要起到提醒“这个节点动之前先想明白”。
+
+### 2.7 `also_patch`: 同一份素材绑多个 node
+
+典型场景:SCAIL2 的 `node 369` (Drive Slice, 按段切驱动视频) 和 `node 469` (Full Source, 取整段视频的音频 + 元信息)
+**必须绑同一份视频**。否则音频丢失 / 帧数不匹配 / `MieLoopEnd` 报 `Start index is out of range`。
+
+**这是 schema 层 (不是新代码) 的解决方案**:
+在 `user_facing_inputs` 的 `file:video` 项上挂一个 `also_patch` 列表,运行时会自动把同一份 `drive_name` 写到列表里的每个 node。
+
+格式:
+
+```json
+{
+  "node_id": "369",
+  "field": "video",
+  "label": "驱动视频",
+  "type": "file:video",
+  "tier": "basic",
+  "also_patch": [{"node_id": "469", "field": "video"}],
+  "also_patch_reason": "node 469 取音频 + 元信息,必须和 node 369 用同一份"
+}
+```
+
+- `also_patch` 可选;缺省 / `[]` 退化为只 patch 主 node (旧 preset 兼容)
+- 每项形如 `{"node_id": "...", "field": "..."}`;同一份 `drive_name` 写到 `replacements[enid][efield]`
+- 主 node id 又出现在 `also_patch` 不会丢主字段 (覆盖写同名,值相同)
+- `workflow_validator` **不**校验 `also_patch` 列出的 node 是否存在 (它的存在性由运行时 `patch_workflow` 隐式覆盖 inputs 来保证)
+- `also_patch_reason` 是给未来维护者看的备忘,不是运行时逻辑
+
+什么时候**不**需要 `also_patch`:
+
+- 只有 1 个 node 拿这份视频 → 不需要
+- 多个 node 但拿不同视频 → 每个 node 各自开一个 `file:video` 项,不要用 `also_patch`
+- patch 一个非视频字段 → 用 `fixed_patches` (preset 级),不是 `also_patch` (user_facing 级)
 
 ## 步骤 3 — 引入新模型 / 节点 → 追加 health_requirements.json
 
