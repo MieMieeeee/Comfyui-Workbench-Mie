@@ -99,6 +99,13 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | --- | --- | --- |
 | `.btn-run-primary` | 🚀 开始运行（唯一绝对主操作） | 主题色渐变 + glow |
 | `.btn-run-primary.is-running` | 运行中态 | 脉冲 + spinner |
+| `.run-status-bar` + `.run-status-idle/running/success/failure/timeout` | 顶部运行状态条 (review P2) | 5 态切换颜色 + 图标; running 时带脉冲动画 + icon 旋转 + mm:ss 已耗时 |
+| `.sizes-cards` | 「尺寸选项」多选卡片 (review P1) | 替代 gr.CheckboxGroup 默认的「圆点小列表」, 每项独立卡片 + hover + 主题色选中 |
+| `.nav-group` / `.nav-group-system` | 左栏导航 / 系统两个 Group (review P3) | 视觉分组 + 小标题 uppercase 灰字 |
+| `.nav-divider` | 导航/系统之间的视觉分隔线 | 1px 透明→border→透明的 linear-gradient |
+| `.section-header` | 表单内小节标题 (review P4) | 14px primary text + 1px border-bottom, 替代 card-core 嵌套 |
+| `.step-card` | 基本输入 Group 容器 (review P4 改后无边框) | 只保留 padding/margin + section-header, 不再加 card-core |
+| `.preview-card` | 示例预览 Group 容器 | 轻量 border + 无 shadow, 区分外层 page 但不嵌套 |
 | `.btn-run-secondary` | 🔁 用相同参数再来（次操作，视觉降级） | 低彩度深灰底 + 微弱边框（Light Mode 白底灰边） |
 | `.btn-secondary-override` | 📥 / 📂 / 🔍 等次按钮兜底 | 次级灰底 |
 | `.card-core` | 主表单 Group / 卡片容器 | 卡片分层底 + 圆角 + 阴影 |
@@ -169,15 +176,32 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 
 `运行` tab 默认选中。第一次切 preset 不请求网络（除 `🔍 完整健康检查` 外）。
 
-### 6.1 运行表单的两栏工作台布局（第四阶段）
+### 6.1 运行表单的两栏工作台布局（第四阶段 + 第六阶段 review 调整）
 
 每个 preset 的 `_render_workflow_form` 用 `with gr.Row(equal_height=False):` 包两栏，
 从「长表单页面」变成「左右结构的两栏 AI 创作工作台」：
 
 | 栏 | `gr.Column` | 放什么 |
 | --- | --- | --- |
-| **左控制栏** | `scale=5` | ① 输入素材（basic 上传 / 提示词 / 尺寸）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
-| **右作品预览栏** | `scale=6` | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+| **左控制栏** | `scale=4` (min_width=380) | 顶部 **运行状态条**（review P2，跨 idle/running/success/failure/timeout 五态）→ ① 输入素材（basic 上传 / 提示词 / 尺寸，section-header 风格，不嵌套 card-core）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
+| **右作品预览栏** | `scale=7` (min_width=460) | 🖼 示例预览（preview-card 轻量边框）→ 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+
+第六阶段 review 调整: 左 scale 从 5 改 4, 右 scale 从 6 改 7, 给预览图更大空间。
+在 1280px 视口下预览列从 ~430px 涨到 ~687px (1.6x); 1920px 下从 ~800px 涨到 ~1095px,
+主图成为真正主角 → review P0 主任务通路。
+
+`build_ui` 顶层的左侧导航 (scale=0 + min_width=200) 跟表单内的左右栏是两套不同 Row, 
+互不影响 —— 导航固定 200px, 表单内 4:7 在剩余空间分。
+
+### 6.2 左侧导航的「导航 / 系统」分组（第六阶段 review P3）
+
+build_ui 左侧导航拆成两个 Group + 中间 divider:
+
+| Group | 放什么 |
+| --- | --- |
+| `.nav-group` (导航) | 🔍 搜索 + 工作流 Radio |
+| `.nav-divider` | 1px 透明→border→透明 分隔线 |
+| `.nav-group.nav-group-system` (系统) | ComfyUI 连通状态 + 🔄 刷新按钮 |
 
 **theme-injector 仍是 `build_ui()` 顶部的全局唯一 `gr.HTML`**，不在本布局内 —— 它要跨
 所有 preset 共用，放进任何一栏都会被 preset 切换的 visibility 影响。两栏只重组
