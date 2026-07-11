@@ -45,10 +45,16 @@ def test_build_input_component_text():
 
 
 def test_build_input_component_int():
+    # int 走 gr.Number (Gradio 6.20.0 Slider 在 advanced panel 里 status-tracker 永远
+    # 不消失, 视觉 chrome 渲染挂掉; Number 在同环境正常)
     spec = {"label": "段数", "type": "int", "node_id": "479", "field": "int_range_end",
             "min": 1, "max": 12, "default": 8, "step": 1}
     comp = scail2_app._build_input_component(spec)
-    assert isinstance(comp, gr.Slider)
+    assert isinstance(comp, gr.Number)
+    assert comp.minimum == 1
+    assert comp.maximum == 12
+    assert comp.value == 8
+    assert comp.precision == 0
 
 
 def test_build_input_component_unknown_type_raises():
