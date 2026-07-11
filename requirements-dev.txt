@@ -1,0 +1,3 @@
+# 开发/测试期依赖，不进整合包（requirements.txt 才是运行时依赖）。
+# playwright 的浏览器二进制另需: playwright install chromium
+playwright>=1.40
