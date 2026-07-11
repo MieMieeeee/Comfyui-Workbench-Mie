@@ -119,10 +119,6 @@
         "ref_prompt": "human",
         "drive_prompt": "human",
         "main_prompt": "A woman is dancing.",
-        "preview_prompt": "A woman is dancing.",
-        "preview_caption": "🎬 SCAIL2 角色替换 · 驱动视频 scail-2_00038-audio.mp4",
-        "preview_image": "app/static/examples/sca12_replace_3seg.png",
-        "preview_video": "app/static/examples/sca12_replace_3seg.mp4",
         "frame_load_cap": 0
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
@@ -260,11 +256,7 @@
         "drive_prompt": "human",
         "main_prompt": "the woman is dancing",
         "frame_load_cap": 0,
-        "segments": 0,
-        "preview_prompt": "the woman is dancing",
-        "preview_caption": "🎬 SCAIL2 动作迁移 · 驱动视频 scail-2_00038-audio.mp4",
-        "preview_image": "app/static/examples/sca12_motion_3seg.png",
-        "preview_video": "app/static/examples/sca12_motion_3seg.mp4"
+        "segments": 0
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -350,8 +342,6 @@
         "sizes": [
           "720x1280"
         ],
-        "preview_image": "app/static/examples/zimage_720x1280_0001.png",
-        "preview_caption": "🖼 720×1280 ｜ 9:16 ｜ 黄裙森林光影",
         "seed": 900259427766747
       },
       "output_kind": "image",

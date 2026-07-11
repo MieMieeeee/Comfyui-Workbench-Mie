@@ -189,3 +189,31 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
   - 未来新加的所有 preset
 
 `docs/ADDING_WORKFLOWS.md` \u00a72.4 有完整的 "项目规矩" 段, 加新 preset 之前先看.
+
+
+## UI 简化: 移除示例预览卡片 (review 2026-07-11)
+
+以前右栏顶部有个常驻的\u201c示例预览\u201d卡, 展示 example 里的 preview_image / preview_video.
+现在默认参数 = example, 跑出来的就是这张图, 跟生成结果区重复了. 删了.
+
+行为变化:
+  - 删除前: 右栏 = \u793a\u4f8b\u9884\u89c8 + \u8fd0\u884c\u65e5\u5fd7 + \u751f\u6210\u7ed3\u679c
+  - 删除后: 右栏 = \u8fd0\u884c\u65e5\u5fd7 + \u751f\u6210\u7ed3\u679c (\u751f\u6210\u7ed3\u679c\u533a\u662f\u6700\u7ec8\u8f93\u51fa\u56fe\u4f4d\u7f6e)
+
+代码侧:
+  - `app/scail2_app.py` 删了 `_render_workflow_form` 里的示例预览 Group
+  - 删了 `_render_preview_prompt_html` 函数
+  - `app/presets/params.json` example 块里的 `preview_image` / `preview_video` /
+    `preview_caption` / `preview_prompt` 全删了
+  - `app/static/examples/` 里只剩 `scail2_drive_00038.mp4` (作 drive_video 示例),
+    其它 preview 文件 (sca12_*_3seg, zimage_720x1280_0001) 都删了
+
+文档:
+  - `docs/ADDING_WORKFLOWS.md` \u00a72.4 key 表里删了 preview_image / preview_caption 两行,
+    删了 \u201c#### \u793a\u4f8b\u9884\u89c8\u5361\u201d 小节
+  - `docs/UI_STYLE.md` 删了 `.preview-card` class 行,
+    右栏布局说明里去掉了 \u201c\u793a\u4f8b\u9884\u89c8\u201d 一项
+
+测试:
+  - `tests/test_css_theming.py` 里 .preview-card 引用换成 \u201c\u751f\u6210\u7ed3\u679c / \u7cfb\u7edf\u7ea7 Group\u201d
+  - 没新增/删除 unit test (现有 test 不依赖 preview 块)

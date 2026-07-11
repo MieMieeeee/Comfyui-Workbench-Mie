@@ -366,7 +366,7 @@ def test_step_card_groups_have_card_core_class():
 
     第四阶段 §A 引入 .card-core 双层卡片 (step-card + card-core), 但 review P4
     指出三层卡片视觉嵌套过深, 改成: step-card 不再加边框/阴影, 改用 section-header
-    风格的标题分隔。.card-core 类继续保留在右栏示例预览 (.preview-card 容器)、
+    风格的标题分隔。.card-core 类继续保留在右栏“生成结果” / 系统级 Group 等必要卡上,
     以及未来需要卡片视觉的模块 (运行结果等), 但基础输入表单不再套它。
     """
     with gr.Blocks() as demo:

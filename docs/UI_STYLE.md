@@ -105,7 +105,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `.nav-divider` | 导航/系统之间的视觉分隔线 | 1px 透明→border→透明的 linear-gradient |
 | `.section-header` | 表单内小节标题 (review P4) | 14px primary text + 1px border-bottom, 替代 card-core 嵌套 |
 | `.step-card` | 基本输入 Group 容器 (review P4 改后无边框) | 只保留 padding/margin + section-header, 不再加 card-core |
-| `.preview-card` | 示例预览 Group 容器 | 轻量 border + 无 shadow, 区分外层 page 但不嵌套 |
+
 | `.btn-run-secondary` | 🔁 用相同参数再来（次操作，视觉降级） | 低彩度深灰底 + 微弱边框（Light Mode 白底灰边） |
 | `.btn-secondary-override` | 📥 / 📂 / 🔍 等次按钮兜底 | 次级灰底 |
 | `.card-core` | 主表单 Group / 卡片容器 | 卡片分层底 + 圆角 + 阴影 |
@@ -184,7 +184,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | 栏 | `gr.Column` | 放什么 |
 | --- | --- | --- |
 | **左控制栏** | `scale=4` (min_width=380) | 顶部 **运行状态条**（review P2，跨 idle/running/success/failure/timeout 五态）→ ① 输入素材（basic 上传 / 提示词 / 尺寸，section-header 风格，不嵌套 card-core）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
-| **右作品预览栏** | `scale=7` (min_width=460) | 🖼 示例预览（preview-card 轻量边框）→ 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+| **右作品预览栏** | `scale=7` (min_width=460) | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区 → 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
 
 第六阶段 review 调整: 左 scale 从 5 改 4, 右 scale 从 6 改 7, 给预览图更大空间。
 在 1280px 视口下预览列从 ~430px 涨到 ~687px (1.6x); 1920px 下从 ~800px 涨到 ~1095px,

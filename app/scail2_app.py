@@ -1410,30 +1410,6 @@ def _is_image_preset(preset_cfg):
     return preset_cfg.get("output_kind") == "image" or preset_cfg.get("category") == "image"
 
 
-def _render_preview_prompt_html(prompt: str, sizes: list) -> str:
-    """把 example 的 prompt + sizes 渲染成右栏“示例预览”卡里要展示的 HTML。
-
-    - sizes 在 prompt 之前一行小灰字,展示实际跑的尺寸
-    - prompt 用 <pre> 等宽保留换行 + <details> 默认收起,避免长 prompt 占太多视觉空间
-    """
-    parts = []
-    if sizes:
-        parts.append(
-            "<div style='font-size:12px;color:#6b7280;margin:0 0 6px'>"
-            "📐 尺寸: " + chr(44).join(sizes) + "</div>",
-        )
-    if prompt:
-        esc = prompt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        parts.append(
-            "<details>"
-            "<summary style='cursor:pointer;font-size:12px;color:#9ba1a8'>"
-            "📝 完整提示词(点击展开)</summary>"
-            "<pre style='white-space:pre-wrap;font-size:12px;line-height:1.55;"
-            "padding:10px;background:var(--block-background-fill,rgba(0,0,0,0.04));"
-            "border-radius:6px;max-height:240px;overflow:auto;margin:8px 0 0'>"
-            + esc + "</pre>" + "</details>",
-        )
-    return "".join(parts)
 
 def _format_elapsed(seconds):
     """把秒数格式化成 mm:ss, 例如 75 -> '01:15'。review P2 让用户感知运行已耗时。"""
@@ -1926,54 +1902,10 @@ def _render_workflow_form(preset_name):
         # —— 直接把右侧空白吃掉,主图成为真正主角 (review P0 / 副标题 3)。
         # min_width=460 保证极窄窗口下预览区不会塌缩。
         with gr.Column(scale=7, min_width=460):
-            # [示例预览] —— 当 preset 的 example 含 preview_image 时常驻展示,
-            # 让用户在未运行前就能看到 "这个 preset 跑出来是什么样"。
-            # 可见性由 preset 决定,与 ex_btn.click 无关(数据本身就是 preset 的)。
-            _ex_cfg = preset_cfg.get("example") or {}
-            _preview_image_raw = _ex_cfg.get("preview_image")
-            _preview_video_raw = _ex_cfg.get("preview_video")
-            # preview_image / preview_video 可能是 http(s):// URL、项目内相对路径、或旧的
-            # "/file=..." 写法。gr.Image/gr.Video 都接受 str(本地路径) / Path / URL。
-            # 项目内路径走 config.REPO_ROOT 拼绝对;URL 直接传(走 http 拉取)。
-            def _resolve_preview_path(raw):
-                if not raw: return None
-                if raw.startswith(("http://", "https://")): return raw
-                if raw.startswith("/file="):
-                    _rel = raw[len("/file="):].replace("/", __import__("os").sep)
-                else:
-                    _rel = raw.replace("/", __import__("os").sep)
-                return str(config.REPO_ROOT / _rel)
-            _preview_image_url = _resolve_preview_path(_preview_image_raw)
-            _preview_video_url = _resolve_preview_path(_preview_video_raw)
-            # video 优先 (SCAIL2 的 output 是视频, image 只作 poster/fallback)
-            _preview_kind = "video" if _preview_video_url else "image"
-            _preview_caption = _ex_cfg.get("preview_caption", "")
-            _preview_prompt = _ex_cfg.get("preview_prompt") or _ex_cfg.get("prompt") or ""
-            _preview_sizes = list(_ex_cfg.get("sizes") or [])
-            _has_preview = bool(_preview_image_url or _preview_video_url)
-            # P4: 示例预览区去掉 card-core, 改用 section-header + 轻量卡片
-            with gr.Group(visible=_has_preview, elem_classes=["preview-card"]):
-                gr.Markdown("**🎬 示例预览**" if _preview_kind == "video" else "**📷 示例预览**", elem_classes=["section-header"])
-                _caption_md = gr.Markdown(value=_preview_caption, visible=bool(_preview_caption))
-                if _preview_kind == "video":
-                    _preview_vid = gr.Video(
-                        value=_preview_video_url,
-                        show_label=False,
-                        interactive=False,
-                        autoplay=False,
-                        elem_classes=["result-area"],
-                    )
-                else:
-                    _preview_img = gr.Image(
-                        value=_preview_image_url,
-                        show_label=False,
-                        interactive=False,
-                        elem_classes=["result-area"],
-                    )
-                _prompt_html = gr.HTML(
-                    value=_render_preview_prompt_html(_preview_prompt, _preview_sizes),
-                    visible=bool(_preview_prompt or _preview_sizes),
-                )
+            # [示例预览已移除] (review 2026-07-11)
+            # 原来这里有个“示例预览”卡片, 常驻展示 example 里的 preview_image / preview_video.
+            # 现在默认参数 = example, 跑出来就是这张图 —— 示例预览和最终输出区重复了.
+            # 只留 “生成结果”区 (output_box) 作为最终输出图位置.
 
             # [运行日志] 折叠(默认收起,跑起来自动展开)
             with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
