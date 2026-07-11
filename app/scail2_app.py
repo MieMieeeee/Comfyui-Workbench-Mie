@@ -536,9 +536,17 @@ def run_workflow(preset_name, *component_values):
             field = spec["field"]
             typ = spec["type"]
             if typ == "file:image":
-                replacements[nid] = {field: ref_name}
+                # merge: 同一 node 上可能还有 int/text 等其它 spec, 不要覆盖
+                if nid in replacements:
+                    replacements[nid][field] = ref_name
+                else:
+                    replacements[nid] = {field: ref_name}
             elif typ == "file:video":
-                replacements[nid] = {field: drive_name}
+                # merge: 同一 node 上可能还有 int/text 等其它 spec, 不要覆盖
+                if nid in replacements:
+                    replacements[nid][field] = drive_name
+                else:
+                    replacements[nid] = {field: drive_name}
                 # 同一份素材绑多个 node（典型：SCAIL2 的 node 369 Drive Slice + node 469
                 # Full Source 取音频 / 元信息）。必须绑同一份视频，否则音频丢失 / 帧数不匹配
                 # / MieLoopEnd 越界。spec.also_patch 是 [{node_id, field}, ...] 列表，
@@ -553,7 +561,22 @@ def run_workflow(preset_name, *component_values):
             elif typ in ("text", "prompt_pool"):
                 raw = text_by_node.get(nid, "")
                 final = (raw or "").strip() or (spec.get("default") or config.DEFAULT_PROMPT_TEXT)
-                replacements[nid] = {field: final}
+                # merge: 同一 node 上可能还有 int/file 等其它 spec, 不要覆盖
+                if nid in replacements:
+                    replacements[nid][field] = final
+                else:
+                    replacements[nid] = {field: final}
+                # mirror_to: 把同一个文本值复制到其它节点的 field 上 (典型: SCAIL2 的
+                # 348.text (CLIPTextEncode) + 540.text (StringHash, 喂 cache key) 必须同步,
+                # 否则 cache key 永远哈希到 workflow 里硬编码的 "human" 而不是用户实际输入。
+                # 也兼容 also_patch 这个老名字, 行为一致。
+                for _extra in (spec.get("mirror_to") or spec.get("also_patch") or []):
+                    _enid = str(_extra["node_id"])
+                    _efield = _extra["field"]
+                    if _enid in replacements:
+                        replacements[_enid][_efield] = final
+                    else:
+                        replacements[_enid] = {_efield: final}
             elif typ == "int":
                 default = spec.get("default", 1)
                 val = int_by_node.get(nid, default)
@@ -561,7 +584,11 @@ def run_workflow(preset_name, *component_values):
                 if nid == "479" and val == 0:
                     pass
                 else:
-                    replacements[nid] = {field: val}
+                    # merge: 同一 node 上可能还有 file:video 等其它 spec, 不要覆盖
+                    if nid in replacements:
+                        replacements[nid][field] = val
+                    else:
+                        replacements[nid] = {field: val}
         patched = scail2_client.patch_workflow(
             wf, replacements, preset_config=preset_cfg, validate_after=True,
         )

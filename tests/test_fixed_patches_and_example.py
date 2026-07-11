@@ -61,7 +61,7 @@ def test_run_workflow_applies_fixed_patches():
              patch.object(scail2_app.scail2_client, "get_history", return_value={}), \
              patch.object(scail2_app.scail2_client, "extract_primary_video_output", return_value=None):
             # sca12_motion: fixed_patches 353=false (动作迁移模式)
-            list(scail2_app.run_workflow("sca12_motion", str(ref), "human", str(drive), "human", "test", 81, 5, 2))
+            list(scail2_app.run_workflow("sca12_motion", str(ref), "human", "human", "test", str(drive), 0, 81, 5))
         # patch_workflow 收到的 replacements 应含 node 353 = false
         assert "353" in captured_replacements
         assert captured_replacements["353"]["value"] is False

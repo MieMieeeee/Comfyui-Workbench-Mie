@@ -63,6 +63,13 @@ def _fake_upload_side_effect():
 
 def _run_with(tmp_path, captured, fake_patch, preset_name="sca12_replace"):
     ref, drive = _make_ref_and_drive(tmp_path)
+    # 新 sca12_motion schema: image, 362 text, 348 text, 360 text, 469 video, 469 frame_load_cap int, 367 int, 464 int
+    # sca12_replace schema 仍是: image, 362 text, 369 video, 348 text, 360 text, 367 int, 464 int, 479 int
+    is_motion = (preset_name == "sca12_motion")
+    if is_motion:
+        positional_args = (str(ref), "animal", "human", "a person walking", str(drive), 0, 81, 5)
+    else:
+        positional_args = (str(ref), "animal", str(drive), "human", "a person walking", 81, 5, 2)
     with patch.object(scail2_app.scail2_client, "load_workflow_template", return_value=_synthetic_workflow()), \
          patch.object(scail2_app.scail2_client, "patch_workflow", side_effect=fake_patch), \
          patch.object(scail2_app.scail2_client, "upload", side_effect=_fake_upload_side_effect()), \
@@ -71,10 +78,7 @@ def _run_with(tmp_path, captured, fake_patch, preset_name="sca12_replace"):
          patch.object(scail2_app.scail2_client, "get_history", return_value=_fake_history_success()), \
          patch.object(scail2_app.scail2_client, "extract_primary_video_output", return_value={"filename": "out.mp4", "subfolder": "SCAIL-2", "type": "output"}), \
          patch.object(scail2_app.scail2_client, "get_output_url", return_value="http://fake/view"):
-        # 8 个 user_facing_input: image, 362 text, 369 video, 348 text, 360 text, 367 int, 464 int, 479 int
-        _collect(scail2_app.run_workflow(
-            preset_name, str(ref), "animal", str(drive), "human", "a person walking", 81, 5, 2
-        ))
+        _collect(scail2_app.run_workflow(preset_name, *positional_args))
     return captured.get("replacements")
 
 
@@ -93,15 +97,18 @@ def test_also_patch_writes_same_drive_to_extra_node(tmp_path):
 
 
 def test_also_patch_motion_preset_also_works(tmp_path):
-    """sca12_motion preset 的 also_patch 同样生效。"""
+    """sca12_motion preset 的 also_patch 同样生效(469 主, also_patch 到 543 per-iter loader)。"""
     captured = {}
     def _fake_patch(wf, replacements, preset_config=None, validate_after=True):
         captured["replacements"] = replacements
         return wf
     reps = _run_with(tmp_path, captured, _fake_patch, "sca12_motion")
-    assert reps is not None
-    assert "369" in reps and "469" in reps
-    assert reps["369"]["video"] == reps["469"]["video"]
+    assert reps is not None, "patch_workflow 没被调用"
+    assert "469" in reps and reps["469"].get("video"), "主 node 469 没被 patch"
+    assert "543" in reps and reps["543"].get("video"), "also_patch node 543 没被 patch"
+    assert reps["469"]["video"] == reps["543"]["video"], "两个 node 的 video 必须是同一份"
+    assert reps["469"].get("frame_load_cap") == 0, "469.frame_load_cap 没被 patch (默认 0)"
+    assert reps["469"]["video"].endswith("drive.mp4")
 
 
 def test_also_patch_empty_list_is_equivalent_to_no_alsopatch(tmp_path, monkeypatch):
@@ -173,7 +180,13 @@ def test_validator_does_not_inspect_also_patch_node():
 
 
 def test_also_patch_schema_appears_in_params_json():
-    """params.json 里两个 SCAIL2 preset 必须显式声明 also_patch，否则用户在 UI 看不出。"""
+    """params.json 里两个 SCAIL2 preset 必须显式声明 also_patch, 否则用户在 UI 看不出。
+
+    不同 preset 用了不同架构:
+    - sca12_replace (老 workflow): 主驱动在 369, also_patch 同步到 469
+    - sca12_motion (新 workflow): 主驱动在 469, also_patch 同步到 543 (per-iter loader)
+    不变量: 两个 node 视频必须绑同一份, 所以 also_patch 必须有 target 且 != 主节点。
+    """
     import json
     p = REPO_ROOT / "app" / "presets" / "params.json"
     j = json.loads(p.read_text(encoding="utf-8"))
@@ -183,7 +196,9 @@ def test_also_patch_schema_appears_in_params_json():
         assert v is not None, f"{preset_name} 缺 file:video 项"
         assert "also_patch" in v, f"{preset_name} 的 file:video 缺 also_patch 字段"
         targets = {str(x.get("node_id")) for x in v["also_patch"]}
-        assert "469" in targets, f"{preset_name} 的 also_patch 必须包含 469"
+        primary = str(v["node_id"])
+        assert targets, f"{preset_name} 的 also_patch 不能为空 (主节点 {primary} 需要一个镜像)"
+        assert primary not in targets, f"{preset_name} 的 also_patch target 不该等于主节点 {primary}"
 
 
 if __name__ == "__main__":
