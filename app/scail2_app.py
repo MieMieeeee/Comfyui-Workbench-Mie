@@ -1751,30 +1751,44 @@ def _render_workflow_form(preset_name):
             # 可见性由 preset 决定,与 ex_btn.click 无关(数据本身就是 preset 的)。
             _ex_cfg = preset_cfg.get("example") or {}
             _preview_image_raw = _ex_cfg.get("preview_image")
-            # preview_image 可能是 http(s):// URL、项目内相对路径、或旧的 "/file=..." 写法。
-            # Gradio 6.20 的 gr.Image 接受 PIL/ndarray/pathlib.Path/str(本地路径或 URL)。
+            _preview_video_raw = _ex_cfg.get("preview_video")
+            # preview_image / preview_video 可能是 http(s):// URL、项目内相对路径、或旧的
+            # "/file=..." 写法。gr.Image/gr.Video 都接受 str(本地路径) / Path / URL。
             # 项目内路径走 config.REPO_ROOT 拼绝对;URL 直接传(走 http 拉取)。
-            if _preview_image_raw and not _preview_image_raw.startswith(("http://", "https://")):
-                if _preview_image_raw.startswith("/file="):
-                    _rel = _preview_image_raw[len("/file="):].replace("/", __import__("os").sep)
+            def _resolve_preview_path(raw):
+                if not raw: return None
+                if raw.startswith(("http://", "https://")): return raw
+                if raw.startswith("/file="):
+                    _rel = raw[len("/file="):].replace("/", __import__("os").sep)
                 else:
-                    _rel = _preview_image_raw.replace("/", __import__("os").sep)
-                _preview_image_url = str(config.REPO_ROOT / _rel)
-            else:
-                _preview_image_url = _preview_image_raw
+                    _rel = raw.replace("/", __import__("os").sep)
+                return str(config.REPO_ROOT / _rel)
+            _preview_image_url = _resolve_preview_path(_preview_image_raw)
+            _preview_video_url = _resolve_preview_path(_preview_video_raw)
+            # video 优先 (SCAIL2 的 output 是视频, image 只作 poster/fallback)
+            _preview_kind = "video" if _preview_video_url else "image"
             _preview_caption = _ex_cfg.get("preview_caption", "")
-            _preview_prompt = _ex_cfg.get("prompt", "")
+            _preview_prompt = _ex_cfg.get("preview_prompt") or _ex_cfg.get("prompt") or ""
             _preview_sizes = list(_ex_cfg.get("sizes") or [])
-            _has_preview = bool(_preview_image_url)
+            _has_preview = bool(_preview_image_url or _preview_video_url)
             with gr.Group(visible=_has_preview, elem_classes=["card-core"]):
-                gr.Markdown("**📷 示例预览**")
+                gr.Markdown("**🎬 示例预览**" if _preview_kind == "video" else "**📷 示例预览**")
                 _caption_md = gr.Markdown(value=_preview_caption, visible=bool(_preview_caption))
-                _preview_img = gr.Image(
-                    value=_preview_image_url,
-                    show_label=False,
-                    interactive=False,
-                    elem_classes=["result-area"],
-                )
+                if _preview_kind == "video":
+                    _preview_vid = gr.Video(
+                        value=_preview_video_url,
+                        show_label=False,
+                        interactive=False,
+                        autoplay=False,
+                        elem_classes=["result-area"],
+                    )
+                else:
+                    _preview_img = gr.Image(
+                        value=_preview_image_url,
+                        show_label=False,
+                        interactive=False,
+                        elem_classes=["result-area"],
+                    )
                 _prompt_html = gr.HTML(
                     value=_render_preview_prompt_html(_preview_prompt, _preview_sizes),
                     visible=bool(_preview_prompt or _preview_sizes),
