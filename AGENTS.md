@@ -125,3 +125,31 @@ categories, register them there before shipping the change.
   forbids it -- new functionality should be data-only, not new modules.
 - When writing new copy / help text, use **user perspective** (users do not know
   what node ID 367 means). Never leak node numbers into UI copy.
+
+
+## Known gotcha — wf_radio.change + form state (review 2026-07-11)
+
+`wf_radio.change` 触发 `_auto_load_example(name)`, 旧实现**每一次**都把当前
+preset 的所有 input **重置回 example**, 用户上传/输入的内容直接被覆盖.
+
+**触发场景** (用户报告):
+  1. 提交动作迁移 (in flight / 已完成)
+  2. 切换到角色替换看一眼
+  3. 切回动作迁移 → 表单被 example 重置, 上传的图 / 提示词全没
+
+**契约**:
+  - 首次切到 preset → auto-load example, 把 preset 加入 `_AUTO_LOADED`
+  - 二次切到 (在 `_AUTO_LOADED` 里) → 返回 `gr.update()` 保留用户当前输入
+  - 其它 preset → 永远 `gr.update()` 不动它们
+  - "加载示例素材" / "加载上次成功参数" / 历史 tab "加载到运行" 也都把
+    对应 preset 加入 `_AUTO_LOADED`, 跨切换不丢最后一次显式操作
+
+**位置**:
+  - `_AUTO_LOADED` + `_resolve_auto_load_updates` 在 `app/scail2_app.py` 模块级
+  - 历史 tab 的 `_stage_rerun` 把 preset 加入 `_AUTO_LOADED` (替代旧 `_SKIP_AUTO_LOAD` 一次性机制)
+  - 测试在 `tests/test_preset_switch_preserves_form.py` (11 个 case, 锁契约)
+
+**why we extracted to module-level function**:
+  - 原闭包 `def _auto_load_example(name)` 在 `build_ui` 里, 单测拿不到
+  - 提取成 `_resolve_auto_load_updates(preset_inputs_map, name)` 之后, 测试用
+    `_realistic_preset_inputs_map()` 构造最小 inputs 即可验证契约

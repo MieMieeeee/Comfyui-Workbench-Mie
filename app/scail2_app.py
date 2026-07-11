@@ -55,13 +55,57 @@ _log = logging.getLogger("scail2_app")
 _ALL_INPUTS_FLAT: list = []
 _WF_RADIO_REF = None  # type: ignore[assignment]
 _TABS_REF = None  # type: ignore[assignment]
-_SKIP_AUTO_LOAD: set = set()  # 后续要被快速取消，临时标记“下一次 wf_radio.change 跳过自动填表单”
+# _AUTO_LOADED: 切换过/手动加载过的 preset, 下次再切回去时不再 auto-load example.
+# 设计:
+#   - 首次切到 preset (不在集合) -> auto-load example + add to set
+#   - 已加载过 (在集合)          -> 返回 gr.update() 保留用户当前输入
+# 这样切到别的 workflow 再回来, 上传的文件 / 输入的提示词 不会被 example 覆盖.
+# 加载到 (1) 示例按钮 (2) 上次成功参数 (3) 历史 tab “加载到运行” 都把对应 preset 加入此集合,
+# 保持“用户最后一次显式操作”的状态.
+_AUTO_LOADED: set = set()
 
 
 def _iter_preset_names():
     """顺序返回所有 preset name（与 build_ui 里 preset_inputs_map 的顺序一致）。
     build_ui 里是走 config.list_workflows()（按 order 排序），这里复用同一个函数。"""
     return [w["name"] for w in config.list_workflows()]
+
+def _resolve_auto_load_updates(preset_inputs_map, name):
+    """切换 workflow radio 时, 给每个 preset 的 input 决定用 example 值还是 gr.update()。
+
+    独立提取成模块级函数 (review 2026-07-11 P-state-preserve) 是为了可测:
+    在 build_ui 里它是 closure, 单元测试拿不到。提取后用 preset_inputs_map 作
+    参数即可直接调, 测试用例可构造一个最小的 preset_inputs_map 验证契约。
+
+    核心契约:
+      name not in _AUTO_LOADED -> 首次切到, auto-load example, add to set
+      name in _AUTO_LOADED    -> 已加载过, 用 gr.update() 保留用户当前输入, 不重置回 example
+      其它 preset                -> gr.update() 保持原状
+
+    History tab "load to run" / "load example" button / "load last run" button
+    都会把对应 preset 加入 _AUTO_LOADED, 保证后续切回去不覆盖。
+
+    返回 list, 长度 == sum(len(ins) for ins in preset_inputs_map.values()),
+    顺序与 preset_inputs_map 一致 (按 preset 顺序, 每个 preset 内按 user_facing_inputs 顺序)。
+    返回值要么是 example 算出来的真实值, 要么是 gr.update() (no-op)。
+    """
+    result = []
+    for preset_name, _ins in preset_inputs_map.items():
+        if preset_name == name:
+            if preset_name in _AUTO_LOADED:
+                # already loaded, user edits / uploads / inputs must be preserved
+                result.extend([gr.update() for _in in _ins])
+            else:
+                # first switch -> auto-load example
+                _AUTO_LOADED.add(preset_name)
+                try:
+                    result.extend(example_to_form_values(preset_name))
+                except Exception:
+                    result.extend([inp.value for inp in _ins])
+        else:
+            # non-active preset: use gr.update() to keep current state
+            result.extend([gr.update() for _in in _ins])
+    return result
 
 
 
@@ -1137,7 +1181,8 @@ def _build_history_tab():
         if not manifest:
             return gr.update(), gr.update()
         preset = manifest.get("preset") or "zimage"
-        _SKIP_AUTO_LOAD.add(preset)
+        # 加载到 _AUTO_LOADED, 下次 wf_radio.change 不会用 example 覆盖 manifest 填进的值
+        _AUTO_LOADED.add(preset)
         return gr.update(value=preset), gr.update(value=manifest)
 
     def _fill_from_manifest(preset_name, manifest):
@@ -2032,9 +2077,17 @@ def _render_workflow_form(preset_name):
     re_run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
 
     if ex_btn is not None:
-        ex_btn.click(fn=lambda: example_to_form_values(preset_name), outputs=inputs)
+        # "load example" = explicit reset to example. Switching to another workflow
+        # and back should keep the example state, not be overwritten by auto-load.
+        def _on_ex_btn_click():
+            _AUTO_LOADED.add(preset_name)
+            return example_to_form_values(preset_name)
+        ex_btn.click(fn=_on_ex_btn_click, outputs=inputs)
 
     def _fill_last_run():
+        # mark as loaded so switching to another workflow and back
+        # does not lose the last-run parameter values
+        _AUTO_LOADED.add(preset_name)
         return _load_last_run(preset_name, len(inputs))
     last_btn.click(fn=_fill_last_run, outputs=inputs)
 
@@ -2399,22 +2452,9 @@ def build_ui():
                         _TABS_REF = main_tabs
 
                         def _auto_load_example(name):
-                            result = []
-                            for preset_name, _ins in preset_inputs_map.items():
-                                if preset_name == name:
-                                    if preset_name in _SKIP_AUTO_LOAD:
-                                        _SKIP_AUTO_LOAD.discard(preset_name)
-                                        # rerun 已经用 manifest 填表单了，跳过以免覆盖
-                                        result.extend([gr.update() for _ in _ins])
-                                    else:
-                                        try:
-                                            result.extend(example_to_form_values(preset_name))
-                                        except Exception:
-                                            result.extend([inp.value for inp in _ins])
-                                else:
-                                    # 非激活 preset:用 gr.update() 保持原状态,不触发变更
-                                    result.extend([gr.update() for _ in _ins])
-                            return result
+                            # 委托给模块级函数 (review 2026-07-11 P-state-preserve),
+                            # 契约见 _resolve_auto_load_updates 的 docstring.
+                            return _resolve_auto_load_updates(preset_inputs_map, name)
 
                         wf_radio.change(
                             fn=_auto_load_example,
