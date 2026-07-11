@@ -166,15 +166,15 @@ def test_output_box_initial_value_is_example_preview():
     assert "result-area-default" in val, (
         f"output_box 初始值应含 result-area-default class 标记示例默认状态:\n{val[:300]}"
     )
-    # 应包含 zimage 示例图 (用 /file= 路由, 浏览器可访问)
-    assert "/file=app/static/examples/zimage_720x1280_0001.png" in val, (
-        f"output_box 应通过 /file= 路由引用 zimage 示例图, 实际:\n{val[:300]}"
+    # 应包含 zimage 示例图 (用 /gradio_api/file= 路由, 浏览器可访问)
+    assert "/gradio_api/file=app/static/examples/zimage_720x1280_0001.png" in val, (
+        f"output_box 应通过 /gradio_api/file= 路由引用 zimage 示例图, 实际:\n{val[:300]}"
     )
 
 
 def test_output_box_uses_preview_video_for_sca12_presets():
     """sca12_motion / sca12_replace 有 preview_video, output_box 应渲染 <video> 标签,
-    视频源用 /file= 路由."""
+    视频源用 /gradio_api/file= 路由."""
     import gradio as gr
     for preset_name in ("sca12_motion", "sca12_replace"):
         with gr.Blocks() as demo:
@@ -186,9 +186,9 @@ def test_output_box_uses_preview_video_for_sca12_presets():
         assert len(output_boxes) == 1
         val = output_boxes[0].value or ""
         assert "<video" in val, f"{preset_name}: 应渲染 <video> 标签, 实际:\n{val[:300]}"
-        # 视频文件应通过 /file= 路由引用
-        assert f"/file=app/static/examples/{preset_name}_3seg.mp4" in val, (
-            f"{preset_name}: 应通过 /file= 路由引用 {preset_name}_3seg.mp4, 实际:\n{val[:300]}"
+        # 视频文件应通过 /gradio_api/file= 路由引用
+        assert f"/gradio_api/file=app/static/examples/{preset_name}_3seg.mp4" in val, (
+            f"{preset_name}: 应通过 /gradio_api/file= 路由引用 {preset_name}_3seg.mp4, 实际:\n{val[:300]}"
         )
         # caption 标记示例状态
         assert "\u793a\u4f8b\u6548\u679c" in val, (
@@ -197,11 +197,11 @@ def test_output_box_uses_preview_video_for_sca12_presets():
 
 
 def test_output_box_uses_file_route_not_local_path():
-    """output_box 里的 src 必须是 /file=... URL, 不能是本地路径 (F:\\...).
+    """output_box 里的 src 必须是 /gradio_api/file=... URL, 不能是本地路径 (F:\\...).
 
     bug 故事: 之前 _resolve_preview_path 返回 str(config.REPO_ROOT / rel) 形式的本地路径,
     <img src='F:\\...'> 被浏览器当相对 URL 解析, 找不到图片 -> 截图里只看到破图标 + caption.
-    改成返回 /file=... 路由后浏览器能正常加载.
+    改成返回 /gradio_api/file=... 路由后浏览器能正常加载 (Gradio 6 路由是 /gradio_api/file=, 不是裸 /file=).
     """
     import gradio as gr
     for preset_name in ("zimage", "sca12_motion", "sca12_replace"):
@@ -214,11 +214,11 @@ def test_output_box_uses_file_route_not_local_path():
         val = output_boxes[0].value or ""
         # 不能是 Windows 绝对路径
         assert not any(d + ":" in val for d in "CDEFGHIJKLMNOPQRSTUVWXYZ"), (
-            f"{preset_name}: src 包含 Windows 盘符, 应该是 /file= URL, 实际:\n{val[:300]}"
+            f"{preset_name}: src 包含 Windows 盘符, 应该是 /gradio_api/file= URL, 实际:\n{val[:300]}"
         )
-        # 必须是 /file= 路由
-        assert "src='/file=" in val, (
-            f"{preset_name}: src 必须是 /file=... 形式, 实际:\n{val[:300]}"
+        # 必须是 /gradio_api/file= 路由
+        assert "src='/gradio_api/file=" in val, (
+            f"{preset_name}: src 必须是 /gradio_api/file=... 形式, 实际:\n{val[:300]}"
         )
 
 

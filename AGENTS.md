@@ -218,3 +218,40 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
   - \u6062\u590d\u4e86 sca12_motion_3seg.{png,mp4} / sca12_replace_3seg.{png,mp4} / zimage_720x1280_0001.png
     \u8fd9 5 \u4e2a\u4e0a\u4e00\u8f6e\u5220\u4e86\u7684 preview \u8d44\u4ea7
   - params.json \u91cc\u7684 preview_image / preview_video \u91cd\u65b0\u52a0\u8d70, \u4f5c\u4e3a output_box \u9ed8\u8ba4\u503c\u7684\u6570\u636e\u6e90
+
+
+## Gotcha: Gradio 6 静态文件路由是 /gradio_api/file=, 不是 /file= (2026-07-11)
+
+**根因**: Gradio 6 把所有 API + 静态文件路由都挂在 `API_PREFIX = "/gradio_api"`
+下 (见 `gradio/route_utils.py`)。 也就是说图片/视频要走的路由是:
+  - `http://host:port/gradio_api/file=<relative path>`
+不是:
+  - `http://host:port/file=<relative path>` (这条在 Gradio 6 直接 404)
+
+旧代码 (`app/scail2_app.py:_resolve_preview_path` + `_media_to_html`)
+两个地方都返回 `"/file=..."`, 浏览器看到的是破图标。 截图里能看到
+"<img src='/file=app/static/examples/...'>" 这条请求返回 404。
+
+**修法**: 定义模块级常量 `_FILE_ROUTE_PREFIX = "/gradio_api/file="`,
+两处都改成 `_FILE_ROUTE_PREFIX + rel_path`。 写死 "/gradio_api/" 也行,
+但用常量方便未来 Gradio 改了能一处改完。
+
+**分发安全性**:
+  - URL 里的路径是 **相对** 的 (`app/static/examples/...`), 不是绝对路径
+  - 服务端 Gradio 用 `os.path.abspath()` 把它解析到 `<CWD>/app/static/...`
+  - `start_webui.bat` 启动时会 `cd /d "%~dp0"` 到项目根, 所以 CWD 始终是项目根
+  - `allowed_paths = config.REPO_ROOT / "app" / "static" / "examples"`
+    里的 `REPO_ROOT` 也是从 `config.py` 位置自检 (`Path(__file__).resolve().parent.parent`),
+    不依赖任何硬编码绝对路径
+  - 结论: 项目挪到 `D:\Other\Path\ComfyUIWebToRunWorkflow` 依然能正常解析
+
+**测试覆盖** (`tests/test_preset_must_have_example.py`):
+  - `test_output_box_uses_file_route_not_local_path` 锁住 URL 必须是 `/gradio_api/file=` 前缀
+  - 三个 preset (zimage / sca12_motion / sca12_replace) 都覆盖
+
+**排查信号** (以后再遇到类似情况):
+  1. 截图里看到破图标 + 旁边有 caption
+  2. DevTools Network 看 `<img src=...>` 请求是否 404
+  3. 把 `src` 直接复制到地址栏访问, 看是 404 还是 200
+  4. 404 → 路由错了, 翻 Gradio 6 文档看实际路由前缀
+  5. 200 → 不是路由问题, 是别的 (CORS / 权限 / 文件确实不存在)

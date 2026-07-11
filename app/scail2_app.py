@@ -1542,7 +1542,7 @@ def _media_to_html(media, is_image: bool) -> str:
     if src_path.exists():
         try:
             rel = src_path.relative_to(config.REPO_ROOT)
-            file_url = "/file=" + str(rel).replace(chr(92), "/")
+            file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
             if ext in video_ext:
                 return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:8px\">"
                         "<source src=\"" + file_url + "\"/></video></div>")
@@ -1674,6 +1674,12 @@ def _comfy_status_text() -> str:
 
 _CATEGORY_ICON = {"video": chr(0x1F3AC), "image": chr(0x1F5BC) + chr(0xFE0F),
                   "audio": chr(0x1F50A), "3d": chr(0x1F9CA), "other": chr(0x1F4E6)}
+
+# Gradio 6 文件路由: 所有静态文件通过 /gradio_api/file=<relative path> 提供,
+# 不是 /file=<...>。 相对路径在服务端用 os.path.abspath() 解析 (相对 CWD),
+# start_webui.bat 会 cd 到项目根, 所以分发到任意路径都仍然正确解析。
+# 旧代码用 "/file=" 是错的: Gradio 6 那个路径 404, 浏览器看到的是破图标。
+_FILE_ROUTE_PREFIX = "/gradio_api/file="
 
 
 def _category_icon(cat: str) -> str:
@@ -1940,7 +1946,7 @@ def _render_workflow_form(preset_name):
                     src = config.REPO_ROOT / src
                 try:
                     rel = src.relative_to(config.REPO_ROOT)
-                    return "/file=" + str(rel).replace(chr(92), "/")
+                    return _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
                 except ValueError:
                     # \u4e0d\u5728 REPO_ROOT \u4e0b, \u4e0d\u80fd\u7528 /file= \u8def\u7531, \u8df3\u8fc7
                     return None

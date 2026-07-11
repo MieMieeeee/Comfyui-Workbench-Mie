@@ -145,7 +145,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `is_image=False` 且 URL 命中 `.mp4/.mov/.webm/.gif` | `<video controls autoplay>` |
 | `is_image=False` 且 URL 命中 `.png/.jpg/.jpeg/.webp` | `<img>`（防止"应该是图片但被当视频"） |
 | 未知 HTTP URL | `.file-fallback` banner，显示前 80 字符 |
-| 已知本地文件（仓库内） | `/file=` 路由 + `<video>` / `<img>` / 下载链接 |
+| 已知本地文件（仓库内） | `/gradio_api/file=` 路由 + `<video>` / `<img>` / 下载链接（Gradio 6 实际路径前缀；见 AGENTS.md “Gotcha”段） |
 | 已知本地文件（仓库外） | `.file-fallback` banner + 原始路径 |
 | 兜底 | `.file-fallback` banner + 前 80 字符 |
 
