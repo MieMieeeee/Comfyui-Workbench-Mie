@@ -185,7 +185,7 @@ def _build_input_component(spec):
     if typ in ("text", "prompt_pool"):
         # prompt_pool 主组件同 text；随机按钮在 _render_workflow_form 里按 type 额外加
         return gr.Textbox(
-            label=label, value=spec.get("default", ""), max_lines=4,
+            label=label, value=spec.get("default", ""), max_lines=6,
             placeholder=spec.get("help") or f"≤{spec.get('max_chars', 2000)} 字符。留空用默认值。",
             info=spec.get("help"),
         )
@@ -208,6 +208,7 @@ def _build_input_component(spec):
             label=label,
             info=spec.get("help"),
             interactive=True,
+            elem_classes=["sizes-cards"],
         )
     if typ == "bool":
         return gr.Checkbox(
@@ -223,13 +224,12 @@ def _build_input_component(spec):
         #   - schema 上 min/max 仍跟 ComfyUI 实际能力对齐 (int64)
         # random_default 决定 checkbox 初始状态: true=默认随机, false=用 default value
         # example_to_form_values / _manifest_to_form_values 见同文件末尾的 seed 处理
-        with gr.Row():
-            checkbox = gr.Checkbox(
+        checkbox = gr.Checkbox(
                 label="随机",
                 value=bool(spec.get("random_default", True)),
                 info="勾上则忽略下方数值,每张图独立随机",
             )
-            number = gr.Number(
+        number = gr.Number(
                 label=label,
                 value=spec.get("default", 0),
                 minimum=spec.get("min", 0),
@@ -1703,7 +1703,9 @@ def _render_workflow_form(preset_name):
 
     with gr.Row(equal_height=False):
         # ============ 左控制栏 ============
-        with gr.Column(scale=5):
+        # scale=4 + min_width=380:保证表单控件(尤其是带 info 的输入)有足够宽度,
+        # 而右预览栏用 scale=7 拿走剩余 64% → review P0「预览自然扩展」。
+        with gr.Column(scale=4, min_width=380):
             # [输入组件]
             # basic 组件按 user_facing_inputs 原始顺序渲染(不拆 file/param 两组),这样作者在
             # params.json 里把"抠图词"排在对应上传文件后面,UI 上就紧跟在一起 —— 例如
@@ -1782,7 +1784,10 @@ def _render_workflow_form(preset_name):
             )
 
         # ============ 右作品预览栏 ============
-        with gr.Column(scale=6):
+        # scale=7:拿主区 ~64% 宽度,在 1280px 视口下约 687px,1920px 视口下约 1095px
+        # —— 直接把右侧空白吃掉,主图成为真正主角 (review P0 / 副标题 3)。
+        # min_width=460 保证极窄窗口下预览区不会塌缩。
+        with gr.Column(scale=7, min_width=460):
             # [示例预览] —— 当 preset 的 example 含 preview_image 时常驻展示,
             # 让用户在未运行前就能看到 "这个 preset 跑出来是什么样"。
             # 可见性由 preset 决定,与 ex_btn.click 无关(数据本身就是 preset 的)。
@@ -2211,8 +2216,10 @@ def build_ui():
         with gr.Tabs() as main_tabs:
             with gr.Tab("运行"):
                 with gr.Row():
-                    # ============ LEFT COLUMN ============
-                    with gr.Column(scale=1, min_width=220):
+                    # ============ LEFT COLUMN (导航) ============
+                    # scale=0 + min_width=200 让导航固定 200px,其余宽度全部给主工作区。
+                    # 原 scale=1 把主区宽度乘 1/5 = 224px,导致主区内容被压扁 → review P0。
+                    with gr.Column(scale=0, min_width=200):
                         wf_search = gr.Textbox(
                             label="🔍 搜索",
                             placeholder="按名称筛选...",

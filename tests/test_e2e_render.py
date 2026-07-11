@@ -111,8 +111,8 @@ def test_zimage_no_advanced_accordion():
 #
 # 把「长表单页面」重组成「左右结构的两栏 AI 创作工作台」。契约:
 #   - _render_workflow_form 顶层用 with gr.Row(equal_height=False): 包两个 Column
-#   - 左控制栏 gr.Column(scale=5): basic 输入 + 高级参数 Accordion + 🚀 开始运行
-#   - 右预览栏 gr.Column(scale=6): 运行日志 Accordion + 输出区 + 🔁 用相同参数再来
+#   - 左控制栏 gr.Column(scale=4): basic 输入 + 高级参数 Accordion + 🚀 开始运行
+#   - 右预览栏 gr.Column(scale=7): 运行日志 Accordion + 输出区 + 🔁 用相同参数再来
 #   - theme-injector 仍是 build_ui 顶部全局唯一(不在本函数内),不碰它
 
 def _columns_by_scale(demo, scale):
@@ -123,16 +123,16 @@ def _columns_by_scale(demo, scale):
 
 @pytest.mark.parametrize("preset_name", [w["name"] for w in config.list_workflows()])
 def test_render_form_has_two_column_workbench(preset_name):
-    """每个 preset 表单都应是两栏布局: 左控制栏(scale=5) + 右预览栏(scale=6)。
+    """每个 preset 表单都应是两栏布局: 左控制栏(scale=4) + 右预览栏(scale=7)。
 
-    第四阶段指令 §A.1/§A.2/§A.3。
+    review P0 调整后 (第六阶段): 左 scale=4, 右 scale=7。原 §A.1/§A.2/§A.3。
     """
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form(preset_name)
-    left = _columns_by_scale(demo, 5)
-    right = _columns_by_scale(demo, 6)
-    assert len(left) >= 1, f"{preset_name}: 缺左控制栏 gr.Column(scale=5)"
-    assert len(right) >= 1, f"{preset_name}: 缺右预览栏 gr.Column(scale=6)"
+    left = _columns_by_scale(demo, 4)
+    right = _columns_by_scale(demo, 7)
+    assert len(left) >= 1, f"{preset_name}: 缺左控制栏 gr.Column(scale=4)"
+    assert len(right) >= 1, f"{preset_name}: 缺右预览栏 gr.Column(scale=7)"
 
 
 @pytest.mark.parametrize("preset_name", [w["name"] for w in config.list_workflows()])
@@ -147,7 +147,7 @@ def test_run_button_is_primary_and_in_left_column(preset_name):
     # Gradio 组件创建顺序: 进 with Column 后创建的组件 id 连续递增。
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form(preset_name)
-    left_cols = _columns_by_scale(demo, 5)
+    left_cols = _columns_by_scale(demo, 4)
     assert left_cols, f"{preset_name}: 缺左控制栏"
     left_id = left_cols[0]._id
     # 主按钮带 btn-run-primary 且 label 含「开始运行」
@@ -157,7 +157,7 @@ def test_run_button_is_primary_and_in_left_column(preset_name):
                 and "开始运行" in str(b.value or "")]
     assert run_btns, f"{preset_name}: 左栏缺 🚀 开始运行 主按钮"
     # 主按钮 id 必须大于左栏 id (在左栏之后创建) 且小于右栏 id (在右栏之前创建)
-    right_cols = _columns_by_scale(demo, 6)
+    right_cols = _columns_by_scale(demo, 7)
     right_id = right_cols[0]._id
     for btn in run_btns:
         assert left_id < btn._id < right_id, \
@@ -173,7 +173,7 @@ def test_output_and_rerun_are_in_right_column(preset_name):
     import gradio as gr
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form(preset_name)
-    right_cols = _columns_by_scale(demo, 6)
+    right_cols = _columns_by_scale(demo, 7)
     assert right_cols, f"{preset_name}: 缺右预览栏"
     right_id = right_cols[0]._id
     # 次按钮带 btn-run-secondary
@@ -200,7 +200,7 @@ def test_run_log_accordion_is_in_right_column(preset_name):
     import gradio as gr
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form(preset_name)
-    right_cols = _columns_by_scale(demo, 6)
+    right_cols = _columns_by_scale(demo, 7)
     assert right_cols, f"{preset_name}: 缺右预览栏"
     right_id = right_cols[0]._id
     log_accs = [b for b in demo.blocks.values()
@@ -216,10 +216,10 @@ def test_advanced_accordion_is_in_left_column():
     import gradio as gr
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form("sca12_replace")
-    left_cols = _columns_by_scale(demo, 5)
+    left_cols = _columns_by_scale(demo, 4)
     assert left_cols, "缺左控制栏"
     left_id = left_cols[0]._id
-    right_id = _columns_by_scale(demo, 6)[0]._id
+    right_id = _columns_by_scale(demo, 7)[0]._id
     adv_accs = [b for b in demo.blocks.values()
                 if isinstance(b, gr.Accordion) and "高级参数" in str(b.label or "")]
     assert adv_accs, "sca12 缺 🔧 高级参数 Accordion"
@@ -233,10 +233,10 @@ def test_basic_inputs_are_in_left_column():
     import gradio as gr
     with gr.Blocks() as demo:
         scail2_app._render_workflow_form("sca12_replace")
-    left_cols = _columns_by_scale(demo, 5)
+    left_cols = _columns_by_scale(demo, 4)
     assert left_cols, "缺左控制栏"
     left_id = left_cols[0]._id
-    right_id = _columns_by_scale(demo, 6)[0]._id
+    right_id = _columns_by_scale(demo, 7)[0]._id
     # sca12 有参考图 gr.File (file:image)
     files = [b for b in demo.blocks.values() if isinstance(b, gr.File)]
     assert files, "缺上传组件"

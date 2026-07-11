@@ -642,6 +642,77 @@ body.dark {
 }
 
 /* ============================================================
+ * .sizes-cards —— 「尺寸选项」多选卡片
+ * ============================================================
+ * 复用 .custom-radio 的卡片视觉,但换成 multi-select(checkbox-group)。
+ *
+ * 关键点: Gradio 的 CheckboxGroup fieldset 默认被 .form/.styler/gr-group 收缩到
+ * ~280px min-content,祖先链上每层都 display:flex + flex:0 1 auto。试图通过 CSS 强制
+ * 100% 宽 都因祖先 flex 容器自身不扩而失败。
+ *
+ * 稳定方案: 不去对抗祖先链,而是在 fieldset 自身层把内容强制换行成多列。
+ * inline-size: 100% 配合 white-space 灵活 + 子 label 用 min-width 决定一行几个,
+ * 列数自动按可用宽度计算 → 不依赖祖先链传宽度,改个 min-width 就能调密度。
+ *
+ * 视觉:每个 option 是独立卡片(背景 + 边框 + padding),
+ * hover 状态变 bg-card-hover + border-strong,
+ * 选中态用主题色边框 + glow。
+ */
+.sizes-cards {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--space-2) !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  /* 把 Gradio fieldset 的 min-width 限解开,允许卡片按可用空间自动多列 */
+  min-width: 100% !important;
+  /* inline-size 是 fieldset 不被 grid 父容器截断的关键 */
+  inline-size: 100% !important;
+  max-inline-size: 100% !important;
+}
+.sizes-cards label {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  min-width: 160px;
+  /* flex: 1 1 160px 允许卡片在宽列里平均分摊 (e.g. 4 列),窄列里 1 列 */
+  flex: 1 1 160px;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3) !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out);
+}
+.sizes-cards label:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+.sizes-cards label.selected,
+.sizes-cards input:checked + span {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--theme-accent-500) !important;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  box-shadow: 0 0 0 2px var(--theme-accent-glow) !important;
+}
+.sizes-cards input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0;
+}
+
+/* ============================================================
  * .custom-radio —— 左侧工作流导航 Radio
  * ============================================================ */
 .custom-radio {
