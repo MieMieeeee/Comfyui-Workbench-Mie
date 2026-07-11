@@ -140,11 +140,13 @@ def test_demo_load_lambda_runs_without_error():
     scail2_app._AUTO_LOADED.clear()
 
 
+
+
 # ---- output_box 默认填 example (review 2026-07-11) ----
 
 def test_output_box_initial_value_is_example_preview():
     """output_box (生成结果) 初始值应是 example.preview_image / preview_video 渲染出来的 HTML,
-    不是 \u201c\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c\u201d 占位符.
+    不是 '运行后这里显示结果' 占位符.
 
     设计: 默认参数 = example, 用户打开工作流后第一眼看到 example 跑出来的效果.
     跑了之后 _run_and_format 会用实际生成结果覆盖这个默认值.
@@ -159,19 +161,20 @@ def test_output_box_initial_value_is_example_preview():
     assert len(output_boxes) == 1, f"zimage 应只有 1 个 result-area, 实际 {len(output_boxes)}"
     val = output_boxes[0].value or ""
     assert "\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c" not in val, (
-        f"output_box 初始值不应再是占位符 \u201c\u8fd0\u884c\u540e\u8fd9\u91cc\u663e\u793a\u7ed3\u679c\u201d, 实际:\n{val[:300]}"
+        f"output_box 初始值不应再是占位符 '运行后这里显示结果', 实际:\n{val[:300]}"
     )
     assert "result-area-default" in val, (
-        f"output_box 初始值应含 result-area-default class 标记\u793a\u4f8b\u9ed8\u8ba4\u72b6\u6001:\n{val[:300]}"
+        f"output_box 初始值应含 result-area-default class 标记示例默认状态:\n{val[:300]}"
     )
-    # \u5e94\u5305\u542b zimage \u793a\u4f8b\u56fe
-    assert "zimage_720x1280_0001.png" in val, (
-        f"output_box \u5e94\u663e\u793a zimage \u793a\u4f8b\u56fe, \u5b9e\u9645:\n{val[:300]}"
+    # 应包含 zimage 示例图 (用 /file= 路由, 浏览器可访问)
+    assert "/file=app/static/examples/zimage_720x1280_0001.png" in val, (
+        f"output_box 应通过 /file= 路由引用 zimage 示例图, 实际:\n{val[:300]}"
     )
 
 
 def test_output_box_uses_preview_video_for_sca12_presets():
-    """sca12_motion / sca12_replace 有 preview_video, output_box 应渲染 <video> 标签."""
+    """sca12_motion / sca12_replace 有 preview_video, output_box 应渲染 <video> 标签,
+    视频源用 /file= 路由."""
     import gradio as gr
     for preset_name in ("sca12_motion", "sca12_replace"):
         with gr.Blocks() as demo:
@@ -183,20 +186,46 @@ def test_output_box_uses_preview_video_for_sca12_presets():
         assert len(output_boxes) == 1
         val = output_boxes[0].value or ""
         assert "<video" in val, f"{preset_name}: 应渲染 <video> 标签, 实际:\n{val[:300]}"
-        # 视频文件名应出现
-        assert f"{preset_name}_3seg.mp4" in val, (
-            f"{preset_name}: 应引用 {preset_name}_3seg.mp4, 实际:\n{val[:300]}"
+        # 视频文件应通过 /file= 路由引用
+        assert f"/file=app/static/examples/{preset_name}_3seg.mp4" in val, (
+            f"{preset_name}: 应通过 /file= 路由引用 {preset_name}_3seg.mp4, 实际:\n{val[:300]}"
         )
         # caption 标记示例状态
         assert "\u793a\u4f8b\u6548\u679c" in val, (
-            f"{preset_name}: 应有 \u201c\u793a\u4f8b\u6548\u679c\u201d caption 提示这是默认状态"
+            f"{preset_name}: 应有 '示例效果' caption 提示这是默认状态"
+        )
+
+
+def test_output_box_uses_file_route_not_local_path():
+    """output_box 里的 src 必须是 /file=... URL, 不能是本地路径 (F:\\...).
+
+    bug 故事: 之前 _resolve_preview_path 返回 str(config.REPO_ROOT / rel) 形式的本地路径,
+    <img src='F:\\...'> 被浏览器当相对 URL 解析, 找不到图片 -> 截图里只看到破图标 + caption.
+    改成返回 /file=... 路由后浏览器能正常加载.
+    """
+    import gradio as gr
+    for preset_name in ("zimage", "sca12_motion", "sca12_replace"):
+        with gr.Blocks() as demo:
+            scail2_app._render_workflow_form(preset_name)
+        output_boxes = [
+            b for b in demo.blocks.values()
+            if isinstance(b, gr.HTML) and "result-area" in (getattr(b, "elem_classes", None) or [])
+        ]
+        val = output_boxes[0].value or ""
+        # 不能是 Windows 绝对路径
+        assert not any(d + ":" in val for d in "CDEFGHIJKLMNOPQRSTUVWXYZ"), (
+            f"{preset_name}: src 包含 Windows 盘符, 应该是 /file= URL, 实际:\n{val[:300]}"
+        )
+        # 必须是 /file= 路由
+        assert "src='/file=" in val, (
+            f"{preset_name}: src 必须是 /file=... 形式, 实际:\n{val[:300]}"
         )
 
 
 def test_output_box_caption_mentions_default_params():
-    """output_box 的 \u793a\u4f8b\u6548\u679c caption \u5e94\u660e\u786e\u8bf4\u660e\u201c\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\u201d, 用户能分清\u793a\u4f8b\u4e0e\u5b9e\u9645\u8fd0\u884c\u7ed3\u679c.
+    """output_box 的 示例效果 caption 应明确说明 '默认参数对应的结果', 用户能分清示例与实际运行结果.
 
-    跑了之后这个 caption \u4f1a\u88ab\u8986\u76d6, \u4e0d\u4f1a\u5e72\u6270\u5b9e\u9645\u8f93\u51fa\u7684\u9605\u8bfb.
+    跑了之后这个 caption 会被覆盖, 不会干扰实际输出的阅读.
     """
     import gradio as gr
     with gr.Blocks() as demo:
@@ -207,5 +236,5 @@ def test_output_box_caption_mentions_default_params():
     ]
     val = output_boxes[0].value or ""
     assert "\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c" in val, (
-        f"caption \u5e94\u660e\u786e\u8bf4\u660e\u201c\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c\u201d, \u5b9e\u9645:\n{val}"
+        f"caption 应明确说明 '默认参数对应的结果', 实际:\n{val}"
     )

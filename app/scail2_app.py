@@ -1925,13 +1925,25 @@ def _render_workflow_form(preset_name):
 
             # [生成结果] -- 默认填 example 的 preview, 跑了之后被覆盖.
             def _resolve_preview_path(raw):
+                """\u89e3\u6790 example \u9884\u89c8\u8def\u5f84\u4e3a browser \u53ef\u8bbf\u95ee URL.
+                - http(s):// URL: \u539f\u6837\u8fd4\u56de
+                - \u9879\u76ee\u5185\u8def\u5f84 (\u7edd\u5bf9\u6216 app/...): \u8f6c\u6210 /file=... \u8def\u7531
+                  (Gradio 6 \u4e0d\u5141\u8bb8\u5916\u90e8\u672c\u5730\u8def\u5f84, /file= \u662f\u552f\u4e00\u53ef\u7528\u7684\u9759\u6001\u670d\u52a1\u65b9\u5f0f)
+                - \u8fd4\u56de None: \u8c03\u7528\u65b9\u4f1a\u8df3\u8fc7\u9884\u89c8, \u4ec5\u663e\u793a\u5360\u4f4d\u7b26
+                """
                 if not raw: return None
-                if raw.startswith(("http://", "https://")): return raw
-                if raw.startswith("/file="):
-                    _rel = raw[len("/file="):].replace("/", __import__("os").sep)
-                else:
-                    _rel = raw.replace("/", __import__("os").sep)
-                return str(config.REPO_ROOT / _rel)
+                if raw.startswith(("http://", "https://")):
+                    return raw
+                # \u672c\u5730\u8def\u5f84: \u62c6\u51fa\u76f8\u5bf9 REPO_ROOT \u7684\u8def\u5f84, \u62fc /file= URL
+                src = Path(raw) if not Path(raw).is_absolute() else Path(raw)
+                if not src.is_absolute():
+                    src = config.REPO_ROOT / src
+                try:
+                    rel = src.relative_to(config.REPO_ROOT)
+                    return "/file=" + str(rel).replace(chr(92), "/")
+                except ValueError:
+                    # \u4e0d\u5728 REPO_ROOT \u4e0b, \u4e0d\u80fd\u7528 /file= \u8def\u7531, \u8df3\u8fc7
+                    return None
             _ex_for_default = preset_cfg.get("example") or {}
             _pv_video_raw = _ex_for_default.get("preview_video")
             _pv_image_raw = _ex_for_default.get("preview_image")
