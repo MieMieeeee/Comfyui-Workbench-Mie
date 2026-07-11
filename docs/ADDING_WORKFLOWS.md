@@ -106,9 +106,25 @@
 
 参考 SCAIL-2:主提示词 `basic`,ref_prompt / drive_prompt / frames_per_segment / pre_drop / max_segments 都是 `advanced`。
 
-### 2.4 `example` 怎么写
+### 2.4 `example` 怎么写 -- 项目规矩
 
-“加载示例资料”按钮是这里填的。当前与 example key 的约定如下:
+【项目规矩 (review 2026-07-11)】每个 preset 的 `example` 是它的 **默认参数**, 用户打开工作流后第一眼看到的就是 example 跑出来的效果. 这条规矩适用于
+- 现有 preset: `zimage` (文生图) / `sca12_motion` (动作迁移) / `sca12_replace` (角色替换)
+- 未来新加的 preset
+
+UI 启动链路:
+  - `demo.load` 触发 `_auto_load_example(default_wf)` -> default preset 表单填 example
+  - `wf_radio.change` 触发 `_auto_load_example(name)` -> 首次切到 preset 填 example
+  - 已有用户输入的 preset 切回去保留 (`_AUTO_LOADED` 集合, 详见 AGENTS.md "Known gotcha")
+  - example 文件从 `config.COMFY_INPUT_DIR` 找, stage 到 `.examples_cache/`
+
+要求:
+  - `example` 必须是非空 dict
+  - 至少覆盖一个 user_facing_inputs 字段
+  - 文件值应是该 preset "典型 / 最佳" 的输入, 不是随便填的废数据
+
+这个契约被 `tests/test_preset_must_have_example.py` 锁住, 缺 example 的 preset 进不去合并. 如果你要加个"仅内部用 / 暂不公开"的 preset, 也要填 example -- 只是文件名填个 placeholder 即可.
+example key 跟 user_facing_inputs 的约定如下:
 
 | example key | 填哪个组件 |
 | --- | --- |

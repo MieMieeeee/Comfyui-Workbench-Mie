@@ -176,3 +176,16 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
   - 测试在 `tests/test_ui_helpers.py` 末尾 (7 个新 case, 锁 ComfyUI /view URL 渲染成 <video>)
 
 **为啥不能直接 `endswith` URL**: query string 里 filename 不是 URL 末端子串.
+
+
+## Project rule -- every preset's `example` IS its default parameters
+
+`example` 字段在每个 preset 上都必须存在, 它是用户打开工作流后**第一眼看到**的参数.
+这也是 `wf_radio.change` 切换到任意 preset 时的默认行为. 锁这条契约的
+是 `tests/test_preset_must_have_example.py` (5 个 case).
+
+适用范围:
+  - 现有: `zimage` / `sca12_motion` / `sca12_replace`
+  - 未来新加的所有 preset
+
+`docs/ADDING_WORKFLOWS.md` \u00a72.4 有完整的 "项目规矩" 段, 加新 preset 之前先看.
