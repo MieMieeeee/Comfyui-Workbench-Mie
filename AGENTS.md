@@ -188,7 +188,7 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
   - 现有: `zimage` / `sca12_motion` / `sca12_replace`
   - 未来新加的所有 preset
 
-`docs/ADDING_WORKFLOWS.md` \u00a72.4 有完整的 "项目规矩" 段, 加新 preset 之前先看.
+`docs/ADDING_WORKFLOWS.md` \u00a74 有完整的 "example 怎么写 / 跑一次生成 preview" 段, 加新 preset 之前先看.
 
 
 ## UI 行为: output_box 默认填 example 预览 (review 2026-07-11)
