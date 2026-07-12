@@ -131,6 +131,19 @@
   max-width: 1400px !important;
   background: var(--bg-app) !important;
 }
+
+/* block-label 兜底软杀——`:root.dark{}` 块的 `--block-label-background-fill` 已设为 transparent,
+ * 但 Gradio 6 内部某些路径仍可能给 label/fieldset 直接套上 orange-100, 这里 class 选择器再洗一遍。
+ * 命中任何 LABEL/FORM/FIELDSET/SECTION 内的"文字标签"色块都强制透明。
+ */
+.gradio-container label.container > span,
+.gradio-container fieldset.block > span,
+.gradio-container .block > * > span:first-child {
+  background-color: transparent !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
 :root,
 :root.dark,
 :root .dark,
@@ -141,6 +154,8 @@ body.dark {
   --block-border-color: var(--border-default);
   --block-radius: var(--radius-lg);
   --layout-gap: var(--space-4);
+  --block-label-background-fill: transparent;
+  --block-label-border-color: transparent;
   --block-label-text-color: var(--text-secondary);
   --block-title-text-color: var(--text-primary);
 
