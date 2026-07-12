@@ -1274,7 +1274,7 @@ def _build_settings_tab(theme_injector: gr.HTML | None = None):
     if theme_injector is None:
         # 单独调用 _build_settings_tab() 的场景(测试 / 调试),建一个本地 injector
         theme_injector = gr.HTML(
-        value=_apply_combined(_DEFAULT_THEME_ID, _DEFAULT_MODE),
+        value=_apply_theme(_load_saved_theme()),
         visible=False,
         elem_id="theme-injector",
     )
@@ -1315,39 +1315,20 @@ def _build_settings_tab(theme_injector: gr.HTML | None = None):
     theme_choices = [(t["name"], t["id"]) for t in _list_themes()]
     theme_radio = gr.Radio(
         choices=theme_choices,
-        value=_DEFAULT_THEME_ID,
+        value=_load_saved_theme(),
         label="配色方案",
         elem_classes=["custom-radio"],
     )
-    theme_desc = gr.Markdown(_get_theme_desc(_DEFAULT_THEME_ID))
+    theme_desc = gr.Markdown(_get_theme_desc(_load_saved_theme()))
 
-    # === 模式切换 (auto / dark / light) ===
-    mode_choices = [(m["name"], m["id"]) for m in _list_modes()]
-    mode_radio = gr.Radio(
-        choices=mode_choices,
-        value=_DEFAULT_MODE,
-        label="明暗模式",
-        elem_classes=["custom-radio"],
-    )
-    mode_desc = gr.Markdown(_get_mode_desc(_DEFAULT_MODE))
-
-    # 双 radio 互相感知:换主题时拿到当前 mode,反之亦然。
-    # 用 _apply_combined 合并输出,保证 <style> 单块稳定。
-    def _on_theme_change(new_tid: str, current_mode: str) -> tuple[str, str]:
-        return _apply_combined(new_tid, current_mode), _get_theme_desc(new_tid)
-
-    def _on_mode_change(new_mode: str, current_tid: str) -> tuple[str, str]:
-        return _apply_combined(current_tid, new_mode), _get_mode_desc(new_mode)
+    def _on_theme_change(new_tid: str) -> tuple[str, str]:
+        _save_theme(new_tid)  # 持久化用户选择,下次启动沿用
+        return _apply_theme(new_tid), _get_theme_desc(new_tid)
 
     theme_radio.change(
         fn=_on_theme_change,
-        inputs=[theme_radio, mode_radio],
+        inputs=[theme_radio],
         outputs=[theme_injector, theme_desc],
-    )
-    mode_radio.change(
-        fn=_on_mode_change,
-        inputs=[mode_radio, theme_radio],
-        outputs=[theme_injector, mode_desc],
     )
 
     save_btn.click(fn=save_and_test_url, inputs=[url_input], outputs=[status])
@@ -2121,14 +2102,11 @@ def _render_workflow_form(preset_name):
 
 _TOKENS_CACHE: str | None = None
 _THEMES_CACHE: list[dict] | None = None
-_DEFAULT_THEME_ID = "coral-orange"
-_DEFAULT_MODE = "auto"
+_DEFAULT_THEME_ID = "coral-orange"  # fallback only —— actual startup value comes from _resolve_initial_theme()
 _THEMES_PATH = config.REPO_ROOT / "app" / "presets" / "themes.json"
 _TOKENS_PATH = config.REPO_ROOT / "app" / "static" / "tokens.css"
 
-# 表面 / 文字 / 边框 token —— dark 是默认值已经在 :root 里写过了,
-# 这里再存一份字符串常量供 _apply_mode / _apply_combined 动态注入。
-# Light 值跟 @media (prefers-color-scheme: light) 块同源 —— 单次修改两处。
+# 表面 / 文字 / 边框 token —— dark 是默认值已经在 :root 里写过了。
 _DARK_SURFACE = """  --bg-app:        #0f1115;
   --bg-panel:      #15181e;
   --bg-card:       #1a1d23;
@@ -2144,22 +2122,7 @@ _DARK_SURFACE = """  --bg-app:        #0f1115;
   --text-faint:     #5f6470;
   --text-on-accent: #0f1115;"""
 
-_LIGHT_SURFACE = """  --bg-app:        #f8f9fa;
-  --bg-panel:      #ffffff;
-  --bg-card:       #ffffff;
-  --bg-card-hover: #f1f3f5;
-  --bg-overlay:    rgba(241, 243, 245, 0.85);
-  --bg-input:      #ffffff;
-  --border-subtle: #e9ecef;
-  --border-default: #dee2e6;
-  --border-strong:  #adb5bd;
-  --text-primary:   #212529;
-  --text-secondary: #495057;
-  --text-muted:     #6c757d;
-  --text-faint:     #adb5bd;
-  --text-on-accent: #ffffff;"""
 
-_MODES: list[dict] | None = None
 
 
 def _load_tokens_css() -> str:
@@ -2193,6 +2156,37 @@ def _list_themes() -> list[dict]:
     return _THEMES_CACHE
 
 
+def _load_saved_theme() -> str:
+    """启动时读取 config.THEME_SETTINGS_FILE 取上次选的主题。
+
+    文件不存在 / 解析失败 / theme id 不在 themes.json 里 → 回退 _DEFAULT_THEME_ID(coral-orange)。
+    失败永不让 UI 崩,最多回到默认。
+    """
+    try:
+        import json
+        data = json.loads(config.THEME_SETTINGS_FILE.read_text(encoding="utf-8"))
+        tid = data.get("theme_id")
+        if tid and tid in {t["id"] for t in _list_themes()}:
+            return tid
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return _DEFAULT_THEME_ID
+
+
+def _save_theme(theme_id: str) -> None:
+    """用户切换主题时把 theme_id 写到 config.THEME_SETTINGS_FILE 持久化。
+
+    写盘失败(e.g. 权限)只静默 —— UI 已经看到新主题,持久化失败下次启动会回到默认。
+    """
+    try:
+        import json
+        config.THEME_SETTINGS_FILE.write_text(
+            json.dumps({"theme_id": theme_id}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
 def _apply_theme(theme_id: str) -> str:
     """生成 <style>:root{...}</style> 用于主题注入。
 
@@ -2210,7 +2204,7 @@ def _apply_theme(theme_id: str) -> str:
 
 
 def _build_launch_css() -> str:
-    """组装 launch(css=...) 的入参。包含 tokens.css 全文 + 默认主题 + 默认模式。
+    """组装 launch(css=...) 的入参。包含 tokens.css 全文 + 默认主题。
 
     返回**单个 CSS 字符串**(Gradio 6 的 launch(css=...) 签名是 str | None,
     不是 list)。Gradio 内部会用 CSSStyleSheet.replaceSync 解析这个字符串,
@@ -2222,8 +2216,8 @@ def _build_launch_css() -> str:
     surface override 是空的,不会跟 @media 块冲突。
     """
     tokens = _load_tokens_css()
-    default_combined = _apply_combined(_DEFAULT_THEME_ID, _DEFAULT_MODE)
-    # _apply_combined 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
+    default_combined = _apply_theme(_load_saved_theme())
+    # _apply_theme 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
     default_css = _strip_style_tag(default_combined)
     # Gradio 6.20.0 workaround: advanced accordion 里的 status-tracker 永远不消失,
     # 遮住真实组件 (gr.Number / gr.Slider 都有这个 bug)。强制隐藏 .custom-accordion
@@ -2249,70 +2243,7 @@ def _get_theme_desc(tid: str) -> str:
     return ""
 
 
-def _list_modes() -> list[dict]:
-    """返回 3 档 mode: auto / dark / light。
 
-    auto = 浏览器 prefers-color-scheme 决定 (默认)
-    dark = 强行深色,无视系统设置
-    light = 强行浅色,无视系统设置
-    """
-    global _MODES
-    if _MODES is None:
-        _MODES = [
-            {"id": "auto", "name": "自动跟随系统", "desc": "跟随操作系统 prefers-color-scheme 设置"},
-            {"id": "dark", "name": "暗黑模式", "desc": "强行深色皮肤,无视系统设置"},
-            {"id": "light", "name": "明亮模式", "desc": "强行浅色皮肤,无视系统设置"},
-        ]
-    return _MODES
-
-
-def _apply_mode(mode: str) -> str:
-    """生成 surface / text / border 的 override <style>:root{}</style>。
-
-    auto  → 空 style,让浏览器 media query 自己决定。
-    dark  → 注入 _DARK_SURFACE,覆盖 :root 默认值。
-    light → 注入 _LIGHT_SURFACE,覆盖 :root 默认值。
-    未知 mode → 回落 auto。
-    """
-    if mode == "dark":
-        body = _DARK_SURFACE.strip()
-    elif mode == "light":
-        body = _LIGHT_SURFACE.strip()
-    else:
-        body = ""  # auto / 未知模式
-    return f"<style>:root {{\n{body}\n}}</style>"
-
-
-def _apply_combined(theme_id: str, mode: str) -> str:
-    """合并 accent + mode 覆盖为一个 <style> 块。
-
-    合并到同一个 :root 而不是两个独立 <style>,保证属性覆盖顺序稳定。
-    auto 模式只输出 accent block,不输出 surface block。
-    """
-    themes = {t["id"]: t for t in _list_themes()}
-    theme = themes.get(theme_id) or themes.get(_DEFAULT_THEME_ID)
-    accent_decls = ""
-    if theme is not None:
-        accent_decls = "\n  ".join(f"{k}: {v};" for k, v in theme["tokens"].items())
-
-    if mode == "dark":
-        surface_decls = _DARK_SURFACE.strip()
-    elif mode == "light":
-        surface_decls = _LIGHT_SURFACE.strip()
-    else:
-        surface_decls = ""
-
-    parts = [p for p in (accent_decls, surface_decls) if p]
-    body = "\n".join(parts)
-    return f"<style>:root {{\n{body}\n}}</style>"
-
-
-def _get_mode_desc(mode: str) -> str:
-    """按 mode id 返回一行 markdown 描述。设置 tab 用。"""
-    for m in _list_modes():
-        if m["id"] == mode:
-            return f"**{m['name']}** —— {m['desc']}"
-    return ""
 
 
 CSS = _build_launch_css()
@@ -2359,7 +2290,7 @@ def build_ui():
         # 是 display:none(CSS 标准),所以 visible=True 也不会占视觉空间。
         # 必须在 Blocks 上下文内创建:否则它会被分配组件 ID 但不进 components 列表,
         # 导致 layout 树引用不存在的组件 -> Svelte 前端渲染卡死在"加载中"。
-        theme_injector = gr.HTML(value=_apply_theme(_DEFAULT_THEME_ID), visible=True, elem_id="theme-injector")
+        theme_injector = gr.HTML(value=_apply_theme(_load_saved_theme()), visible=True, elem_id="theme-injector")
 
         with gr.Tabs() as main_tabs:
             with gr.Tab("运行"):

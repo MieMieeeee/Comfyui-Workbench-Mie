@@ -49,6 +49,10 @@ RUNS_DIR.mkdir(parents=True, exist_ok=True)
 LAST_RUN_DIR: Path = REPO_ROOT / "app" / "data" / "last_run"
 LAST_RUN_DIR.mkdir(parents=True, exist_ok=True)
 
+# 用户主题选择持久化 —— 跨启动沿用 last picked theme_id
+THEME_SETTINGS_FILE: Path = REPO_ROOT / "app" / "data" / "theme_settings.json"
+THEME_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
 
 # --- 输入限制（Phase 1.3 用） ---
 
