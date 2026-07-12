@@ -255,3 +255,42 @@ URL 末尾是 `&subfolder=...` 而不是 `.mp4`, `endswith` 不命中, 误判成
   3. 把 `src` 直接复制到地址栏访问, 看是 404 还是 200
   4. 404 → 路由错了, 翻 Gradio 6 文档看实际路由前缀
   5. 200 → 不是路由问题, 是别的 (CORS / 权限 / 文件确实不存在)
+
+
+## Gotcha — Light mode removed, theme persists across restart (2026-07-12)
+
+**Light mode 整段下线 (per user "明亮模式 很多内容看不清")**
+
+  - tokens.css 删了 `@media (prefers-color-scheme: light)` 块;
+    没有 system-follow light、forced light radio 之类
+  - scail2_app.py 删 _LIGHT_SURFACE / _list_modes / _apply_mode / _get_mode_desc / _apply_combined
+    全部 mode 系统; mode_radio / mode_desc / _on_mode_change 从 settings tab 拿掉
+  - 设置 tab 现在只剩 3 个 radio: workflow / sizes / theme
+  - 测试: tests/test_css_theming.py 删了 16 个测 light/mode 的 case (Section I/J/K)
+
+为啥砍: probe 显示 light mode 下 `code` 标签用 `--theme-accent-300`(浅橙)在白底上
+contrast 1.77, helper descriptions 用 slate-400 contrast 2.43。要修需要给 4 套主题都
+重新挑在白底上 contrast ≥ 4.5 的 accent-300/400 + 给 --text-faint / --text-muted
+/ 所有 light mode 覆写大幅调整 —— 项目本来就按暗色设计, 改起来得不偿失。
+直接砍, 没有"开关", 用户看不到 light 选项。
+
+**主题持久化 (新加)**
+
+  - 文件: `app/data/theme_settings.json` —— schema `{"theme_id": "..."}`
+  - 启动期: 5 处 `_DEFAULT_THEME_ID` 改成 `_load_saved_theme()`
+    (theme_injector.value / theme_radio.value / theme_desc 等)
+  - 用户切主题: theme_radio.change → _on_theme_change 内 `_save_theme(new_tid)`
+    → 写盘 → 下次启动沿用
+  - 失败兜底契约 (见 tests/test_theme_settings_persistence.py 8 个 case):
+    * 文件不存在 / 损坏 JSON / 空对象 / 不在 themes.json 里 → 回退 coral-orange
+    * 父目录不存在 → 静默不抛, UI 不崩
+    * 不会误改 themes.json (mtime 不变)
+  - config.py 加 `THEME_SETTINGS_FILE` path, `.parent.mkdir(...)` 自动创建
+  - 路径随项目走 (REPO_ROOT 派生), 项目分发到任意机器都自动落盘到本地
+
+**未来再加 light mode 的前提**
+
+  - 先重做 4 套主题的 light variant tokens.json (accent 需要 dark 饱和度对应物)
+  - 再扩 _apply_theme 接受 mode 参数
+  - 不能复用现在 4 套主题的 --theme-accent-*, 那批数字 deep sea blue / mint-tesla
+    之类饱和度不够, 在白底上至少有一半会跌破 contrast 4.5
