@@ -289,4 +289,37 @@ FollowThisImage **没有提示词池** —— 它的 prompt 全由 VLM（Qwen3-V
 
 **已知妥协**：
 - 运行时 URL 存在模块变量里（进程内），重启 WebUI 会丢失 → 但 config 默认值兜底，且用户多半每次都用同一个地址。如果要持久化，可写进一个 `app/data/settings.json`（未做）。
-- `set_base_url` 不校验 URL 格式（只 strip + 去尾斜杠），靠 `check_connection` 实测反馈。
+- `set_base_url` 不校验 URL 格式（只 strip + 去尾斜杠），靠 `check_connection` 实测反馈。## 决策 N: 文件命名里的 scail2 是历史包袱，不是新约定 (2026-07-12)
+
+**日期**: 2026-07-12 (清理 commit 时回填)
+**状态**: ✅ 记录在案
+
+**背景**:
+本项目第一版 (ed2368e) 是 SCAIL-2 专用 wrapper, 后来加 zimage 才变成多工作流. 但**文件从来没改名**, 导致:
+
+- `app/scail2_app.py` (UI 入口) — 全项目 30+ 处 import, 改名代价远大于收益
+- `app/scail2_client.py` (ComfyUI HTTP 客户端) — 同上
+- `app/presets/sca12_uncached.json` — SCAIL-2 历史工作流, 已被 `scail2_motion_transfer_final.json` 取代
+- `app/presets/sca12_cached.json` — 早期 cache 实验稿, 已撤废 (commit 3e89ed1)
+
+**决定**:
+- **代码文件名** (`scail2_app.py` / `scail2_client.py`): 保持原名, **不改**. 改名要改 30+ import + 所有 doc 引用, 无功能收益.
+- **workflow 模板文件** (`sca12_uncached.json` / `sca12_cached.json`): 已撤废删除. SCAIL-2 preset 都指 `scail2_motion_transfer_final.json`.
+- **Preset 名** (`sca12_motion` / `sca12_replace`): 保持, 因为它们在 `params.json` / manifest / 启动日志里都出现, 改名 cascade 太大. display_name 已用中文.
+
+**"uncached" 名字的来由** (详见决策 2):
+原版 SCAIL-2 workflow 有两份:
+- `tutorial_final.json` / `sca12_uncached.json` — 无 Cache Key 节点, 每次重跑
+- `loop_fixed_canvas_cached_final.json` / `sca12_cached.json` — 有 StringFormat + LoadOrCompute + Cache Key 节点, 同输入秒级命中 (660s → 60s)
+
+"cached" / "uncached" 指的是 ComfyUI-MieNodes 的 **Cache Key 节点基础设施**, 不是 ComfyUI 一般执行缓存. 两份 workflow 的 ComfyUI 一般执行缓存都生效.
+
+**未来加新 workflow 的命名规则** (新约定):
+- preset key: 下划线分隔小写, 例 `zimage`, `t2v_anime_v2`, `controlnet_qr`
+- workflow file: 同 preset key 加 .json 后缀, 或 `<scope>_<variant>.json`
+- sca12 前缀仅限 SCAIL-2 系列 preset (历史已用); 其它 preset 不强求前缀
+- display_name 用中文用户视角的词, 不要泄露 node_id 或内部命名
+
+**回退 / 改名时机**:
+哪天项目从 0 重新组织 (比如改用 FastAPI + Vue, 整个 app/ 目录推翻), 那时候顺便改文件名. 现在改不值.
+

@@ -74,7 +74,7 @@ def _replace_values(ref, drive):
 
 
 def test_run_workflow_uses_correct_preset_template(patched_client):
-    """sca12_motion 应加载 sca12_uncached.json（两个 SCAIL2 preset 共用同一 workflow）。"""
+    """sca12_motion 应通过 workflow_file 字段加载 scail2_motion_transfer_final.json（两个 SCAIL2 preset 共用同一 workflow）。"""
     ref, drive, _ = patched_client
     with patch.object(scail2_app.scail2_client, "load_workflow_template") as mock_load:
         mock_load.return_value = {"30": {"inputs": {"image": "x"}, "class_type": "LoadImage"},
@@ -84,7 +84,7 @@ def test_run_workflow_uses_correct_preset_template(patched_client):
         except Exception:
             pass
         if mock_load.called:
-            # sca12_motion 用 sca12_uncached.json（通过 workflow_file 字段映射）
+            # sca12_motion 用 scail2_motion_transfer_final.json（通过 workflow_file 字段映射）
             assert mock_load.call_args[0][0] == "sca12_motion"
 
 

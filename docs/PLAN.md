@@ -30,8 +30,8 @@
   - `wait_for_completion(prompt_id, timeout=None)` — generator，yield 状态字符串给 Gradio 流式
 
 - [ ] 0.2 workflow 模板落地（**一次性，复制完就不再依赖外部路径**，**已落地**）：
-  - `wan21_scail2_loop_tutorial_final.json` → `app/presets/sca12_uncached.json`（64 顶层键，无 cache，阶段 1 用）
-  - `scail2_loop_cached_final.json` → `app/presets/sca12_cached.json`（96 顶层键，带 StringFormat + LoadOrCompute，阶段 2+ 用）
+  - `wan21_scail2_loop_tutorial_final.json` → `app/presets/sca12_uncached.json`（64 顶层键，无 cache，阶段 1 用；该文件后续已重命名为 `scail2_motion_transfer_final.json`）
+  - `scail2_loop_cached_final.json` → `app/presets/sca12_cached.json`（96 顶层键，带 StringFormat + LoadOrCompute，阶段 2+ 用；该文件已于 2026-07-10 撤废，见 commit 3e89ed1）
   - 写 `app/presets/params.json`，按 preset 分 key 存 user_facing_inputs + do_not_modify_warnings（**已落地**）
   - **关键差异**：cache 版 `VHS_LoadVideo` 在 node **469**（不是 369），uncached 版在 369；cache 版没有 `ColorTransfer` (503)；cache 版多了 `LoadOrCompute` (512/513) + `ImageHash` (514/515)。`params.json` 已经按 preset 分映射，**不要在 client.py 里写死 369**
 
@@ -44,7 +44,7 @@
 
 - [ ] 0.4 写 `tests/integration_smoke_client.py`（**集成 smoke**）— 独立测试 client：
   - 上传 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\input\halfbody.png`
-  - 用 repo 内的 `sca12_uncached.json` 入队
+  - 用 repo 内的 `sca12_uncached.json` 入队（该文件现名 `scail2_motion_transfer_final.json`）
   - 入队**前**先跑 `validate()` 一次
   - 轮询 `/history/{id}`，确认 `status.completed == true`
   - 抓 outputs 里的 mp4/gif，验证 `/view` 能下载
@@ -53,7 +53,7 @@
 - [ ] 0.5 写 `tests/curl_smoke.js`（node 兜底）— 验证 API 在浏览器外能用：
   - `curl POST /upload/image` + `POST /prompt` + `GET /history/{id}`，回吐状态
 
-**验收**：`python tests/integration_smoke_client.py` 能看到 sca12_uncached 跑完一帧输出（不要求画面好看，重点是契约通 + validator 不报错）
+**验收**：`python tests/integration_smoke_client.py` 能看到 sca12_uncached 跑完一帧输出（不要求画面好看，重点是契约通 + validator 不报错；该文件名后续已重命名）
 
 **踩坑预案**：
 - ComfyUI 8188 端口占用 → `Get-NetTCPConnection -LocalPort 8188` 看 OwningProcess
@@ -75,7 +75,7 @@
   - 输出：1 个 `gr.Video`（生成结果）+ 1 个 `gr.Textbox`（状态/进度）
 
 - [ ] 1.2 表单 schema 从 `app/presets/params.json` 自动生成，**不要硬编码 4 个字段**：
-  - 当前阶段只读 `presets.sca12_uncached.user_facing_inputs`
+  - 当前阶段只读 `presets.sca12_uncached.user_facing_inputs`（该 preset 名后续保持 `sca12_motion` / `sca12_replace` 两个，参考 workflow 已重命名）
   - 字段的 `label` / `min` / `max` / `default` 全部从 JSON 读
   - 这样阶段 2 切 cache 版时，UI 不需要改代码
 

@@ -20,9 +20,8 @@ Thumbs.db
 venv/
 env/
 
-# 调试截图 + 视觉验收截图 (per-dev / per-CI,不入库)
+# 调试截图 (per-dev / per-CI,不入库)
 app/data/*.png
-app/static/demo/shot_*.png
 # 调试用临时目录 (dom_dump.py / dryrun.py / compare_*/ 等) - 纯 dev 残留
 _frames/
 

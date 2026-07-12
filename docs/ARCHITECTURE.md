@@ -54,7 +54,7 @@ ComfyUI HTTP API (8188)
     |
     |  读
     v
-sca12_uncached.json (workflow 模板)
+scail2_motion_transfer_final.json (SCAIL-2 workflow 模板, 动作迁移/角色替换共用)
 ```
 
 `scail2_client.py` 是**唯一**跟 ComfyUI HTTP API 直接打交道的模块；UI 层只通过 client 暴露的方法（`upload` / `queue_prompt` / `get_history` / `get_output_url`）调用。这样将来要换 FastAPI 时只动 UI 层，client 复用。
@@ -175,7 +175,7 @@ curl "http://127.0.0.1:8188/view?filename=scail-2-loop_00001.mp4&type=output&sub
 - node 504 (`MieLoopIfIsFirst`)：循环条件分支
 - node 505 (`GetImageRangeFromBatch.start_index=5`)：pre-drop 5 帧（pre_drop 版本关键参数）
 
-把"哪些可以改"封装在 `app/presets/sca12_uncached.json` 的**同目录 metadata** 里（`params.json`）：
+把"哪些可以改"封装在 `app/presets/scail2_motion_transfer_final.json` 的**同目录 metadata** 里（`params.json`）：
 
 ```json
 {

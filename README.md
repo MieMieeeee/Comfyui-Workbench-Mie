@@ -1,4 +1,4 @@
-﻿# ComfyUIWebToRunWorkflow
+# ComfyUIWebToRunWorkflow
 
 > 把多个 ComfyUI 工作流（SCAIL-2 循环换脸、Z-Image-Turbo 文生图等）包成统一的多工作流 Web 界面。
 
@@ -34,7 +34,7 @@ F:\ComfyUIWebToRunWorkflow\
 │   ├── config.py                   ← 集中配置（路径/端口/阈值）
 │   ├── presets\
 │   │   ├── params.json             ← 所有 preset 的 schema（UI 表单 + 节点映射 + tier 分层 + example）
-│   │   ├── sca12_uncached.json     ← SCAIL-2 视频换脸 workflow（角色替换/动作迁移共用）
+│   │   ├── scail2_motion_transfer_final.json ← SCAIL-2 动作迁移 / 角色替换共用 workflow
 │   │   ├── zimage.json             ← Z-Image-Turbo 文生图 workflow
 │   │   └── prompts.json            ← 文生图提示词池（22 条精选）
 │   └── data\runs\                  ← 每次运行的 manifest sidecar

@@ -58,7 +58,7 @@
 
 - **命名**: 小写 + 下划线，比如 `t2v_anime_v2.json`、`controlnet_qr.json`
 - **不动** workflow 本体 (节点 ID 是真实索引，ComfyUI 导出是对的)
-- 一份 workflow JSON 可被多 preset 共享 —— 这些 preset 都用 `workflow_file` 字段指回同一份 JSON。参考：`sca12_replace` / `sca12_motion` 共用 `sca12_uncached.json`，只 patch node 353 切换 mode。
+- 一份 workflow JSON 可被多 preset 共享 —— 这些 preset 都用 `workflow_file` 字段指回同一份 JSON。参考：`sca12_replace` / `sca12_motion` 共用 `scail2_motion_transfer_final.json`，只 patch node 353 切换 mode。
 
 ---
 
@@ -225,7 +225,7 @@
 
 Preset 自带的固定 patch，入队前**先**应用。适用场景：
 
-- 同一份 workflow JSON 被多 preset 复用（例：`sca12_replace` / `sca12_motion` 共享 `sca12_uncached.json`，仅 patch node 353 切换 mode）
+- 同一份 workflow JSON 被多 preset 复用（例：`sca12_replace` / `sca12_motion` 共享 `scail2_motion_transfer_final.json`，仅 patch node 353 切换 mode）
 - preset 想覆盖 workflow 里的某个默认值，但不想让用户每次都改
 
 格式跟 `user_facing_inputs` 的 `replacements` 一致。
@@ -419,8 +419,8 @@ Copy-Item "E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\MyPrefix\my_preset_00001-a
 
 | preset key | workflow_file | fixed_patches | user_facing_inputs |
 |---|---|---|---|
-| `sca12_motion` | `sca12_uncached.json` | `353.value = true` | 8 个输入，主提示词是 advanced |
-| `sca12_replace` | `sca12_uncached.json` | `353.value = false` | 同上但 input 顺序可以微调 |
+| `sca12_motion` | `scail2_motion_transfer_final.json` | `353.value = true` | 8 个输入，主提示词是 advanced |
+| `sca12_replace` | `scail2_motion_transfer_final.json` | `353.value = false` | 同上但 input 顺序可以微调 |
 
 要再加一个变体（例如"SCAIL2 高清版"），只加 preset key、`fixed_patches` 改参数、`user_facing_inputs` 加一个 int 控制强度。**代码零变动**。
 

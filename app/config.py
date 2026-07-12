@@ -80,7 +80,7 @@ def workflow_path(preset_name: str) -> Path:
     """从 preset 名取 workflow JSON 路径。
 
     优先读 preset 配置里的 `workflow_file` 字段（允许 preset 名跟文件名不同，
-    例如 sca12_replace 和 sca12_motion 都用 sca12_uncached.json）；
+    例如 sca12_replace 和 sca12_motion 都用 scail2_motion_transfer_final.json）；
     没有该字段则回退到 {preset_name}.json（向后兼容）。
     """
     try:
