@@ -717,7 +717,7 @@
         }
       ],
       "example": {
-        "prompt": "The young woman in a cozy striped sweater and chunky knit scarf stands by a tranquil misty lake at golden hour. She slowly turns her face toward the camera with a calm thoughtful expression as a soft breeze ruffles loose strands of her short dark hair and gently lifts one end of her scarf. The water surface shows subtle ripples reflecting the warm sunset light; distant mountains are veiled in mist. No camera movement, only natural micro-motion on her hair, scarf, and the lake surface. Photorealistic, soft cinematic lighting, 24fps.",
+        "prompt": "A calm contemplative young woman in a cozy striped sweater and chunky knit scarf stands quietly by a misty lake at golden hour. The composition is essentially static: she barely moves at all, only a few loose strands of her short dark hair slowly settle against her cheek and a single subtle breath of air displaces the very tip of her scarf by less than a centimetre. Her body, gaze and pose remain essentially fixed throughout; the lake surface holds still, the only animation is the slow drift of warm light across the distant mountains. No camera motion, no head turn, no walking. Photorealistic, soft cinematic lighting, serene still atmosphere, 24fps.",
         "length": 97,
         "frame_rate": 24,
         "preview_image": "app/static/examples/ltx_23_i2v.png",
