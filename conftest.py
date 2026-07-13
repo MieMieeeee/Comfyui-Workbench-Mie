@@ -95,7 +95,7 @@ def _wait_for_port(host: str, port: int, timeout: float = 20.0) -> bool:
 
 
 @pytest.fixture(scope="session")
-def gradio_server():
+def gradio_server(tmp_path_factory):
     """起一个临时端口的 Gradio server，返回 base_url。
 
     session 级：整个测试会话只起一次（Gradio 启动慢，~5s），
@@ -112,6 +112,11 @@ def gradio_server():
     import os
 
     from app import scail2_app
+
+    # 浏览器测试不得读取或改写用户的持久化主题设置。
+    e2e_data_dir = tmp_path_factory.mktemp("e2e-app-data")
+    scail2_app.config.THEME_SETTINGS_FILE = e2e_data_dir / "theme_settings.json"
+    scail2_app.CSS = scail2_app._build_launch_css()
 
     # 关键:让 Gradio 内部的 httpx 自连接绕过系统代理,否则 launch() 卡死
     os.environ["NO_PROXY"] = "localhost,127.0.0.1"
@@ -136,6 +141,7 @@ def gradio_server():
         css=scail2_app.CSS,
         footer_links=[],
         enable_monitoring=False,
+        allowed_paths=[scail2_app.config.REPO_ROOT / "app" / "static" / "examples"],
     )
 
     if not _wait_for_port(host, port, timeout=20.0):

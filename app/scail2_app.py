@@ -1674,6 +1674,22 @@ def _create_one_input(spec):
             )
     return comp, preview_comp
 
+def _set_initial_component_value(component, value):
+    """Apply a preset.example value using Gradio's constructor-time pipeline."""
+    from gradio.data_classes import BaseModel
+    from gradio.processing_utils import move_files_to_cache
+
+    if isinstance(component, list):
+        for child, child_value in zip(component, value):
+            _set_initial_component_value(child, child_value)
+        return
+    initial_value = component.postprocess(value)
+    if isinstance(initial_value, BaseModel):
+        initial_value = initial_value.model_dump()
+    component.value = move_files_to_cache(
+        initial_value, component, postprocess=True, keep_in_cache=True
+    )
+
 
 def _save_last_run(preset_name, values):
     """跑成功时把当前表单值写到 app/data/last_run/{preset_name}.json。
@@ -1765,6 +1781,18 @@ _CATEGORY_ICON = {"video": chr(0x1F3AC), "image": chr(0x1F5BC) + chr(0xFE0F),
 # start_webui.bat 会 cd 到项目根, 所以分发到任意路径都仍然正确解析。
 # 旧代码用 "/file=" 是错的: Gradio 6 那个路径 404, 浏览器看到的是破图标。
 _FILE_ROUTE_PREFIX = "/gradio_api/file="
+
+
+def _versioned_preview_url(src: Path) -> str | None:
+    """Return a repo-local Gradio file URL keyed by the current bytes."""
+    try:
+        rel = src.relative_to(config.REPO_ROOT)
+    except ValueError:
+        return None
+    import hashlib
+    digest = hashlib.sha256(src.read_bytes()).hexdigest()[:16]
+    route = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
+    return f"{route}?v={digest}"
 
 
 def _category_icon(cat: str) -> str:
@@ -1873,6 +1901,14 @@ def _render_workflow_form(preset_name):
     output_kind = _output_kind(preset_cfg)
     is_image = output_kind == "image"
     specs = preset_cfg["user_facing_inputs"]
+    _initial_form_values = example_to_form_values(preset_name)
+    _initial_values_by_spec = []
+    _flat_index = 0
+    for _spec in specs:
+        _value_count = 2 if _spec.get("type") == "int_random" else 1
+        _values = _initial_form_values[_flat_index:_flat_index + _value_count]
+        _initial_values_by_spec.append(_values if _value_count == 2 else _values[0])
+        _flat_index += _value_count
 
     # [顶部] 工作流标题 + 简介
     gr.Markdown(
@@ -1928,6 +1964,10 @@ def _render_workflow_form(preset_name):
                         if spec.get("tier", "basic") != "basic":
                             continue
                         comp, preview = _create_one_input(spec)
+                        _initial_value = _initial_values_by_spec[spec_idx]
+                        _set_initial_component_value(comp, _initial_value)
+                        if preview is not None and _initial_value:
+                            _set_initial_component_value(preview, _initial_value)
                         # int_random 返回 [Checkbox, Number] 两组件, 其他返回单组件
                         spec_to_comp[spec_idx] = comp
                         spec_to_preview[spec_idx] = preview
@@ -1938,6 +1978,10 @@ def _render_workflow_form(preset_name):
                         if spec.get("tier") != "advanced":
                             continue
                         comp, preview = _create_one_input(spec)
+                        _initial_value = _initial_values_by_spec[spec_idx]
+                        _set_initial_component_value(comp, _initial_value)
+                        if preview is not None and _initial_value:
+                            _set_initial_component_value(preview, _initial_value)
                         spec_to_comp[spec_idx] = comp
                         spec_to_preview[spec_idx] = preview
 
@@ -1968,19 +2012,6 @@ def _render_workflow_form(preset_name):
                 if spec_to_preview[spec_idx] is not None:
                     _preview_value_at.append(_running_flat)
                 _running_flat += step
-            # 初始渲染时,如果 example 里给定了 reference_image / drive_video, 直接把缩略图 .value 预设进去。
-            # 这样 demo.load / wf_radio.change(从别的 preset 切过来) 两条路径都能直接看到图。
-            # example_to_form_values 走 _resolve_example_file 复制到 CWD 下, Gradio 6 可以直接吃。
-            try:
-                _initial_form_values = example_to_form_values(preset_name)
-                for _pc_idx, _flat_idx in enumerate(_preview_value_at):
-                    if 0 <= _flat_idx < len(_initial_form_values):
-                        _v = _initial_form_values[_flat_idx]
-                        if _v:
-                            preview_components[_pc_idx].value = _v
-            except Exception:
-                pass  # 静默兜底: example 文件不在, 不阻塞 UI 启动
-
             # 段数预估(仅视频类 preset)
             if output_kind == "video":
                 _drive_idx = next((i for i, s in enumerate(specs) if s["type"] == "file:video"), None)
@@ -2062,12 +2093,7 @@ def _render_workflow_form(preset_name):
                 src = Path(raw) if not Path(raw).is_absolute() else Path(raw)
                 if not src.is_absolute():
                     src = config.REPO_ROOT / src
-                try:
-                    rel = src.relative_to(config.REPO_ROOT)
-                    return _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-                except ValueError:
-                    # \u4e0d\u5728 REPO_ROOT \u4e0b, \u4e0d\u80fd\u7528 /file= \u8def\u7531, \u8df3\u8fc7
-                    return None
+                return _versioned_preview_url(src)
             _ex_for_default = preset_cfg.get("example") or {}
             _pv_video_raw = _ex_for_default.get("preview_video")
             _pv_image_raw = _ex_for_default.get("preview_image")

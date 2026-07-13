@@ -90,9 +90,11 @@ def test_theme_switch_changes_native_primary_button_color(page):
     pg.goto(base_url, wait_until="networkidle", timeout=20000)
     time.sleep(1.5)
 
-    # 1. 切到系统设置 tab
+    # 1. 切到系统设置 tab，并显式选 coral，避免本机持久化主题污染基线
     initial = _find_primary_save_btn(page)
     assert initial is not None, "找不到 '保存并测试' primary 按钮"
+    _select_theme(page, "coral-orange")
+    initial = _find_primary_save_btn(page)
     initial_bg = initial["bg"]
     print(f"coral-orange primary bg = {initial_bg}")
 

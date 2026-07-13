@@ -150,3 +150,92 @@ def test_config_css_is_string_not_list(page):
     # analytics 也该关着(E2E 视角二次确认)
     assert config_json.get("analytics_enabled") is False, \
         "analytics_enabled 应为 False(完全本地,不发 telemetry)"
+
+
+def _example_basic_text_values(preset_name: str) -> list[str]:
+    """Return example-backed values for visible basic text controls in spec order."""
+    from app import config, scail2_app
+
+    cfg = config.preset_config(preset_name)
+    flat_values = scail2_app.example_to_form_values(preset_name)
+    values = []
+    flat_index = 0
+    for spec in cfg["user_facing_inputs"]:
+        if spec.get("tier", "basic") == "basic" and spec["type"] in ("text", "prompt_pool"):
+            values.append(flat_values[flat_index])
+        flat_index += 2 if spec["type"] == "int_random" else 1
+    return values
+
+
+def _select_preset(pg, preset_name: str) -> None:
+    radio = pg.locator(f'input[type="radio"][value="{preset_name}"]').first
+    radio.click()
+    pg.locator(f'[id="panel-{preset_name}"]:visible').first.wait_for(timeout=5000)
+    time.sleep(0.2)
+
+
+def test_fresh_session_keeps_example_prompts_and_serves_versioned_previews(browser, gradio_server):
+    """A prior visitor must not make a new visitor see workflow JSON defaults or stale media."""
+    import hashlib
+    from urllib.parse import urljoin
+
+    from app import config
+
+    workflows = [wf["name"] for wf in config.list_workflows()]
+
+    # Session A visits every preset, reproducing the process-global _AUTO_LOADED pollution.
+    first_context = browser.new_context(viewport={"width": 1400, "height": 900})
+    first_page = first_context.new_page()
+    first_page.goto(gradio_server, wait_until="networkidle", timeout=20000)
+    time.sleep(1)
+    for preset_name in workflows:
+        _select_preset(first_page, preset_name)
+    first_context.close()
+
+    # Session B is a genuinely new browser session against the same restarted server.
+    second_context = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = second_context.new_page()
+    pg.goto(gradio_server, wait_until="networkidle", timeout=20000)
+    time.sleep(1)
+
+    try:
+        for preset_name in workflows:
+            _select_preset(pg, preset_name)
+            panel = pg.locator(f'[id="panel-{preset_name}"]:visible').first
+            actual_texts = panel.locator("textarea:visible").evaluate_all(
+                "els => els.map(el => el.value)"
+            )
+            expected_texts = _example_basic_text_values(preset_name)
+            assert actual_texts[:len(expected_texts)] == expected_texts, (
+                f"{preset_name}: fresh session prompt values differ from preset.example; "
+                f"actual={actual_texts[:len(expected_texts)]!r}, expected={expected_texts!r}"
+            )
+
+            cfg = config.preset_config(preset_name)
+            example = cfg["example"]
+            raw = next(
+                example[key]
+                for key in ("preview_video", "preview_image", "preview_audio")
+                if example.get(key)
+            )
+            preview_path = Path(raw)
+            if not preview_path.is_absolute():
+                preview_path = REPO_ROOT / preview_path
+            expected_digest = hashlib.sha256(preview_path.read_bytes()).hexdigest()[:16]
+
+            media = panel.locator(
+                ".result-area-default source, .result-area-default img"
+            ).first
+            src = media.get_attribute("src")
+            assert src and f"?v={expected_digest}" in src, (
+                f"{preset_name}: preview src is not content-versioned; src={src!r}"
+            )
+            response = pg.request.get(urljoin(gradio_server + "/", src))
+            assert response.ok, f"{preset_name}: preview request failed: {response.status} {src}"
+            actual_digest = hashlib.sha256(response.body()).hexdigest()[:16]
+            assert actual_digest == expected_digest, (
+                f"{preset_name}: browser preview bytes do not match configured asset; "
+                f"actual={actual_digest}, expected={expected_digest}, src={src}"
+            )
+    finally:
+        second_context.close()

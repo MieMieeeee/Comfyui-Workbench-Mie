@@ -58,7 +58,7 @@
           "label": "正向提示词",
           "type": "text",
           "max_chars": 500,
-          "default": "the woman is dancing",
+          "default": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
           "placeholder": "描述最终视频的主运动 / 表情 / 氛围, ≤500 字符。",
           "help": "模型用的正向提示词。",
           "tier": "basic"
@@ -118,10 +118,11 @@
         "drive_video": "scail2_drive_00038.mp4",
         "ref_prompt": "human",
         "drive_prompt": "human",
-        "main_prompt": "A woman is dancing.",
+        "main_prompt": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
         "frame_load_cap": 0,
         "preview_image": "app/static/examples/sca12_replace_3seg.png",
-        "preview_video": "app/static/examples/sca12_replace_3seg.mp4"
+        "preview_video": "app/static/examples/sca12_replace_3seg.mp4",
+        "contract_sha256": "c884b915a43b4017095634479e8661041f5b4f0aa05b4c387cca83422c83c3bf"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -196,7 +197,7 @@
           "label": "正向提示词",
           "type": "text",
           "max_chars": 500,
-          "default": "the woman is dancing",
+          "default": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
           "placeholder": "描述最终视频的主运动 / 表情 / 氛围, ≤500 字符。",
           "help": "模型用的正向提示词。",
           "tier": "basic"
@@ -256,11 +257,12 @@
         "drive_video": "scail2_drive_00038.mp4",
         "ref_prompt": "human",
         "drive_prompt": "human",
-        "main_prompt": "the woman is dancing",
+        "main_prompt": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
         "frame_load_cap": 0,
         "segments": 0,
         "preview_image": "app/static/examples/sca12_motion_3seg.png",
-        "preview_video": "app/static/examples/sca12_motion_3seg.mp4"
+        "preview_video": "app/static/examples/sca12_motion_3seg.mp4",
+        "contract_sha256": "bfd01eb6e4f2e550667ebb512219fd4b3dcc9c0bc9b1d38a59ea02aac28bf487"
       },
       "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
       "do_not_modify_warnings": [
@@ -347,7 +349,8 @@
           "720x1280"
         ],
         "seed": 900259427766747,
-        "preview_image": "app/static/examples/zimage_720x1280_0001.png"
+        "preview_image": "app/static/examples/zimage_720x1280_0001.png",
+        "contract_sha256": "ebedee594e27b8719663834234d80cc90c1b9116f25ea9022545bc9b3721bed7"
       },
       "output_kind": "image",
       "do_not_modify_warnings": [
@@ -442,7 +445,8 @@
           "704x1280"
         ],
         "seed": 900259427766747,
-        "preview_image": "app/static/examples/qwen_image_2512_4step.png"
+        "preview_image": "app/static/examples/qwen_image_2512_4step.png",
+        "contract_sha256": "1281e045097e09a0b5224ceb4041abba312169b773d04f395c2c57d60e061cd2"
       },
       "output_kind": "image",
       "do_not_modify_warnings": [
@@ -519,7 +523,8 @@
         "prompt": "Replace her cozy striped cardigan sweater and thick knit scarf with a sleek tailored silver-grey futuristic jacket: high-collared matte metallic finish, subtle engineered panel lines on the shoulders, soft brushed-metal texture, paired with a matching silver-grey wool scarf draped loosely over her shoulders. Keep her delicate facial features, gentle calm expression, head tilted slightly upward, dark short bob hair with a few loose strands, the misty lake and mountains in the background, dusk golden-hour lighting, and the soft film-grain atmosphere completely unchanged. Photorealistic, 85mm lens feel, shallow depth of field with blurred foliage behind, highly detailed fabric and metal textures.",
         "seed": 900259427766747,
         "preview_image": "app/static/examples/klein_edit.png",
-        "reference_image": "app/static/examples/person.png"
+        "reference_image": "app/static/examples/person.png",
+        "contract_sha256": "7158f1ee53efa443262b893f3de3e7f8a8b41cf7a42158aee8c3d00c54910930"
       },
       "output_kind": "image",
       "do_not_modify_warnings": [
@@ -625,7 +630,8 @@
         "length": 97,
         "frame_rate": 24,
         "preview_image": "app/static/examples/ltx_23_t2v.png",
-        "preview_video": "app/static/examples/ltx_23_t2v.mp4"
+        "preview_video": "app/static/examples/ltx_23_t2v.mp4",
+        "contract_sha256": "5993b3bfa5262ef82c4a9502de1464e095ee048f03c4e4412a92816fbfe5afb8"
       },
       "output_kind": "video",
       "do_not_modify_warnings": [
@@ -722,7 +728,8 @@
         "frame_rate": 24,
         "preview_image": "app/static/examples/ltx_23_i2v.png",
         "preview_video": "app/static/examples/ltx_23_i2v.mp4",
-        "reference_image": "app/static/examples/person.png"
+        "reference_image": "app/static/examples/person.png",
+        "contract_sha256": "313b542d2ee02e03c61d40d893667f642f48d0a7209d4503fef6bb1e086f445a"
       },
       "output_kind": "video",
       "do_not_modify_warnings": [
@@ -839,7 +846,8 @@
         "language": "Chinese",
         "model_choice": "1.7B",
         "seed": 845203391849865,
-        "preview_audio": "app/static/examples/qwen3_tts.mp3"
+        "preview_audio": "app/static/examples/qwen3_tts.mp3",
+        "contract_sha256": "0eefdf896a620c25f71d560790ee14bd6ced47a68c80adb46f1be00e1ec278de"
       },
       "output_kind": "audio",
       "do_not_modify_warnings": [
@@ -970,7 +978,8 @@
         "language": "en",
         "keyscale": "D minor",
         "seed": 31,
-        "preview_audio": "app/static/examples/ace_step_15_music.mp3"
+        "preview_audio": "app/static/examples/ace_step_15_music.mp3",
+        "contract_sha256": "16f0afa749ce655bf45d88d20d3efb354465e4e1ad6808e101fee752d809c2fc"
       },
       "output_kind": "audio",
       "do_not_modify_warnings": [

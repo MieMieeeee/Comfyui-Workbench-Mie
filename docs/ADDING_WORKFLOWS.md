@@ -136,7 +136,8 @@
       "sizes":          ["720x1280"],         // image_sizes 多选
       "seed":           900259427766747,    // int_random 固定值 (给具体值时不勾随机)
       "preview_image":  "app/static/examples/<preset>_<slug>.png",   // output_box 初始显示
-      "preview_video":  "app/static/examples/<preset>_<slug>.mp4"    // 视频类 preset 必填
+      "preview_video":  "app/static/examples/<preset>_<slug>.mp4",   // 视频类 preset 必填
+      "contract_sha256": "<参数 + 输入素材 + 预览素材的 SHA-256>"       // 跑完示例后签名
     },
 
     // --- 给未来维护者的备忘，不是用户配置 ---
@@ -356,7 +357,25 @@ Copy-Item "E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\MyPrefix\my_preset_00001-a
 
 **测试**：保存 params.json 后切到 WebUI 该 preset，右栏"生成结果"应该立刻显示这张图 / 这段视频，**不需要**先点运行。
 
-### 4.6 example 字段约束
+### 4.6 给 example 参数与素材签名
+
+真实跑完并复制 preview 后，运行：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_preset_must_have_example.py -q -k example_contract_matches
+```
+
+新建或更新过的 preset 会显示 `current=<sha256>`。把这个值写进
+`example.contract_sha256` 后再重跑，必须转绿。签名覆盖：
+
+- 除 preview/file 路径外的全部 example 默认参数（包括正向提示词、尺寸、seed）
+- `reference_image` / `drive_video` 的实际文件字节
+- `preview_image` / `preview_video` / `preview_audio` 的实际文件字节
+
+因此只改提示词、只换输入素材或只替换输出 preview，都会让测试失败。必须用新参数
+真实跑一次并替换对应 preview，最后才更新签名。
+
+### 4.7 example 字段约束
 
 被 `tests/test_preset_must_have_example.py` 锁住：
 
@@ -364,6 +383,9 @@ Copy-Item "E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\MyPrefix\my_preset_00001-a
 - 至少覆盖一个 user_facing_inputs 字段（避免 example 是空 dict）
 - output_box 初始值必须含 `preview_image` / `preview_video` 之一
 - URL 必须是 `/gradio_api/file=` 前缀（Gradio 6 静态文件路由，详见 AGENTS.md "Gotcha" 段）
+- 初始表单组件值必须直接等于 `example`，不能依赖浏览器 load/change 事件二次覆盖
+- 本地 preview URL 必须带文件内容哈希 `?v=...`，同路径替换素材后浏览器不能命中旧缓存
+- `contract_sha256` 必须匹配当前默认参数、输入素材与 preview 的组合签名
 
 ---
 

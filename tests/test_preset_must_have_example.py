@@ -14,6 +14,8 @@
   - UI 启动时 demo.load 的 lambda 能直接调 (不依赖外部 IO)
 """
 from __future__ import annotations
+import hashlib
+import json
 import sys
 from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -238,3 +240,167 @@ def test_output_box_caption_mentions_default_params():
     assert "\u9ed8\u8ba4\u53c2\u6570\u5bf9\u5e94\u7684\u7ed3\u679c" in val, (
         f"caption 应明确说明 '默认参数对应的结果', 实际:\n{val}"
     )
+
+# --- Restart-safe example defaults and cache-safe preview URLs ---
+
+
+def _normalized_component_value(component):
+    value = component.value
+    if isinstance(value, dict) and "orig_name" in value:
+        return Path(value["orig_name"]).name
+    if getattr(value, "orig_name", None):
+        return Path(value.orig_name).name
+    return value
+
+
+def _normalized_expected_value(component, value):
+    import gradio as gr
+    if isinstance(component, gr.File) and value:
+        return Path(value).name
+    return value
+
+
+def test_rendered_form_initial_values_match_example_for_every_preset():
+    """Fresh server/session must render example values without load/change events."""
+    import gradio as gr
+
+    failures = []
+    for wf in config.list_workflows():
+        preset_name = wf["name"]
+        expected = scail2_app.example_to_form_values(preset_name)
+        with gr.Blocks():
+            components = scail2_app._render_workflow_form(preset_name)
+        assert len(components) == len(expected)
+        for index, (component, expected_value) in enumerate(zip(components, expected)):
+            actual = _normalized_component_value(component)
+            wanted = _normalized_expected_value(component, expected_value)
+            if actual != wanted:
+                failures.append((preset_name, index, getattr(component, "label", ""), actual, wanted))
+
+    assert not failures, (
+        "Fresh render did not start from preset.example values:\n"
+        + "\n".join(
+            f"  {name}[{index}] {label!r}: actual={actual!r}, expected={wanted!r}"
+            for name, index, label, actual, wanted in failures
+        )
+    )
+
+
+def test_every_local_example_preview_url_contains_current_content_hash():
+    """Replacing a preview at the same path must produce a new browser URL."""
+    import gradio as gr
+
+    for wf in config.list_workflows():
+        preset_name = wf["name"]
+        cfg = config.preset_config(preset_name)
+        example = cfg["example"]
+        raw = next(
+            (example.get(key) for key in ("preview_video", "preview_image", "preview_audio") if example.get(key)),
+            None,
+        )
+        assert raw, f"{preset_name}: example has no preview"
+        if str(raw).startswith(("http://", "https://")):
+            continue
+        preview_path = Path(raw)
+        if not preview_path.is_absolute():
+            preview_path = config.REPO_ROOT / preview_path
+        digest = hashlib.sha256(preview_path.read_bytes()).hexdigest()[:16]
+
+        with gr.Blocks() as demo:
+            scail2_app._render_workflow_form(preset_name)
+        output = next(
+            block for block in demo.blocks.values()
+            if isinstance(block, gr.HTML)
+            and "result-area" in (getattr(block, "elem_classes", None) or [])
+        )
+        html = output.value or ""
+        assert f"?v={digest}" in html, (
+            f"{preset_name}: preview URL must include current content hash {digest}; HTML={html[:300]!r}"
+        )
+
+def _example_contract_digest(example: dict) -> str:
+    """Hash default parameters plus every configured input/output example asset."""
+    file_keys = (
+        "reference_image", "drive_video", "preview_image", "preview_video", "preview_audio"
+    )
+    params = {
+        key: value
+        for key, value in example.items()
+        if key not in file_keys and key != "contract_sha256"
+    }
+    digest = hashlib.sha256(
+        json.dumps(params, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+    for key in file_keys:
+        raw = example.get(key)
+        if not raw:
+            continue
+        digest.update(key.encode("ascii"))
+        if str(raw).startswith(("http://", "https://")):
+            digest.update(str(raw).encode("utf-8"))
+            continue
+        path = Path(raw)
+        if not path.is_absolute():
+            repo_path = config.REPO_ROOT / path
+            path = repo_path if repo_path.exists() else Path(scail2_app._resolve_example_file(raw))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def test_every_example_contract_matches_current_params_and_assets():
+    """Changing a prompt or asset requires regenerating and resigning that example pair."""
+    failures = []
+    for wf in config.list_workflows():
+        preset_name = wf["name"]
+        example = config.preset_config(preset_name)["example"]
+        actual = _example_contract_digest(example)
+        expected = example.get("contract_sha256")
+        if actual != expected:
+            failures.append((preset_name, expected, actual))
+    assert not failures, (
+        "Example prompt/input/output contracts are stale:\n"
+        + "\n".join(
+            f"  {name}: configured={expected!r}, current={actual}"
+            for name, expected, actual in failures
+        )
+    )
+
+def test_every_basic_text_input_is_explicitly_backed_by_example():
+    """A visible prompt must resolve to an example key, never an unrelated spec default."""
+    special_keys = {"362": "ref_prompt", "348": "drive_prompt", "360": "main_prompt"}
+    failures = []
+    for wf in config.list_workflows():
+        preset_name = wf["name"]
+        cfg = config.preset_config(preset_name)
+        example = cfg["example"]
+        for spec in cfg["user_facing_inputs"]:
+            if spec.get("tier", "basic") != "basic" or spec["type"] not in ("text", "prompt_pool"):
+                continue
+            node_id = str(spec.get("node_id", ""))
+            if spec["type"] == "prompt_pool":
+                example_key = "prompt"
+            else:
+                example_key = spec.get("example_key") or special_keys.get(node_id) or spec["field"]
+            if example_key not in example:
+                failures.append((preset_name, spec["label"], example_key))
+    assert not failures, (
+        "Visible text inputs without an explicit preset.example value:\n"
+        + "\n".join(
+            f"  {name}: {label!r} expects example[{key!r}]"
+            for name, label, key in failures
+        )
+    )
+
+
+def test_versioned_preview_url_changes_when_same_path_bytes_change(tmp_path, monkeypatch):
+    """A browser must receive a different URL after an in-place preview replacement."""
+    monkeypatch.setattr(config, "REPO_ROOT", tmp_path)
+    preview = tmp_path / "app" / "static" / "examples" / "preview.mp4"
+    preview.parent.mkdir(parents=True)
+    preview.write_bytes(b"old-preview")
+    old_url = scail2_app._versioned_preview_url(preview)
+    preview.write_bytes(b"new-preview")
+    new_url = scail2_app._versioned_preview_url(preview)
+    assert old_url != new_url
+    assert old_url.startswith("/gradio_api/file=app/static/examples/preview.mp4?v=")
+    assert new_url.startswith("/gradio_api/file=app/static/examples/preview.mp4?v=")
