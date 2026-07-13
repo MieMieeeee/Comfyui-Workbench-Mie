@@ -28,6 +28,15 @@ IMAGE_OUTPUT_CLASS_TYPES: frozenset[str] = frozenset({
     "PreviewImage",
 })
 
+# 会产出 audio 输出的 node class_type。validator 层面只校验 "有 output 节点",
+# 不区分 image / video / audio; audio preset 走与 image 一致的通过路径 (caller 端
+# 拿 output_kind 决定渲染是 <img> 还是 <audio>)。
+AUDIO_OUTPUT_CLASS_TYPES: frozenset[str] = frozenset({
+    "SaveAudioMP3",
+    "SaveAudio",
+    "SaveAudioWav",
+})
+
 # 复合 type：它们的 field 不直接对应单一 node.inputs 字段，
 # 运行时由专门的逻辑映射（如 image_sizes → width+height 多次 patch）。
 # validator 对这些 type 只检查节点存在，跳过字段存在性检查。
@@ -95,9 +104,16 @@ def validate(workflow: dict[str, Any], preset_config: dict[str, Any]) -> None:
         elif ct in IMAGE_OUTPUT_CLASS_TYPES:
             image_outputs.append((node_id, ct))
 
-    if not video_outputs and not image_outputs:
+    # audio 走单独 list, validator 不混到 image/video 里 (error message 友好)
+    audio_outputs: list[tuple[str, str]] = []
+    for node_id, node in workflow.items():
+        ct = node.get("class_type", "")
+        if ct in AUDIO_OUTPUT_CLASS_TYPES:
+            audio_outputs.append((node_id, ct))
+
+    if not video_outputs and not image_outputs and not audio_outputs:
         raise WorkflowValidationError(
-            f"no output node found. expected one of video {sorted(VIDEO_OUTPUT_CLASS_TYPES)} "
-            f"or image {sorted(IMAGE_OUTPUT_CLASS_TYPES)}. "
+            f"no output node found. expected one of video {sorted(VIDEO_OUTPUT_CLASS_TYPES)}, "
+            f"image {sorted(IMAGE_OUTPUT_CLASS_TYPES)}, or audio {sorted(AUDIO_OUTPUT_CLASS_TYPES)}. "
             f"workflow class_types: {sorted({n.get('class_type','?') for n in workflow.values()})}"
         )

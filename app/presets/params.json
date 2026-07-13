@@ -368,6 +368,623 @@
           "reason": "CLIP loader: Qwen3-4B, type=lumina2"
         }
       ]
+    },
+    "qwen_image_2512_4step": {
+      "workflow_file": "qwen_image_2512_4step.json",
+      "display_name": "文生图 (Qwen Image 2512 4step 海报/带字)",
+      "category": "image",
+      "order": 11,
+      "description": "Qwen Image 2512 4step 文生图 workflow。专为海报 / 标题 / 带字图片设计。GGUF 模型 + 4 步蒸馏 LoRA。",
+      "user_facing_inputs": [
+        {
+          "node_id": "6",
+          "field": "text",
+          "label": "正向提示词",
+          "type": "prompt_pool",
+          "max_chars": 2000,
+          "default": "卡通3D风格海报，欢乐明亮。背景是春日蓝天白云下的户外踏青场景。",
+          "help": "文生图正向提示词。Qwen Image 对中文海报 / 标题渲染极强, 适合带字的图片。"
+        },
+        {
+          "node_id": "7",
+          "field": "text",
+          "label": "负向提示词",
+          "type": "text",
+          "max_chars": 500,
+          "default": "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感。构图混乱。文字模糊，扭曲",
+          "help": "Qwen Image 负向提示词。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "58",
+          "field": "sizes",
+          "label": "输出尺寸",
+          "type": "image_sizes",
+          "default": [
+            "704x1280"
+          ],
+          "presets": [
+            {
+              "label": "🪧 512×768 ｜ 2:3 (海报 / 宣传图默认)",
+              "value": "512x768"
+            },
+            {
+              "label": "📱 704×1280 ｜ 9:16 (高清竖版海报)",
+              "value": "704x1280"
+            },
+            {
+              "label": "🎬 1280×704 ｜ 16:9 (横版封面 / banner)",
+              "value": "1280x704"
+            },
+            {
+              "label": "🖼 1024×1024 ｜ 1:1 (方图)",
+              "value": "1024x1024"
+            }
+          ],
+          "help": "勾选要生成的尺寸(每个尺寸出一张图)。Qwen Image 适合 512-1280 范围。"
+        },
+        {
+          "node_id": "3",
+          "field": "seed",
+          "label": "种子值",
+          "type": "int_random",
+          "min": 0,
+          "max": 9223372036854776000,
+          "default": 0,
+          "random_default": true,
+          "step": 1,
+          "help": "勾上「随机」则忽略数值, 每个尺寸独立随机; 不勾则用下方具体数值 (固定种子)。"
+        }
+      ],
+      "example": {
+        "prompt": "卡通3D风格海报，欢乐明亮。背景是春日蓝天白云下的户外踏青场景：绿色草地上点缀着五彩鲜花和飞舞的蝴蝶，远处有风筝在天空飘扬，草地上摆放着野餐毯和彩色遮阳伞，伞下挂着小彩灯，营造温馨春游氛围。前景是一位卡通小朋友手持风筝线，旁边一只可爱的小兔子蹦跳跟随，画面Q萌治愈。\n\n文字排版：\n上方大标题（粗体活泼中文，带花朵和风筝装饰）：『春日踏青 欢乐出游』\n副标题（英文点缀）：『SPRING OUTING』\n中部彩色圆角框内标语：『一起拥抱春天的快乐』\n活动亮点介绍（白色小字，居中两行）：\n『风筝大赛 · 野餐派对 · 花海拍照』\n『亲子游戏 · 自然探秘 · 春游市集』\n底部日期与地点（现代中文字体，居中两行）：\n『活动时间：2025年4月12日 活动地点：阳光花海公园』",
+        "sizes": [
+          "704x1280"
+        ],
+        "seed": 900259427766747,
+        "preview_image": "app/static/examples/qwen_image_2512_4step.png"
+      },
+      "output_kind": "image",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "90",
+          "reason": "UnetLoaderGGUF: Qwen Image 2512 GGUF 模型文件名"
+        },
+        {
+          "node_id": "93",
+          "reason": "LoraLoaderModelOnly: 4 步蒸馏 LoRA (Lightning-4steps V1.0)"
+        },
+        {
+          "node_id": "38",
+          "reason": "CLIPLoader: Qwen2.5-VL 7B fp8, type=qwen_image"
+        },
+        {
+          "node_id": "39",
+          "reason": "VAELoader: Qwen Image VAE"
+        },
+        {
+          "node_id": "66",
+          "reason": "ModelSamplingAuraFlow shift=3.1, 与 Qwen Image 推荐配置绑定"
+        }
+      ]
+    },
+    "klein_edit": {
+      "workflow_file": "klein_edit.json",
+      "display_name": "图生图编辑 (Flux2 Klein Edit)",
+      "category": "image",
+      "order": 12,
+      "description": "Flux2-Klein 9B 图生图编辑。上传参考图,提示词描述要改的部分 (服装 / 背景 / 风格 / 局部),模型保留原图姿态结构。输出尺寸跟随上传图。",
+      "user_facing_inputs": [
+        {
+          "node_id": "76",
+          "field": "image",
+          "label": "参考图 (要编辑的图)",
+          "type": "file:image",
+          "tier": "basic",
+          "help": "上传要编辑的图片。输出分辨率 = 输入分辨率 (workflow-managed)。"
+        },
+        {
+          "node_id": "108",
+          "field": "text",
+          "label": "编辑提示词",
+          "type": "prompt_pool",
+          "max_chars": 2000,
+          "default": "Change only the clothing and shoes of the woman to a sleek shiny silver metallic futuristic sci-fi armor suit with high collar, segmented shoulder and arm armor plates, rounded metallic breastplate with strong curves, highly reflective chrome-like surface with bright star-like highlights and realistic reflections, tight bodycon fit, paired with matching silver metallic boots, keep the exact same pose, body position, hairstyle, facial expression, actions, lighting, and background completely unchanged, highly detailed metallic texture and glossy reflections",
+          "help": "告诉模型要改什么。明确写出保留 (pose / face / background) 和要改 (clothing / style),效果最稳。"
+        },
+        {
+          "node_id": "109",
+          "field": "text",
+          "label": "负向提示词",
+          "type": "text",
+          "max_chars": 500,
+          "default": "",
+          "help": "通常留空。Flux2-Klein 对负向不敏感。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "146",
+          "field": "seed",
+          "label": "种子值",
+          "type": "int_random",
+          "min": 0,
+          "max": 9223372036854776000,
+          "default": 0,
+          "random_default": true,
+          "step": 1,
+          "help": "勾上「随机」则忽略数值; 不勾则用下方具体数值 (固定种子)。"
+        }
+      ],
+      "example": {
+        "prompt": "Change only the clothing and shoes of the woman to a sleek shiny silver metallic futuristic sci-fi armor suit with high collar, segmented shoulder and arm armor plates, rounded metallic breastplate with strong curves, highly reflective chrome-like surface with bright star-like highlights and realistic reflections, tight bodycon fit, paired with matching silver metallic boots, keep the exact same pose, body position, hairstyle, facial expression, actions, lighting, and background completely unchanged, highly detailed metallic texture and glossy reflections",
+        "seed": 900259427766747,
+        "preview_image": "app/static/examples/klein_edit.png",
+        "reference_image": "app/static/examples/person.png"
+      },
+      "output_kind": "image",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "163",
+          "reason": "UnetLoaderGGUF: Flux2-Klein-9B GGUF 模型文件名"
+        },
+        {
+          "node_id": "107",
+          "reason": "CLIPLoader: Qwen3-8B fp8 mixed, type=flux2"
+        },
+        {
+          "node_id": "110",
+          "reason": "VAELoader: Flux2 VAE"
+        },
+        {
+          "node_id": "166",
+          "reason": "VHS_LoadVideo 旁路,只用于 PreviewImage 预览上传视频,主路径用 LoadImage (76)。"
+        }
+      ]
+    },
+    "ltx_23_t2v_distill": {
+      "workflow_file": "ltx_23_t2v.json",
+      "display_name": "文生视频 (LTX-2.3 Distill)",
+      "category": "video",
+      "order": 40,
+      "description": "LTX-2.3 Dev distilled 文生视频。宽/高/帧数/帧率由用户控制。适合 768x512 短视频 (3-5 秒)。",
+      "user_facing_inputs": [
+        {
+          "node_id": "121",
+          "field": "text",
+          "label": "正向提示词",
+          "type": "text",
+          "max_chars": 1000,
+          "default": "Cinematic shot of a lone surfer riding a glassy wave at golden hour, slow tracking camera, ocean spray in warm light, photorealistic, 4K detail",
+          "help": "LTX-2.3 文生视频提示词。描述主体 + 镜头运动 + 氛围即可。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "110",
+          "field": "text",
+          "label": "负向提示词",
+          "type": "text",
+          "max_chars": 500,
+          "default": "blurry, low quality, jittery, distorted faces, watermark, text overlay",
+          "help": "LTX-2.3 负向提示词。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "111",
+          "field": "width",
+          "label": "宽度 (像素)",
+          "type": "int",
+          "min": 256,
+          "max": 1920,
+          "default": 768,
+          "step": 64,
+          "help": "视频宽度。需为 64 的倍数。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "111",
+          "field": "height",
+          "label": "高度 (像素)",
+          "type": "int",
+          "min": 256,
+          "max": 1088,
+          "default": 512,
+          "step": 64,
+          "help": "视频高度。需为 64 的倍数。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "112",
+          "field": "value",
+          "label": "视频长度 (latent 帧)",
+          "type": "int",
+          "min": 17,
+          "max": 257,
+          "default": 97,
+          "step": 8,
+          "help": "latent 帧数。97 帧 @24fps ≈ 4 秒。每 +8 帧 ≈ 多 1/3 秒。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "130",
+          "field": "value",
+          "label": "帧率 (fps)",
+          "type": "int",
+          "min": 12,
+          "max": 60,
+          "default": 24,
+          "step": 1,
+          "help": "输出帧率。电影感 24fps, 短视频 30fps。",
+          "tier": "advanced"
+        }
+      ],
+      "example": {
+        "prompt": "Cinematic shot of a lone surfer riding a glassy wave at golden hour, slow tracking camera, ocean spray in warm light, photorealistic, 4K detail",
+        "width": 768,
+        "height": 512,
+        "length": 97,
+        "frame_rate": 24,
+        "preview_image": "app/static/examples/ltx_23_t2v.png",
+        "preview_video": "app/static/examples/ltx_23_t2v.mp4"
+      },
+      "output_kind": "video",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "159",
+          "reason": "CheckpointLoaderSimple: LTX-2.3 distilled checkpoint 文件名"
+        },
+        {
+          "node_id": "160",
+          "reason": "LTXV Audio VAE Loader: 音频 VAE"
+        },
+        {
+          "node_id": "161",
+          "reason": "LTXV Audio Text Encoder Loader: 文本编码器"
+        },
+        {
+          "node_id": "132",
+          "reason": "LoraLoaderModelOnly: LTX distilled LoRA"
+        },
+        {
+          "node_id": "133",
+          "reason": "LoraLoaderModelOnly: 链上第二段 LoRA"
+        },
+        {
+          "node_id": "101",
+          "reason": "LatentUpscaleModelLoader: 升频模型"
+        }
+      ]
+    },
+    "ltx_23_i2v_distilled": {
+      "workflow_file": "ltx_23_i2v.json",
+      "display_name": "图生视频 (LTX-2.3 Distill)",
+      "category": "video",
+      "order": 41,
+      "description": "LTX-2.3 Dev distilled 图生视频。上传一张图,模型按其分辨率生成对应视频。宽/高由上传图决定 (不要改 EmptyImage 111)。",
+      "user_facing_inputs": [
+        {
+          "node_id": "180",
+          "field": "image",
+          "label": "起始图片",
+          "type": "file:image",
+          "tier": "basic",
+          "help": "上传起始图。视频分辨率 = 输入分辨率。"
+        },
+        {
+          "node_id": "121",
+          "field": "text",
+          "label": "正向提示词",
+          "type": "text",
+          "max_chars": 1000,
+          "default": "Subtle camera drift around the subject, soft daylight, gentle wind moving hair and fabric, preserve the subject identity and pose",
+          "help": "LTX-2.3 图生视频提示词。描述镜头运动 + 氛围 + 想保留的特征。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "110",
+          "field": "text",
+          "label": "负向提示词",
+          "type": "text",
+          "max_chars": 500,
+          "default": "blurry, low quality, jittery, distorted faces, watermark, text overlay",
+          "help": "LTX-2.3 负向提示词。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "112",
+          "field": "value",
+          "label": "视频长度 (latent 帧)",
+          "type": "int",
+          "min": 17,
+          "max": 257,
+          "default": 97,
+          "step": 8,
+          "help": "latent 帧数。97 帧 @24fps ≈ 4 秒。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "130",
+          "field": "value",
+          "label": "帧率 (fps)",
+          "type": "int",
+          "min": 12,
+          "max": 60,
+          "default": 24,
+          "step": 1,
+          "help": "输出帧率。",
+          "tier": "advanced"
+        }
+      ],
+      "example": {
+        "prompt": "Subtle camera drift around the subject, soft daylight, gentle wind moving hair and fabric, preserve the subject identity and pose",
+        "length": 97,
+        "frame_rate": 24,
+        "preview_image": "app/static/examples/ltx_23_i2v.png",
+        "preview_video": "app/static/examples/ltx_23_i2v.mp4",
+        "reference_image": "app/static/examples/person.png"
+      },
+      "output_kind": "video",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "111",
+          "reason": "EmptyImage: i2v workflow 走 GetImageSize 链读上传图分辨率, 不要手动改 111.width/height,否则视频大小与上传图不一致。"
+        },
+        {
+          "node_id": "159",
+          "reason": "CheckpointLoaderSimple: LTX-2.3 distilled checkpoint 文件名"
+        },
+        {
+          "node_id": "160",
+          "reason": "LTXV Audio VAE Loader: 音频 VAE"
+        },
+        {
+          "node_id": "161",
+          "reason": "LTXV Audio Text Encoder Loader: 文本编码器"
+        },
+        {
+          "node_id": "132",
+          "reason": "LoraLoaderModelOnly: LTX distilled LoRA (段一)"
+        },
+        {
+          "node_id": "208",
+          "reason": "LoraLoaderModelOnly: 链上第二段 LoRA (段二升频)"
+        }
+      ]
+    },
+    "qwen3_tts": {
+      "workflow_file": "qwen3_tts.json",
+      "display_name": "语音合成 (Qwen3-TTS VoiceDesign)",
+      "category": "audio",
+      "order": 50,
+      "description": "Qwen3-TTS 语音合成:输入朗读文本 + 声音风格指令,生成中文/英文/多语种 MP3。模型按需自动下载 (0.6B / 1.7B)。",
+      "user_facing_inputs": [
+        {
+          "node_id": "38",
+          "field": "text",
+          "label": "朗读文本",
+          "type": "text",
+          "max_chars": 2000,
+          "default": "你再盯着我看……我可就要收点利息了哦～……",
+          "help": "要朗读的内容。中文 / 英文 / 数字皆可。",
+          "tier": "basic",
+          "example_key": "speech_text"
+        },
+        {
+          "node_id": "38",
+          "field": "instruct",
+          "label": "声音风格指令",
+          "type": "text",
+          "max_chars": 1000,
+          "default": "模拟成熟女性的低沉略哑烟嗓,气息感很重,声音像刚睡醒又喝了红酒的性感女性,语速缓慢而松弛,语调带着漫不经心的慵懒。",
+          "help": "VoiceDesign 必备:描述音色 / 风格 / 情感。留空 = 默认女声。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "38",
+          "field": "language",
+          "label": "语言",
+          "type": "select",
+          "choices": [
+            "Auto",
+            "Chinese",
+            "English",
+            "Japanese",
+            "Korean",
+            "French",
+            "German",
+            "Spanish",
+            "Portuguese",
+            "Russian",
+            "Italian"
+          ],
+          "default": "Chinese",
+          "help": "TTS 语言模型。Auto 让模型自动判别。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "38",
+          "field": "model_choice",
+          "label": "模型规模",
+          "type": "select",
+          "choices": [
+            {
+              "label": "0.6B (轻量 / 较快)",
+              "value": "0.6B"
+            },
+            {
+              "label": "1.7B (默认 / 较高质量)",
+              "value": "1.7B"
+            }
+          ],
+          "default": "1.7B",
+          "help": "0.6B 占显存小、生成快; 1.7B 音质更稳。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "38",
+          "field": "seed",
+          "label": "种子",
+          "type": "int",
+          "min": 0,
+          "max": 9223372036854776000,
+          "default": 845203391849865,
+          "help": "相同 prompt + seed 复现同一段语音; 想换声音改 seed。",
+          "tier": "advanced"
+        }
+      ],
+      "example": {
+        "speech_text": "你再盯着我看……我可就要收点利息了哦～……",
+        "instruct": "模拟成熟女性的低沉略哑烟嗓,气息感很重,声音像刚睡醒又喝了红酒的性感女性,语速缓慢而松弛,语调带着漫不经心的慵懒,每句话都像在耳边轻轻吐息,尾音常常往下沉并带一点沙哑的笑意,传递出我随时可以把你吃掉但现在还不想动的危险女性魅力。",
+        "language": "Chinese",
+        "model_choice": "1.7B",
+        "seed": 845203391849865,
+        "preview_audio": "app/static/examples/qwen3_tts.mp3"
+      },
+      "output_kind": "audio",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "38",
+          "reason": "FB_Qwen3TTSVoiceDesign 节点;model_choice/language 等通过该节点下的字段控制。模型首次调用时自动下载到 ComfyUI/models 下。"
+        },
+        {
+          "node_id": "47",
+          "reason": "SaveAudioMP3 输出节点;filename_prefix + quality 影响最终 MP3 路径和码率。"
+        }
+      ]
+    },
+    "ace_step_15_music": {
+      "workflow_file": "ace_step_15_music.json",
+      "display_name": "音乐生成 (Ace Step 1.5)",
+      "category": "audio",
+      "order": 51,
+      "description": "Ace Step 1.5 文生音乐:输入 tags (音乐风格 / 情绪 / 乐器描述) + 可选 lyrics 生成器乐 / 歌曲 MP3。",
+      "user_facing_inputs": [
+        {
+          "node_id": "94",
+          "field": "tags",
+          "label": "音乐 tags",
+          "type": "text",
+          "max_chars": 2000,
+          "default": "A cinematic and epic orchestral track that builds intense momentum for a grand narrative. The piece opens with deep, thunderous percussion and rhythmic taiko drums, layering in staccato strings and a powerful brass section that conveys a sense of heroic duty.",
+          "help": "音乐风格 / 情绪 / 乐器 / 节奏描述。留空 = 用默认值 (史诗管弦乐)。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "94",
+          "field": "lyrics",
+          "label": "歌词",
+          "type": "text",
+          "max_chars": 4000,
+          "default": "[en]\n[Verse 1]\nThrough the ashes of the fallen sky\nWe march beneath the banners held on high",
+          "help": "可选。带歌词就生成歌曲 (人声),留空就纯器乐。",
+          "tier": "basic"
+        },
+        {
+          "node_id": "94",
+          "field": "bpm",
+          "label": "BPM",
+          "type": "int",
+          "min": 60,
+          "max": 200,
+          "default": 105,
+          "step": 1,
+          "help": "每分钟节拍数。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "94",
+          "field": "duration",
+          "label": "时长 (秒)",
+          "type": "int",
+          "min": 30,
+          "max": 240,
+          "default": 120,
+          "step": 10,
+          "help": "生成音频长度。120s ≈ 2 分钟。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "94",
+          "field": "language",
+          "label": "歌词语言",
+          "type": "select",
+          "choices": [
+            "en",
+            "zh",
+            "ja",
+            "es",
+            "fr",
+            "de",
+            "pt",
+            "ru",
+            "it",
+            "ko"
+          ],
+          "default": "en",
+          "help": "歌词语言代码。en / zh 最稳。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "94",
+          "field": "keyscale",
+          "label": "调性",
+          "type": "select",
+          "choices": [
+            "C major",
+            "C minor",
+            "D major",
+            "D minor",
+            "E major",
+            "E minor",
+            "F major",
+            "F minor",
+            "G major",
+            "G minor",
+            "A major",
+            "A minor",
+            "B major",
+            "B minor"
+          ],
+          "default": "D minor",
+          "help": "调性 (key + scale)。D minor 史诗 / 忧郁常用。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "94",
+          "field": "seed",
+          "label": "种子",
+          "type": "int",
+          "min": 0,
+          "max": 9223372036854776000,
+          "default": 31,
+          "help": "相同 tags + seed 复现同一首;想换曲风改 seed。",
+          "tier": "advanced"
+        }
+      ],
+      "example": {
+        "tags": "A cinematic and epic orchestral track that builds intense momentum for a grand narrative. The piece opens with deep, thunderous percussion and rhythmic taiko drums, layering in staccato strings and a powerful brass section that conveys a sense of heroic duty. As the arrangement swells, soaring choral chants and sweeping violins create a feeling of sacrifice and ultimate glory. The production is vast and atmospheric, featuring high dynamic range and a driving, march-like energy perfect for a high-stakes battle or a dramatic trailer climax, evoking a mood of solemnity and triumphant resilience.",
+        "lyrics": "[en]\n[Intro]\n(Low brass hum, distant drums pounding)\nThe shadows rise across the ancient land.\n\n[Verse 1]\nThrough the ashes of the fallen sky\nWe march beneath the banners held on high",
+        "bpm": 105,
+        "duration": 120,
+        "language": "en",
+        "keyscale": "D minor",
+        "seed": 31,
+        "preview_audio": "app/static/examples/ace_step_15_music.mp3"
+      },
+      "output_kind": "audio",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "97",
+          "reason": "CheckpointLoaderSimple: Ace_Step_1.5/ace_step_1.5_turbo_aio.safetensors (大模型,首次加载需几分钟)"
+        },
+        {
+          "node_id": "94",
+          "reason": "TextEncodeAceStepAudio1.5: bpm/duration/language/keyscale 是音乐生成核心参数,调错会破坏输出节奏。cfg_scale/temperature/top_p 等用 workflow 硬编码值 (advanced 玩家才需要调)。"
+        },
+        {
+          "node_id": "104",
+          "reason": "SaveAudioMP3: quality 默认 128k,可改 V0 (高质量)。"
+        }
+      ]
     }
   }
 }

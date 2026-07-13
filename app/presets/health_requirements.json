@@ -1,38 +1,626 @@
 {
   "_comment": "工作流运行所需的模型文件 + 自定义节点清单，供健康检查用。核心节点（ComfyUI 自带）不在此列。",
   "models": [
-    {"node": "UNETLoader", "field": "unet_name", "filename": "SCAIL-2\\wan2.1_14B_SCAIL_2_fp8_scaled.safetensors", "folder": "diffusion_models", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "VAELoader", "field": "vae_name", "filename": "Wan_2.1\\wan_2.1_vae.safetensors", "folder": "vae", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "CLIPLoader", "field": "clip_name", "filename": "Wan\\umt5_xxl_fp8_e4m3fn_scaled.safetensors", "folder": "text_encoders", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "CLIPVisionLoader", "field": "clip_name", "filename": "clip_vision_h.safetensors", "folder": "clip_vision", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "CheckpointLoaderSimple", "field": "ckpt_name", "filename": "sam3.1_multiplex_fp16.safetensors", "folder": "checkpoints", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "LoraLoaderModelOnly", "field": "lora_name", "filename": "Wan2.1\\lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors", "folder": "loras", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "LoraLoaderModelOnly", "field": "lora_name", "filename": "Scail-2\\wan2.1_SCAIL_2_DPO_lora_bf16.safetensors", "folder": "loras", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"node": "UNETLoader", "field": "unet_name", "filename": "Z-Image-Turbo\\z_image_turbo_bf16.safetensors", "folder": "diffusion_models", "workflows": ["zimage"]},
-    {"node": "VAELoader", "field": "vae_name", "filename": "Flux\\ae.sft", "folder": "vae", "workflows": ["zimage"]},
-    {"node": "CLIPLoader", "field": "clip_name", "filename": "Qwen\\qwen_3_4b.safetensors", "folder": "text_encoders", "workflows": ["zimage"]}
+    {
+      "node": "UNETLoader",
+      "field": "unet_name",
+      "filename": "SCAIL-2\\wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
+      "folder": "diffusion_models",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "VAELoader",
+      "field": "vae_name",
+      "filename": "Wan_2.1\\wan_2.1_vae.safetensors",
+      "folder": "vae",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "CLIPLoader",
+      "field": "clip_name",
+      "filename": "Wan\\umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "folder": "text_encoders",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "CLIPVisionLoader",
+      "field": "clip_name",
+      "filename": "clip_vision_h.safetensors",
+      "folder": "clip_vision",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "CheckpointLoaderSimple",
+      "field": "ckpt_name",
+      "filename": "sam3.1_multiplex_fp16.safetensors",
+      "folder": "checkpoints",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "LoraLoaderModelOnly",
+      "field": "lora_name",
+      "filename": "Wan2.1\\lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+      "folder": "loras",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "LoraLoaderModelOnly",
+      "field": "lora_name",
+      "filename": "Scail-2\\wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+      "folder": "loras",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "node": "UNETLoader",
+      "field": "unet_name",
+      "filename": "Z-Image-Turbo\\z_image_turbo_bf16.safetensors",
+      "folder": "diffusion_models",
+      "workflows": [
+        "zimage"
+      ]
+    },
+    {
+      "node": "VAELoader",
+      "field": "vae_name",
+      "filename": "Flux\\ae.sft",
+      "folder": "vae",
+      "workflows": [
+        "zimage"
+      ]
+    },
+    {
+      "node": "CLIPLoader",
+      "field": "clip_name",
+      "filename": "Qwen\\qwen_3_4b.safetensors",
+      "folder": "text_encoders",
+      "workflows": [
+        "zimage"
+      ]
+    },
+    {
+      "node": "UnetLoaderGGUF",
+      "field": "unet_name",
+      "filename": "Qwen_Image\\qwen-image-2512-Q6_K.gguf",
+      "folder": "unet",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "node": "LoraLoaderModelOnly",
+      "field": "lora_name",
+      "filename": "Qwen-Image\\Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
+      "folder": "loras",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "node": "CLIPLoader",
+      "field": "clip_name",
+      "filename": "Qwen\\qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "folder": "text_encoders",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "node": "VAELoader",
+      "field": "vae_name",
+      "filename": "Qwen\\qwen_image_vae.safetensors",
+      "folder": "vae",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "node": "UnetLoaderGGUF",
+      "field": "unet_name",
+      "filename": "Flux\\Flux.2-Klein\\flux-2-klein-9b-Q6_K.gguf",
+      "folder": "unet",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "node": "CLIPLoader",
+      "field": "clip_name",
+      "filename": "Flux.2-Klein\\qwen_3_8b_fp8mixed.safetensors",
+      "folder": "text_encoders",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "node": "VAELoader",
+      "field": "vae_name",
+      "filename": "Flux\\flux2-vae.safetensors",
+      "folder": "vae",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "node": "CheckpointLoaderSimple",
+      "field": "ckpt_name",
+      "filename": "LTX_2.3\\ltx-2.3-distilled.safetensors",
+      "folder": "checkpoints",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "node": "LoraLoaderModelOnly",
+      "field": "lora_name",
+      "filename": "LTX_2.3\\ltx-2.3-distill-lora.safetensors",
+      "folder": "loras",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "node": "CheckpointLoaderSimple",
+      "field": "ckpt_name",
+      "filename": "Ace_Step_1.5\\ace_step_1.5_turbo_aio.safetensors",
+      "folder": "checkpoints",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    }
   ],
   "custom_nodes": [
-    {"class_type": "SAM3_VideoTrack", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "SCAIL2ColoredMask", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "WanSCAILToVideo", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopStart|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopEnd|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopBodyIn|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopBodyOut|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopCollectImage|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopFinalizeImages|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopParamGetInt|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopStateGetImage|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopStateSetImageBatch|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopIfIsFirst|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "MieLoopIfIsLast|Mie", "package": "ComfyUI-MieNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "VHS_LoadVideo", "package": "comfyui-videohelpersuite", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "VHS_VideoCombine", "package": "comfyui-videohelpersuite", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "VHS_VideoInfo", "package": "comfyui-videohelpersuite", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "VHS_VideoInfoLoaded", "package": "comfyui-videohelpersuite", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "ComfyMathExpression", "package": "ComfyMath", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "ImageResizeKJv2", "package": "ComfyUI-KJNodes", "workflows": ["sca12_replace", "sca12_motion"]},
-    {"class_type": "ColorTransfer", "package": "ComfyUI-KJNodes", "workflows": ["sca12_replace", "sca12_motion"]}
+    {
+      "class_type": "SAM3_VideoTrack",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "SCAIL2ColoredMask",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "WanSCAILToVideo",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStart|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopEnd|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopBodyIn|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopBodyOut|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopCollectImage|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopFinalizeImages|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopParamGetInt|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStateGetImage|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStateSetImageBatch|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopIfIsFirst|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopIfIsLast|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "VHS_LoadVideo",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "VHS_VideoCombine",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "VHS_VideoInfo",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "VHS_VideoInfoLoaded",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "ComfyMathExpression",
+      "package": "ComfyMath",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "ImageResizeKJv2",
+      "package": "ComfyUI-KJNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "ColorTransfer",
+      "package": "ComfyUI-KJNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "ModelSamplingAuraFlow",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "class_type": "ReferenceLatent",
+      "package": "ComfyUI-KJNodes",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "EmptyFlux2LatentImage",
+      "package": "ComfyUI-FluxTrainer",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "VHS_LoadVideo",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "LTXVScheduler",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVConditioning",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVEmptyLatentAudio",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVConcatAVLatent",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVSeparateAVLatent",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVLatentUpsampler",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVImgToVideoInplace",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVPreprocess",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVCropGuides",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "EmptyLTXVLatentVideo",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio VAE Loader",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio VAE Decode",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio Text Encoder Loader",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "SamplerCustomAdvanced",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "CFGGuider",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "ManualSigmas",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "KSamplerSelect",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LatentUpscaleModelLoader",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "EmptyImage",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill"
+      ]
+    },
+    {
+      "class_type": "ImageScaleBy",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "GetImageSize",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled",
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "CM_IntToFloat",
+      "package": "ComfyMath",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "VAEDecodeTiled",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "ImpactExecutionOrderController",
+      "package": "ComfyUI-Impact-Pack",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "FB_Qwen3TTSVoiceDesign",
+      "package": "ComfyUI-Qwen3-TTS",
+      "workflows": [
+        "qwen3_tts"
+      ]
+    },
+    {
+      "class_type": "TextEncodeAceStepAudio1.5",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "EmptyAceStep1.5LatentAudio",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "VAEDecodeAudio",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "SaveAudioMP3",
+      "package": "ComfyUI-SaveAudioMP3",
+      "workflows": [
+        "qwen3_tts",
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "SaveAudio",
+      "package": "ComfyUI-SaveAudioMP3",
+      "workflows": [
+        "qwen3_tts",
+        "ace_step_15_music"
+      ]
+    }
   ]
 }

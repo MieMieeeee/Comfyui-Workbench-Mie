@@ -98,18 +98,18 @@ def test_category_icon_unknown_falls_back_to_other():
 # ---- _media_to_html ----
 
 def test_media_to_html_none_returns_placeholder():
-    out = scail2_app._media_to_html(None, is_image=True)
+    out = scail2_app._media_to_html(None, output_kind="image")
     assert "等待结果" in out
     assert "padding" in out
 
 
 def test_media_to_html_empty_image_list_returns_placeholder():
-    out = scail2_app._media_to_html([], is_image=True)
+    out = scail2_app._media_to_html([], output_kind="image")
     assert "等待结果" in out
 
 
 def test_media_to_html_single_image_url():
-    out = scail2_app._media_to_html("http://x/y.png", is_image=True)
+    out = scail2_app._media_to_html("http://x/y.png", output_kind="image")
     assert "<img" in out
     assert "y.png" in out
     assert "max-width:100%" in out
@@ -117,7 +117,7 @@ def test_media_to_html_single_image_url():
 
 def test_media_to_html_image_list_grid():
     urls = ["http://x/a.png", "http://x/b.png", "http://x/c.png"]
-    out = scail2_app._media_to_html(urls, is_image=True)
+    out = scail2_app._media_to_html(urls, output_kind="image")
     # 3 张图，每张都有 <img
     assert out.count("<img") == 3
     # 每张都用网格宽度 32%
@@ -125,7 +125,7 @@ def test_media_to_html_image_list_grid():
 
 
 def test_media_to_html_video_url_uses_video_tag():
-    out = scail2_app._media_to_html("http://x/clip.mp4", is_image=False)
+    out = scail2_app._media_to_html("http://x/clip.mp4", output_kind="video")
     assert "<video" in out
     assert "controls" in out
     assert "clip.mp4" in out
@@ -133,20 +133,20 @@ def test_media_to_html_video_url_uses_video_tag():
 
 def test_media_to_html_unknown_http_url_falls_back_to_banner():
     """不在 image/video 扩展名里的 URL -> .file-fallback banner。"""
-    out = scail2_app._media_to_html("http://x/output.glb", is_image=False)
+    out = scail2_app._media_to_html("http://x/output.glb", output_kind="video")
     assert "file-fallback" in out
     assert "output.glb" in out or "未知" in out
 
 
 def test_media_to_html_image_extension_video_context_still_image():
-    """is_image=False 但 URL 是图片扩展名 -> 仍走 <img>，不会被当视频。"""
-    out = scail2_app._media_to_html("http://x/a.png", is_image=False)
+    """output_kind="video" 但 URL 是图片扩展名 -> 仍走 <img>，不会被当视频。"""
+    out = scail2_app._media_to_html("http://x/a.png", output_kind="video")
     assert "<img" in out
     assert "<video" not in out
 
 
 def test_media_to_html_empty_src_returns_placeholder():
-    out = scail2_app._media_to_html([""], is_image=False)
+    out = scail2_app._media_to_html([""], output_kind="video")
     assert "等待结果" in out
 
 
@@ -246,7 +246,7 @@ def test_yield_run_stream_final_yield_preserves_image():
         yield "✅ [1/1] 1024x1024 done", [fake_url]
         yield "✅ 全部完成，共 1 张图", [fake_url]
 
-    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), output_kind="image"))
     assert len(yields) >= 2, "helper should yield at least once per run_fn yield + final"
     last = yields[-1]
     # 6-tuple: (status_text, media_html, error_update, re_run_visible_update, open_dir_msg_update, last_media)
@@ -271,7 +271,7 @@ def test_yield_run_stream_final_yield_preserves_video():
         yield "⏳ [4/5] waiting for ComfyUI...", None
         yield "✅ done in 00:45", fake_url
 
-    yields = list(scail2_app._yield_run_stream(fake_run, "sca12_replace", ("ref",), is_image=False))
+    yields = list(scail2_app._yield_run_stream(fake_run, "sca12_replace", ("ref",), output_kind="video"))
     last = yields[-1]
     status_text, media_html, _eu, _ru, _ou, last_media = last
     assert "等待结果" not in media_html, (
@@ -289,7 +289,7 @@ def test_yield_run_stream_no_media_yields_placeholder():
         yield "[READY] preparing...", None
         yield "❌ queue: not connected", None
 
-    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), output_kind="image"))
     last = yields[-1]
     status_text, media_html, err_upd, _ru, _ou, last_media = last
     assert "等待结果" in media_html
@@ -312,7 +312,7 @@ def test_yield_run_stream_exception_preserves_last_media():
         yield "✅ [1/2] done", [fake_url]
         raise RuntimeError("simulated network drop")
 
-    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), is_image=True))
+    yields = list(scail2_app._yield_run_stream(fake_run, "zimage", (), output_kind="image"))
     # 最后两个 yield:异常分支 + 收尾,都不应覆盖之前的图
     last = yields[-1]
     penultimate = yields[-2]
@@ -336,7 +336,7 @@ def test_yield_run_stream_calls_on_status_done_on_check():
         yield "✅ done", None
 
     vals_in = ("prompt-text", ["1024x1024"], 0)
-    list(scail2_app._yield_run_stream(fake_run, "zimage", vals_in, is_image=True, on_status_done=on_done))
+    list(scail2_app._yield_run_stream(fake_run, "zimage", vals_in, output_kind="image", on_status_done=on_done))
     assert any(s.startswith("✅") for s, _ in calls), f"on_status_done not called: {calls!r}"
     # vals 透传
     _, last_vals = calls[-1]
@@ -455,7 +455,7 @@ def test_media_ext_comfyui_view_url_with_filename_query():
     url = "http://127.0.0.1:8188/view?filename=scail-2_00094-audio.mp4&type=output&subfolder=SCAIL-2"
     assert scail2_app._media_ext_from_url(url) == ".mp4"
     # 出来的 HTML 应含 <video> 标签, 不是 \u672a\u77e5\u8f93\u51fa banner
-    out = scail2_app._media_to_html(url, is_image=False)
+    out = scail2_app._media_to_html(url, output_kind="video")
     assert "<video" in out, f"\u672a\u77e5\u8f93\u51fa banner: {out!r}"
     assert "\u672a\u77e5\u8f93\u51fa" not in out
 
@@ -490,7 +490,7 @@ def test_media_ext_no_extension():
 def test_media_to_html_comfyui_view_url_renders_video_tag():
     """端到端: ComfyUI /view URL 在 _media_to_html 渲染成 <video> 而不是 \u672a\u77e5\u8f93\u51fa banner."""
     url = "http://127.0.0.1:8188/view?filename=scail-2_00094-audio.mp4&type=output&subfolder=SCAIL-2"
-    out = scail2_app._media_to_html(url, is_image=False)
+    out = scail2_app._media_to_html(url, output_kind="video")
     assert "<video" in out
     assert "controls" in out
     assert url in out
@@ -500,5 +500,5 @@ def test_media_to_html_comfyui_view_url_renders_video_tag():
 def test_media_to_html_comfyui_view_url_with_f_param():
     """测试用 f= query param 的 ComfyUI /view URL 也要正确."""
     url = "http://127.0.0.1:8188/view?f=clip_00001.mp4"
-    out = scail2_app._media_to_html(url, is_image=False)
+    out = scail2_app._media_to_html(url, output_kind="video")
     assert "<video" in out, f"got: {out!r}"

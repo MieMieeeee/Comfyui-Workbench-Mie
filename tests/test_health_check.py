@@ -18,8 +18,8 @@ from app import health_check, config
 def test_load_requirements_has_models_and_nodes():
     req = health_check.load_requirements()
     assert "models" in req and "custom_nodes" in req
-    assert len(req["models"]) == 10
-    assert len(req["custom_nodes"]) >= 15
+    assert len(req["models"]) == 20
+    assert len(req["custom_nodes"]) >= 50
 
 
 # --- L0 连通性 ---
@@ -96,7 +96,8 @@ def _object_info_with_models(present_filenames: set[str]):
     obj = {}
     for node, field in [("UNETLoader", "unet_name"), ("VAELoader", "vae_name"),
                         ("CLIPLoader", "clip_name"), ("CLIPVisionLoader", "clip_name"),
-                        ("CheckpointLoaderSimple", "ckpt_name"), ("LoraLoaderModelOnly", "lora_name")]:
+                        ("CheckpointLoaderSimple", "ckpt_name"), ("LoraLoaderModelOnly", "lora_name"),
+                        ("UnetLoaderGGUF", "unet_name")]:
         obj[node] = {"input": {"required": {field: [sorted(present_filenames), {}]}}}
     # 也注册一些 class_type 供 L3
     for ct in ["KSampler", "SaveImage", "EmptySD3LatentImage", "CLIPTextEncode", "VAEDecode"]:
@@ -116,6 +117,18 @@ def test_check_health_models_all_present():
         "Z-Image-Turbo\\z_image_turbo_bf16.safetensors",
         "Flux\\ae.sft",
         "Qwen\\qwen_3_4b.safetensors",
+        # 同步源仓库 e:/cc/comfyui 4 个新 preset
+        "Qwen_Image\\qwen-image-2512-Q6_K.gguf",
+        "Qwen-Image\\Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
+        "Qwen\\qwen_2.5_vl_7b_fp8_scaled.safetensors",
+        "Qwen\\qwen_image_vae.safetensors",
+        "Flux\\Flux.2-Klein\\flux-2-klein-9b-Q6_K.gguf",
+        "Flux.2-Klein\\qwen_3_8b_fp8mixed.safetensors",
+        "Flux\\flux2-vae.safetensors",
+        "LTX_2.3\\ltx-2.3-distilled.safetensors",
+        "LTX_2.3\\ltx-2.3-distill-lora.safetensors",
+        # audio: Ace Step 1.5
+        "Ace_Step_1.5\\ace_step_1.5_turbo_aio.safetensors",
     }
     obj = _object_info_with_models(files)
     obj_keys = set(obj.keys())

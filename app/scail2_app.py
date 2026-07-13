@@ -159,20 +159,30 @@ def _file_size_mb(p):
 
 
 def validate_inputs(ref_path, drive_path, preset_cfg):
-    if not ref_path:
-        return "参考图未上传"
-    ext = _file_extension(ref_path)
-    if ext not in config.ALLOWED_IMAGE_EXT:
-        return f"参考图扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_IMAGE_EXT)}）"
-    if _file_size_mb(ref_path) > config.MAX_IMAGE_MB:
-        return f"参考图过大: {_file_size_mb(ref_path):.1f}MB（上限 {config.MAX_IMAGE_MB}MB）"
-    if not drive_path:
-        return "驱动视频未上传"
-    ext = _file_extension(drive_path)
-    if ext not in config.ALLOWED_VIDEO_EXT:
-        return f"驱动视频扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_VIDEO_EXT)}）"
-    if _file_size_mb(drive_path) > config.MAX_VIDEO_MB:
-        return f"驱动视频过大: {_file_size_mb(drive_path):.1f}MB（上限 {config.MAX_VIDEO_MB}MB）"
+    """校验 user_facing_inputs 里的 file:image / file:video 是否合规。
+
+    - 只校验 preset 实际声明的 file type (audit by user_facing_inputs)。
+      音频类 preset (qwen3_tts / ace_step_15_music) 没有 file inputs, 跳过整段校验。
+    - 历史上先无条件校验 ref/drive, 但加 audio preset 后不能继续这样 (audio 无 file)。
+    """
+    has_image_input = any(s.get("type") == "file:image" for s in preset_cfg.get("user_facing_inputs", []))
+    has_video_input = any(s.get("type") == "file:video" for s in preset_cfg.get("user_facing_inputs", []))
+    if has_image_input:
+        if not ref_path:
+            return "参考图未上传"
+        ext = _file_extension(ref_path)
+        if ext not in config.ALLOWED_IMAGE_EXT:
+            return f"参考图扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_IMAGE_EXT)}）"
+        if _file_size_mb(ref_path) > config.MAX_IMAGE_MB:
+            return f"参考图过大: {_file_size_mb(ref_path):.1f}MB（上限 {config.MAX_IMAGE_MB}MB）"
+    if has_video_input:
+        if not drive_path:
+            return "驱动视频未上传"
+        ext = _file_extension(drive_path)
+        if ext not in config.ALLOWED_VIDEO_EXT:
+            return f"驱动视频扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_VIDEO_EXT)}）"
+        if _file_size_mb(drive_path) > config.MAX_VIDEO_MB:
+            return f"驱动视频过大: {_file_size_mb(drive_path):.1f}MB（上限 {config.MAX_VIDEO_MB}MB）"
     return None
 
 
@@ -259,6 +269,24 @@ def _build_input_component(spec):
             value=bool(spec.get("default", False)),
             label=label,
             info=spec.get("help"),
+        )
+    if typ == "select":
+        # 固定选项下拉 (audio preset 的 language / model_choice 用)
+        # choices 可以是 ["Chinese", "English", ...] 字符串列表, 也支持
+        # [{"label": "中文", "value": "Chinese"}] (与 image_sizes 的 label/value 模式一致).
+        raw_choices = spec.get("choices", [])
+        choices = []
+        for c in raw_choices:
+            if isinstance(c, dict) and "value" in c:
+                choices.append((c.get("label", c["value"]), c["value"]))
+            else:
+                choices.append((c, c))
+        return gr.Dropdown(
+            choices=choices,
+            value=spec.get("default"),
+            label=label,
+            info=spec.get("help"),
+            interactive=True,
         )
     if typ == "int_random":
         # 「随机 checkbox + 数值 input」组合, 比 Slider 更适合 seed:
@@ -355,7 +383,7 @@ def example_to_form_values(preset_name):
             values.append(ex.get("main_prompt", spec.get("default", "")))
         elif nid == "479":
             values.append(ex.get("segments", spec.get("default", 0)))
-        elif spec.get("field") == "seed" or spec.get("type") == "int_random":
+        elif spec.get("type") == "int_random":
             # int_random 在 UI 里是 [Checkbox, Number] 两组件,这里也要返回 2 个值:
             #  - Checkbox state: example 给具体 seed 时不勾(=固定), 否则按 random_default
             #  - Number value:   example.seed 的具体值或 spec.default
@@ -367,7 +395,8 @@ def example_to_form_values(preset_name):
                 values.append(bool(spec.get("random_default", True)))
                 values.append(spec.get("default", 0))
         else:
-            values.append(spec.get("default"))
+            example_key = spec.get("example_key", spec.get("field", ""))
+            values.append(ex.get(example_key, spec.get("default")))
     return values
 
 
@@ -397,7 +426,7 @@ def _manifest_to_form_values(preset_name, manifest):
         elif typ == "image_sizes":
             sizes = manifest.get("sizes")
             values.append(list(sizes or spec.get("default") or []))
-        elif field == "seed" or spec.get("type") == "int_random":
+        elif spec.get("type") == "int_random":
             seed = manifest.get("seed")
             # manifest 只存最终 seed 值, 没有 "是否随机" 状态。回退规则:
             # 有具体 seed -> 不勾 Checkbox (=固定值)
@@ -513,23 +542,32 @@ def run_workflow(preset_name, *component_values):
         yield "[ERROR] early yield: " + repr(e), None
         raise
     preset_cfg = config.preset_config(preset_name)
+    output_kind = _output_kind(preset_cfg)
     _log.debug(f"start preset={preset_name}, {len(component_values)} component values")
 
     inputs_spec = preset_cfg["user_facing_inputs"]
-    text_by_node: dict[str, str] = {}
+    text_by_field: dict[tuple[str, str], str] = {}
     file_by_type: dict[str, str] = {}
-    int_by_node: dict[str, int] = {}
-    for spec, value in zip(inputs_spec, component_values):
+    int_by_field: dict[tuple[str, str], int] = {}
+    component_idx = 0
+    for spec in inputs_spec:
         nid = str(spec["node_id"])
         typ = spec["type"]
-        if typ == "text":
-            text_by_node[nid] = value or ""
+        field = spec["field"]
+        value = component_values[component_idx] if component_idx < len(component_values) else None
+        if typ in ("text", "prompt_pool", "select"):
+            text_by_field[(nid, field)] = value or ""
         elif typ == "file:image":
             file_by_type["image"] = value
         elif typ == "file:video":
             file_by_type["video"] = value
         elif typ == "int":
-            int_by_node[nid] = int(value) if value is not None else spec.get("default", 1)
+            int_by_field[(nid, field)] = int(value) if value is not None else spec.get("default", 1)
+        elif typ == "int_random":
+            number = component_values[component_idx + 1] if component_idx + 1 < len(component_values) else spec.get("default", 0)
+            int_by_field[(nid, field)] = random.randint(1, 10**12) if bool(value) else int(number)
+            component_idx += 1
+        component_idx += 1
     ref_path = file_by_type.get("image")
     drive_path = file_by_type.get("video")
 
@@ -547,25 +585,30 @@ def run_workflow(preset_name, *component_values):
         return
     _log.debug("validate pass")
 
-    progress(0.10, desc="上传参考图...")
-    yield "⏳ [1/5] uploading reference image...", None
-    try:
-        ref_name = _resolve_upload_name(ref_path, kind="image")
-    except (ComfyUIError, FileNotFoundError) as e:
-        gr.Error(str(e))
-        progress(0, desc=f"❌ 上传失败: {e}")
-        yield f"❌ upload ref: {e}", None
-        return
+    # 解析 user_facing_inputs 里 file:image/file:video 的有无, 决定要不要走 upload 步骤
+    has_image_input = any(s.get("type") == "file:image" for s in inputs_spec)
+    has_video_input = any(s.get("type") == "file:video" for s in inputs_spec)
 
-    progress(0.20, desc="上传驱动视频...")
-    yield "⏳ [2/5] uploading drive video...", None
-    try:
-        drive_name = _resolve_upload_name(drive_path, kind="file")
-    except (ComfyUIError, FileNotFoundError) as e:
-        gr.Error(str(e))
-        progress(0, desc=f"❌ 上传失败: {e}")
-        yield f"❌ upload drive: {e}", None
-        return
+    if has_image_input:
+        progress(0.10, desc="上传参考图...")
+        yield "⏳ [1/5] uploading reference image...", None
+        try:
+            ref_name = _resolve_upload_name(ref_path, kind="image")
+        except (ComfyUIError, FileNotFoundError) as e:
+            gr.Error(str(e))
+            progress(0, desc=f"❌ 上传失败: {e}")
+            yield f"❌ upload ref: {e}", None
+            return
+    if has_video_input:
+        progress(0.20, desc="上传驱动视频...")
+        yield "⏳ [2/5] uploading drive video...", None
+        try:
+            drive_name = _resolve_upload_name(drive_path, kind="file")
+        except (ComfyUIError, FileNotFoundError) as e:
+            gr.Error(str(e))
+            progress(0, desc=f"❌ 上传失败: {e}")
+            yield f"❌ upload drive: {e}", None
+            return
 
     progress(0.30, desc="组装 workflow...")
     yield "⏳ [3/5] loading + patching workflow...", None
@@ -602,8 +645,8 @@ def run_workflow(preset_name, *component_values):
                         replacements[_enid][_efield] = drive_name
                     else:
                         replacements[_enid] = {_efield: drive_name}
-            elif typ in ("text", "prompt_pool"):
-                raw = text_by_node.get(nid, "")
+            elif typ in ("text", "prompt_pool", "select"):
+                raw = text_by_field.get((nid, field), "")
                 final = (raw or "").strip() or (spec.get("default") or config.DEFAULT_PROMPT_TEXT)
                 # merge: 同一 node 上可能还有 int/file 等其它 spec, 不要覆盖
                 if nid in replacements:
@@ -621,9 +664,9 @@ def run_workflow(preset_name, *component_values):
                         replacements[_enid][_efield] = final
                     else:
                         replacements[_enid] = {_efield: final}
-            elif typ == "int":
+            elif typ in ("int", "int_random"):
                 default = spec.get("default", 1)
-                val = int_by_node.get(nid, default)
+                val = int_by_field.get((nid, field), default)
                 # max_segments=0 (默认) 不 patch，保留 workflow 原始的 [495, 1] 引用
                 if nid == "479" and val == 0:
                     pass
@@ -664,7 +707,11 @@ def run_workflow(preset_name, *component_values):
         if status_msg.startswith("✅"):
             try:
                 hist = scail2_client.get_history(prompt_id)
-                out = scail2_client.extract_primary_video_output(hist or {})
+                if output_kind == "image":
+                    image_outputs = scail2_client.extract_all_image_outputs(hist or {})
+                    out = image_outputs[0] if image_outputs else None
+                else:
+                    out = scail2_client.extract_primary_video_output(hist or {})
                 if out:
                     view_url = scail2_client.get_output_url(
                         out["filename"], out["subfolder"], out["type"]
@@ -696,9 +743,9 @@ def run_workflow(preset_name, *component_values):
     finished_at = datetime.now(timezone.utc)
     if prompt_id_final:
         try:
-            fps = int_by_node.get("367", 81)
-            pre = int_by_node.get("464", 5)
-            mx = int_by_node.get("479", 0)
+            fps = int_by_field.get(("367", "value"), 81)
+            pre = int_by_field.get(("464", "value"), 5)
+            mx = int_by_field.get(("479", "int_range_end"), 0)
             video_frames = get_video_frames(drive_path) if drive_path else None
             est_seg = estimated_segments(video_frames, fps, pre, max_segments=mx) if video_frames else None
             manifest = history.build_manifest(
@@ -973,7 +1020,7 @@ def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[str, str, str, st
             run["output"].get("type", "output"),
         )
         is_image = run.get("preset") == "zimage" or                    str(run["output"].get("filename", "")).endswith((".png", ".jpg", ".jpeg", ".webp"))
-        media_html = _media_to_html(view_url, is_image)
+        media_html = _media_to_html(view_url, output_kind)
 
     # 关键字段卡片(表格被简化后,详情须补上这些)
     fields = []
@@ -1386,9 +1433,27 @@ def _update_est(drive_path, per_seg=81, pre_drop=5, max_segments=0):
     return f"**预估段数**: {est} (无限制)  \n(驱动视频 {frames} 帧 / 每段 {per_seg} / pre-drop {pre_drop} / 净每段 {net})"
 
 
-def _is_image_preset(preset_cfg):
-    """preset 是文生图类（输出 image）还是视频类。"""
-    return preset_cfg.get("output_kind") == "image" or preset_cfg.get("category") == "image"
+def _output_kind(preset_cfg) -> str:
+    """根据 preset 配置推导输出类型: image | video | audio。
+
+    优先级: output_kind 字段 > category 字段 > 默认 video (向后兼容 sca12 类老 preset)。
+    视频/音频 preset 走 _media_to_html 的非图片分支; 区别在 _media_to_html 内部用扩展名判定
+    (mp4/mov/webm/gif -> video, mp3/wav/flac -> audio, 其它走 file-fallback banner)。
+    """
+    ok = preset_cfg.get("output_kind")
+    if ok in ("image", "video", "audio"):
+        return ok
+    cat = preset_cfg.get("category")
+    if cat == "image":
+        return "image"
+    if cat == "audio":
+        return "audio"
+    return "video"
+
+
+def _is_image_preset(preset_cfg) -> bool:
+    """preset 是文生图类（输出 image）。保留旧 API, 内部走 _output_kind。"""
+    return _output_kind(preset_cfg) == "image"
 
 
 
@@ -1473,21 +1538,28 @@ def _media_ext_from_url(src):
     return ""
 
 
-def _media_to_html(media, is_image: bool) -> str:
+def _media_to_html(media, output_kind: str = "image") -> str:
     """把 run 函数 yield 的 media 转成 HTML。
 
-    - is_image=True 且 media 是 list → <img> 网格
-    - is_image=True 且 media 是单 URL → <img>
-    - is_image=False 且 media 是 http URL 或本地路径 → <video>
-    - 未知 URL / 本地文件(扩展名不在 image/video 范围内)→ 出现路径+下载链接 banner,
-      让用户知道文件已生成、可以去下载 — 这是"未知输出类型"的最小可用 fallback。
+    output_kind:
+      - "image": image list → <img> 网格; 单 URL → <img>
+      - "video": <video> (mp4/mov/webm/gif) / 兜底 file-fallback
+      - "audio": <audio controls> (mp3/wav/flac) / 兜底 file-fallback
 
-    直接用 ComfyUI /view URL(浏览器同机可访问),绕过 gr.Video 不支持外部 URL 的限制。
+    实际渲染时按 URL / 本地路径的扩展名分桶(image_ext/video_ext/audio_ext),
+    与 output_kind 配合: 例如 audio preset 配 .mp3 URL → 走 audio 分支.
+    跨类型错误 (e.g. image preset 但 URL 是 .mp3) 也仍能渲染, 不死锁.
+
+    未知 URL / 本地文件 (扩展名不在三个白名单) → 出现路径+下载链接 banner,
+    让用户知道文件已生成、可以去下载 — 这是"未知输出类型"的最小可用 fallback.
+
+    直接用 ComfyUI /view URL (浏览器同机可访问), 绕过 gr.Video/gr.Audio 不支持外部 URL 的限制.
     """
     if not media:
         return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
 
-    if is_image:
+    # image 类特化: list → 网格
+    if output_kind == "image":
         if isinstance(media, list):
             if not media:
                 return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
@@ -1498,7 +1570,7 @@ def _media_to_html(media, is_image: bool) -> str:
             return "<div style=\"padding:8px\">" + imgs + "</div>"
         return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
 
-    # is_image=False
+    # video / audio: 单 URL, 扩展名分桶
     src = media[0] if isinstance(media, list) else media
     if not src or not isinstance(src, str):
         return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
@@ -1506,59 +1578,83 @@ def _media_to_html(media, is_image: bool) -> str:
     ext = _media_ext_from_url(src)
     video_ext = (".mp4", ".mov", ".webm", ".gif")
     image_ext = (".png", ".jpg", ".jpeg", ".webp")
+    audio_ext = (".mp3", ".wav", ".flac", ".ogg", ".m4a")
 
-    # HTTP URL
-    if src.startswith("http"):
-        if ext in video_ext:
+    def _to_url(s):
+        """把 http(s) URL 或本地绝对路径转成 gr.Audio / gr.Video 可吃的 URL."""
+        if s.startswith("http"):
+            return s
+        from pathlib import Path as _P
+        sp = _P(s)
+        if sp.exists():
+            try:
+                rel = sp.relative_to(config.REPO_ROOT)
+                return _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
+            except ValueError:
+                return None
+        return None
+
+    # 扩展名优先; output_kind 是 hint, 不是 hard constraint
+    if ext in audio_ext:
+        url = _to_url(src)
+        if url:
+            return ('<div style=\"padding:8px\"><audio controls preload="metadata" style=\"width:100%;max-width:480px\">'
+                    '<source src=\"' + url + '\"/></audio></div>')
+    if ext in video_ext:
+        if src.startswith("http"):
             return ("<div style=\"padding:8px\"><video controls autoplay style=\"max-width:100%;border-radius:8px\">"
                     "<source src=\"" + src + "\"/></video></div>")
-        if ext in image_ext:
-            return "<div style=\"padding:8px\"><img src=\"" + src + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
-        # 未知 HTTP 路径(可能 ComfyUI output 是 JSON / 3D / 等)
-        return ("<div class=\"file-fallback\">📄 未知输出格式: <code>" + src[:80] + "</code></div>")
-
-    # 本地路径
-    from pathlib import Path as _P
-    src_path = _P(src)
-    if src_path.exists():
-        try:
-            rel = src_path.relative_to(config.REPO_ROOT)
-            file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-            if ext in video_ext:
+        from pathlib import Path as _P
+        sp = _P(src)
+        if sp.exists():
+            try:
+                rel = sp.relative_to(config.REPO_ROOT)
+                file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
                 return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:8px\">"
                         "<source src=\"" + file_url + "\"/></video></div>")
-            if ext in image_ext:
-                return "<div style=\"padding:8px\"><img src=\"" + file_url + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
-            # 未知扩展名本地文件:显示 banner + 下载链接
-            return ("<div class=\"file-fallback\">"
-                    "📄 <b>" + src_path.name + "</b> 已生成。浏览器不能预览此格式,请点击下载: "
-                    "<a href=\"" + file_url + "\" download>下载</a></div>")
-        except ValueError:
-            # 不在 REPO_ROOT 下
-            return ("<div class=\"file-fallback\">"
-                    "📄 <b>" + src_path.name + "</b> 已生成。路径: <code>" + src + "</code></div>")
+            except ValueError:
+                pass
+    if ext in image_ext:
+        url = _to_url(src) or src
+        return "<div style=\"padding:8px\"><img src=\"" + url + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
 
-    # 都不是
-    return ("<div class=\"file-fallback\">"
-            "📄 未知输出: <code>" + src[:80] + "</code></div>")
+    # 兜底: 输出 kind 对应的 banner
+    if output_kind == "audio":
+        url = _to_url(src)
+        if url:
+            return ('<div class=\"file-fallback\">🎵 <b>音频</b> 已生成: '
+                    '<a href=\"' + url + '\" download>下载播放</a> '
+                    '<audio controls preload="metadata" style=\"vertical-align:middle;margin-left:8px\">'
+                    '<source src=\"' + url + '\"/></audio></div>')
+    if output_kind == "video":
+        url = _to_url(src)
+        if url:
+            return ('<div class=\"file-fallback\">🎬 <b>视频</b> 已生成: '
+                    '<a href=\"' + url + '\" download>下载</a></div>')
+    return ("<div class=\"file-fallback\">📄 未知输出格式: <code>" + src[:80] + "</code></div>")
 
 
 def _create_one_input(spec):
     """创建单个输入组件 + 紧跟的辅助元素（预览/随机按钮）。
 
-    返回创建的组件（供调用方收集）。组件构造即注册到当前 Blocks 上下文，不调 .render()。
+    返回 (主组件, 缩略图组件 或 None) —— 缩略图组件对 file:image / file:video
+    存在,其它 spec 返回 None。组件构造即注册到当前 Blocks 上下文,不调 .render()。
+
+    调用方把缩略图组件收集到与 inputs 平行的列表里,统一喂给 ex_btn.click /
+    last_btn.click / wf_radio.change,以及初始渲染时的默认缩略图。
     """
     from app import prompts as prompts_mod
     typ = spec["type"]
     comp = _build_input_component(spec)
+    preview_comp = None
     if typ == "file:image":
         with gr.Row():
-            preview = gr.Image(label="缩略图", height=180, interactive=False, show_label=False)
-            comp.change(fn=lambda p: p if p else None, inputs=[comp], outputs=[preview])
+            preview_comp = gr.Image(label="缩略图", height=180, interactive=False, show_label=False)
+            comp.change(fn=lambda p: p if p else None, inputs=[comp], outputs=[preview_comp])
     elif typ == "file:video":
         with gr.Row():
-            preview_v = gr.Video(label="预览", height=180, interactive=False, autoplay=False, show_label=False)
-            comp.change(fn=lambda p: p if p else None, inputs=[comp], outputs=[preview_v])
+            preview_comp = gr.Video(label="预览", height=180, interactive=False, autoplay=False, show_label=False)
+            comp.change(fn=lambda p: p if p else None, inputs=[comp], outputs=[preview_comp])
     elif typ == "prompt_pool":
         with gr.Row():
             rand_btn = gr.Button("🎲 随机提示词", variant="secondary", size="sm")
@@ -1568,7 +1664,7 @@ def _create_one_input(spec):
                 fn=lambda: "\n---\n".join(prompts_mod.random_prompts(n=3)),
                 outputs=[comp],
             )
-    return comp
+    return comp, preview_comp
 
 
 def _save_last_run(preset_name, values):
@@ -1672,7 +1768,7 @@ def _yield_run_stream(
     preset_name: str,
     vals: tuple,
     *,
-    is_image: bool,
+    output_kind: str,
     on_status_done=None,
 ):
     """包装 run_fn 流式输出 -- 纯生成器逻辑(不依赖 Gradio 组件引用)。
@@ -1719,7 +1815,7 @@ def _yield_run_stream(
 
             yield (
                 chr(10).join(log[-12:]),
-                _media_to_html(media, is_image),
+                _media_to_html(media, output_kind),
                 gr.update(value=err_html, visible=err_visible),
                 gr.update(visible=show_re_run),
                 gr.update(value="", visible=False),
@@ -1730,7 +1826,7 @@ def _yield_run_stream(
         log.append(chr(0x274C) + " " + repr(exc))
         yield (
             chr(10).join(log[-12:]),
-            _media_to_html(last_media, is_image),
+            _media_to_html(last_media, output_kind),
             gr.update(value=f"<div class='error-banner-inner'><b>运行异常</b><br>{exc!r}</div>", visible=True),
             gr.update(visible=False),
             gr.update(value="", visible=False),
@@ -1739,7 +1835,7 @@ def _yield_run_stream(
 
     yield (
         chr(10).join(log[-12:]),
-        _media_to_html(last_media, is_image),
+        _media_to_html(last_media, output_kind),
         gr.update(value="", visible=False),
         gr.update(visible=False),
         gr.update(value="", visible=False),
@@ -1766,7 +1862,8 @@ def _render_workflow_form(preset_name):
     """
     from functools import partial
     preset_cfg = config.preset_config(preset_name)
-    is_image = _is_image_preset(preset_cfg)
+    output_kind = _output_kind(preset_cfg)
+    is_image = output_kind == "image"
     specs = preset_cfg["user_facing_inputs"]
 
     # [顶部] 工作流标题 + 简介
@@ -1787,6 +1884,10 @@ def _render_workflow_form(preset_name):
     # (469 int) 覆盖, flat[4] 变成 int, example_to_form_values 返回的路径字符串
     # 落到 gr.Number 里 → TypeError "type str doesn't define __round__ method"。
     spec_to_comp: list = [None] * len(specs)
+    # 缩略图组件与 spec_to_comp 同长度对齐 —— file:image / file:video spec 有 gr.Image/gr.Video,
+    # 其它 spec 为 None。ex_btn / last_btn / wf_radio 三条加载路径会把缩略图一起更新,
+    # 否则用户切到 Klein / LTX i2v 后只看到空上传框,没有任何视觉提示。
+    spec_to_preview: list = [None] * len(specs)
     basic_specs = [s for s in specs if s.get("tier", "basic") == "basic"]
     advanced_specs = [s for s in specs if s.get("tier") == "advanced"]
 
@@ -1818,17 +1919,19 @@ def _render_workflow_form(preset_name):
                     for spec_idx, spec in enumerate(specs):
                         if spec.get("tier", "basic") != "basic":
                             continue
-                        comp = _create_one_input(spec)
+                        comp, preview = _create_one_input(spec)
                         # int_random 返回 [Checkbox, Number] 两组件, 其他返回单组件
                         spec_to_comp[spec_idx] = comp
+                        spec_to_preview[spec_idx] = preview
 
             if advanced_specs:
                 with gr.Accordion("🔧 高级参数(一般不用改)", open=False, elem_classes=["custom-accordion"]):
                     for spec_idx, spec in enumerate(specs):
                         if spec.get("tier") != "advanced":
                             continue
-                        comp = _create_one_input(spec)
+                        comp, preview = _create_one_input(spec)
                         spec_to_comp[spec_idx] = comp
+                        spec_to_preview[spec_idx] = preview
 
             # 重建扁平 inputs 列表 (int_random 拆 2 个, 其他 1 个)。
             # 按 spec index 严格对齐 —— 同一 node 上的多 spec 也各占自己的 flat 位置,
@@ -1843,9 +1946,35 @@ def _render_workflow_form(preset_name):
                     inputs.extend(comp)
                 else:
                     inputs.append(comp)
+            # 缩略图组件与 inputs 同顺序对齐 —— 紧跟每个 file spec 的 gr.File 之后,
+            # 收集到的预览组件数 = file spec 数, 每个 spec_to_preview[i] 不为 None 时
+            # 占据一个 inputs 之后的槽位。
+            preview_components: list = [c for c in spec_to_preview if c is not None]
+            # preview_components[j] 的 .value 应该等于 inputs[对应 flat index] 的当前值。
+            _preview_value_at: list[int] = []
+            _running_flat = 0
+            for spec_idx, comp in enumerate(spec_to_comp):
+                if comp is None:
+                    continue
+                step = 2 if isinstance(comp, list) else 1
+                if spec_to_preview[spec_idx] is not None:
+                    _preview_value_at.append(_running_flat)
+                _running_flat += step
+            # 初始渲染时,如果 example 里给定了 reference_image / drive_video, 直接把缩略图 .value 预设进去。
+            # 这样 demo.load / wf_radio.change(从别的 preset 切过来) 两条路径都能直接看到图。
+            # example_to_form_values 走 _resolve_example_file 复制到 CWD 下, Gradio 6 可以直接吃。
+            try:
+                _initial_form_values = example_to_form_values(preset_name)
+                for _pc_idx, _flat_idx in enumerate(_preview_value_at):
+                    if 0 <= _flat_idx < len(_initial_form_values):
+                        _v = _initial_form_values[_flat_idx]
+                        if _v:
+                            preview_components[_pc_idx].value = _v
+            except Exception:
+                pass  # 静默兜底: example 文件不在, 不阻塞 UI 启动
 
             # 段数预估(仅视频类 preset)
-            if not is_image:
+            if output_kind == "video":
                 _drive_idx = next((i for i, s in enumerate(specs) if s["type"] == "file:video"), None)
                 _per_seg_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "367"), None)
                 _pre_drop_idx = next((i for i, s in enumerate(specs) if str(s.get("node_id")) == "464"), None)
@@ -1934,12 +2063,16 @@ def _render_workflow_form(preset_name):
             _ex_for_default = preset_cfg.get("example") or {}
             _pv_video_raw = _ex_for_default.get("preview_video")
             _pv_image_raw = _ex_for_default.get("preview_image")
+            _pv_audio_raw = _ex_for_default.get("preview_audio")
             if _pv_video_raw:
                 _pv_url = _resolve_preview_path(_pv_video_raw)
                 _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<video controls style='max-width:100%;border-radius:8px'>\n<source src='SRC_PLACEHOLDER'/></video>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
             elif _pv_image_raw:
                 _pv_url = _resolve_preview_path(_pv_image_raw)
                 _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<img src='SRC_PLACEHOLDER' style='max-width:100%;border-radius:8px'/>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+            elif _pv_audio_raw:
+                _pv_url = _resolve_preview_path(_pv_audio_raw)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<audio controls preload='metadata' style='width:100%;max-width:480px'>\n<source src='SRC_PLACEHOLDER'/></audio>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
             else:
                 _default_output_html = "<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>"
             output_box = gr.HTML(
@@ -1961,7 +2094,8 @@ def _render_workflow_form(preset_name):
             open_dir_btn = gr.Button("📂 打开 ComfyUI 输出目录", variant="secondary", size="sm")
 
     # === 事件绑定 ===
-    run_fn = run_image_workflow if is_image else run_workflow
+    has_image_sizes = any(spec.get("type") == "image_sizes" for spec in preset_cfg.get("user_facing_inputs", []))
+    run_fn = run_image_workflow if has_image_sizes else run_workflow
     #
     # 运行按钮的两个状态 update:
     #   _RUN_BTN_RUNNING —— 切到 "⏳ 正在运行…" + .is-running + 禁用 → spinner / pulse 立刻出来
@@ -2012,7 +2146,7 @@ def _render_workflow_form(preset_name):
                 run_fn=run_fn,
                 preset_name=preset_name,
                 vals=vals,
-                is_image=is_image,
+                output_kind=output_kind,
                 on_status_done=_on_done,
             ):
                 log_text = status_msg
@@ -2052,10 +2186,10 @@ def _render_workflow_form(preset_name):
         _final_elapsed = _format_elapsed(_now_ts() - _run_start_ts)
         _final_status_bar = gr.update(value=_render_status_html(_final_state, log_text, _final_elapsed if _final_state == 'running' else ''))
         # 最终 yield:按钮切回 RESTING,media_html 用 last_media(若有),
-        # 保留刚生成的图/视频,不要被 _media_to_html(None, ...) 覆盖成占位。
+        # 保留刚生成的图/视频/音频,不要被 _media_to_html(None, ...) 覆盖成占位。
         yield (
             log_text,
-            _media_to_html(last_media, is_image),
+            _media_to_html(last_media, output_kind),
             gr.update(value="", visible=False),
             gr.update(visible=False),
             gr.update(value="", visible=False),
@@ -2069,20 +2203,31 @@ def _render_workflow_form(preset_name):
     run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
     re_run_btn.click(fn=_run_and_format, inputs=inputs, outputs=run_click_outputs)
 
+    def _build_loader(loader_fn):
+        """把 "返回 inputs 列表" 的 loader 包成 "返回 inputs + 缩略图"。
+        缩略图需要收到对应的文件路径才能显示, 文本/数字类的非 file spec 不传缩略图。
+        """
+        def _run():
+            vals = loader_fn()
+            extras = [vals[i] if 0 <= i < len(vals) else None for i in _preview_value_at]
+            return list(vals) + extras
+        return _run
+
+    ex_outputs = inputs + preview_components
     if ex_btn is not None:
         # "load example" = explicit reset to example. Switching to another workflow
         # and back should keep the example state, not be overwritten by auto-load.
         def _on_ex_btn_click():
             _AUTO_LOADED.add(preset_name)
-            return example_to_form_values(preset_name)
-        ex_btn.click(fn=_on_ex_btn_click, outputs=inputs)
+            return _build_loader(lambda: example_to_form_values(preset_name))()
+        ex_btn.click(fn=_on_ex_btn_click, outputs=ex_outputs)
 
     def _fill_last_run():
         # mark as loaded so switching to another workflow and back
         # does not lose the last-run parameter values
         _AUTO_LOADED.add(preset_name)
-        return _load_last_run(preset_name, len(inputs))
-    last_btn.click(fn=_fill_last_run, outputs=inputs)
+        return _build_loader(lambda: _load_last_run(preset_name, len(inputs)))()
+    last_btn.click(fn=_fill_last_run, outputs=ex_outputs)
 
     def _open_dir_and_show():
         msg = _open_output_dir_action()

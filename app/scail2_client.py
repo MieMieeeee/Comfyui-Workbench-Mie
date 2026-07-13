@@ -275,19 +275,24 @@ def get_history(prompt_id: str) -> dict[str, Any] | None:
 
 
 def extract_primary_video_output(history: dict[str, Any]) -> dict[str, str] | None:
-    """从 history.outputs 里抓第一个 video/gif 输出。
+    """从 history.outputs 里抓第一个 video/gif/audio 输出。
 
     返回 {"filename": ..., "subfolder": ..., "type": "output"} 或 None。
+    兼容 video/gif (VHS_VideoCombine, SaveVideo) + audio (SaveAudioMP3, SaveAudio)。
+    判定方法: history.outputs[node_id] 里出现 videos/gifs/files/audio 任一 key,
+    按 node_id 顺序取第一项。具体是图是视频还是音频由 caller 端 (output_kind) 决定
+    该把这个 URL 喂给 gr.Video / gr.Audio / gr.Image 还是 _media_to_html。
     """
     if not history:
         return None
     outputs = history.get("outputs", {})
     if not outputs:
         return None
-    # 按 node_id 顺序遍历，优先 videos > gifs
+    # 按 node_id 顺序遍历，优先 videos > gifs > files > audio
+    # (audio 放最后是为了避免和某些节点的 files key 冲突,实际不会重叠,顺序无所谓)
     for node_id in sorted(outputs.keys()):
         node_out = outputs[node_id]
-        for key in ("videos", "gifs", "files"):
+        for key in ("videos", "gifs", "files", "audio"):
             items = node_out.get(key, [])
             if items and isinstance(items, list):
                 first = items[0]
