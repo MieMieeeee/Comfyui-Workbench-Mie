@@ -288,20 +288,27 @@ def extract_primary_video_output(history: dict[str, Any]) -> dict[str, str] | No
     outputs = history.get("outputs", {})
     if not outputs:
         return None
-    # 按 node_id 顺序遍历，优先 videos > gifs > files > audio
-    # (audio 放最后是为了避免和某些节点的 files key 冲突,实际不会重叠,顺序无所谓)
-    for node_id in sorted(outputs.keys()):
-        node_out = outputs[node_id]
-        for key in ("videos", "gifs", "files", "audio"):
-            items = node_out.get(key, [])
-            if items and isinstance(items, list):
-                first = items[0]
-                if isinstance(first, dict) and "filename" in first:
-                    return {
-                        "filename": first["filename"],
-                        "subfolder": first.get("subfolder", ""),
-                        "type": first.get("type", "output"),
-                    }
+    # 先按 type 偏好取: "output" (final / "Primary MP4" 节点) 优先, 然后才退 "temp"
+    # (中间 VHS_VideoCombine / LTX 中间产物会写到 temp 子目录). 这样 LTX-2.3 i2v
+    # 这种有两个 VHS_VideoCombine 的 workflow 不会再被 temp 半成品截胡.
+    # e:\\cc\\comfyui\\services\\poller.py 是按 wf.get_node_id(config.output_node_title)
+    # 定位 primary node 取的; 我们这里没把 title 带过来, 用 type 偏好做近似.
+    for prefer_type in ("output", "temp"):
+        for node_id in sorted(outputs.keys()):
+            node_out = outputs[node_id]
+            for key in ("videos", "gifs", "files", "audio"):
+                items = node_out.get(key, [])
+                if not (items and isinstance(items, list)):
+                    continue
+                for item in items:
+                    if not (isinstance(item, dict) and "filename" in item):
+                        continue
+                    if item.get("type", "output") == prefer_type:
+                        return {
+                            "filename": item["filename"],
+                            "subfolder": item.get("subfolder", ""),
+                            "type": item.get("type", "output"),
+                        }
     return None
 
 
