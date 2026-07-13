@@ -395,8 +395,16 @@ def example_to_form_values(preset_name):
                 values.append(bool(spec.get("random_default", True)))
                 values.append(spec.get("default", 0))
         else:
+            # 显式 example_key 优先, 其次 spec["field"], 再退 spec.default.
+            # 数据驱动: 当 spec.field 名跟 example 里的 key 不一致时 (例如 ltx_23_i2v 的正向 prompt
+            # spec.field="text" 而 example 里叫 "prompt"), 在 params.json 该 spec 上加 example_key 即可。
+            # 这个例外的 fallback 链只走 user-provided example_key + spec.field, 不去猜通用 prompt key,
+            # 防止负向提示词等不相关 spec 被错误填充。
             example_key = spec.get("example_key", spec.get("field", ""))
-            values.append(ex.get(example_key, spec.get("default")))
+            v = ex.get(example_key)
+            if v is None:
+                v = spec.get("default")
+            values.append(v)
     return values
 
 

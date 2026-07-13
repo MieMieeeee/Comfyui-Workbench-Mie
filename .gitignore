@@ -36,3 +36,9 @@ _inspect_vp.py
 _run_both.log.err
 # sanity-check 临时产物 (跑一个 preset 验证 example 走通, 跟 release preview 资产同目录易混淆)
 app/static/examples/*_run.*
+
+# webui launch via Start-Process with -RedirectStandardOutput/-RedirectStandardError, log files
+# get recreated on each launch by the latest .venv Python process. Add to .gitignore to avoid
+# spurious diff churn.
+webui.out.log
+webui.err.log

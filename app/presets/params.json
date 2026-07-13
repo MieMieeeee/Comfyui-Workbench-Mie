@@ -516,7 +516,7 @@
         }
       ],
       "example": {
-        "prompt": "Change only the clothing and shoes of the woman to a sleek shiny silver metallic futuristic sci-fi armor suit with high collar, segmented shoulder and arm armor plates, rounded metallic breastplate with strong curves, highly reflective chrome-like surface with bright star-like highlights and realistic reflections, tight bodycon fit, paired with matching silver metallic boots, keep the exact same pose, body position, hairstyle, facial expression, actions, lighting, and background completely unchanged, highly detailed metallic texture and glossy reflections",
+        "prompt": "Replace her cozy striped cardigan sweater and thick knit scarf with a sleek tailored silver-grey futuristic jacket: high-collared matte metallic finish, subtle engineered panel lines on the shoulders, soft brushed-metal texture, paired with a matching silver-grey wool scarf draped loosely over her shoulders. Keep her delicate facial features, gentle calm expression, head tilted slightly upward, dark short bob hair with a few loose strands, the misty lake and mountains in the background, dusk golden-hour lighting, and the soft film-grain atmosphere completely unchanged. Photorealistic, 85mm lens feel, shallow depth of field with blurred foliage behind, highly detailed fabric and metal textures.",
         "seed": 900259427766747,
         "preview_image": "app/static/examples/klein_edit.png",
         "reference_image": "app/static/examples/person.png"
@@ -551,6 +551,7 @@
         {
           "node_id": "121",
           "field": "text",
+          "example_key": "prompt",
           "label": "正向提示词",
           "type": "text",
           "max_chars": 1000,
@@ -672,6 +673,7 @@
         {
           "node_id": "121",
           "field": "text",
+          "example_key": "prompt",
           "label": "正向提示词",
           "type": "text",
           "max_chars": 1000,
@@ -715,7 +717,7 @@
         }
       ],
       "example": {
-        "prompt": "Subtle camera drift around the subject, soft daylight, gentle wind moving hair and fabric, preserve the subject identity and pose",
+        "prompt": "The young woman in a cozy striped sweater and chunky knit scarf stands by a tranquil misty lake at golden hour. She slowly turns her face toward the camera with a calm thoughtful expression as a soft breeze ruffles loose strands of her short dark hair and gently lifts one end of her scarf. The water surface shows subtle ripples reflecting the warm sunset light; distant mountains are veiled in mist. No camera movement, only natural micro-motion on her hair, scarf, and the lake surface. Photorealistic, soft cinematic lighting, 24fps.",
         "length": 97,
         "frame_rate": 24,
         "preview_image": "app/static/examples/ltx_23_i2v.png",
