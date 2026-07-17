@@ -105,6 +105,8 @@ def test_tokens_css_has_required_token(token):
     ".custom-radio",
     ".file-fallback",
     ".error-banner",
+    ".preset-panel",
+    ".preset-panels-host",
 ])
 def test_tokens_css_defines_required_selector(selector):
     """关键组件必须有自定义类。Gradio 升级时如果原类名变了,这些类名仍是契约。"""
@@ -416,7 +418,7 @@ def test_wf_radio_has_custom_radio_class():
 def test_history_dataframe_has_custom_dataframe_class():
     """历史记录 tab 的 Dataframe 带 .custom-dataframe。"""
     with gr.Blocks() as demo:
-        scail2_app._build_history_tab()
+        scail2_app._build_history_tab(demo)
     dfs = _by_class(demo, "custom-dataframe")
     assert dfs, "历史记录 Dataframe 缺 .custom-dataframe"
 
@@ -586,4 +588,37 @@ def test_tokens_css_blockquote_bare_selector():
     # 找 "blockquote {" 或 "blockquote," 或 ".x blockquote" 都算
     has_bare = re.search(r"(?:^|\s|,|\})blockquote\s*[\{,]", text, re.MULTILINE)
     assert has_bare, "tokens.css 缺裸 blockquote 选择器覆盖"
+
+
+def test_preset_panel_has_no_min_height():
+    """.preset-panel 绝不能有 min-height (review 2026-07-14 回归修复).
+
+    9 个 preset 面板预渲染在同一容器里 (1 个 visible + 8 个 hidden).
+    给 .preset-panel 设 min-height 会导致隐藏面板的 min-height 累加成顶部空白,
+    越往后的工作流前面累积的隐藏面板越多, 空白越大.
+    这条测试锁住回归: 任何给 .preset-panel 加 min-height 的改动都会失败.
+    """
+    text = TOKENS_CSS.read_text(encoding="utf-8")
+    body = _extract_css_block(text, ".preset-panel")
+    assert body is not None, "tokens.css 缺 .preset-panel 块"
+    assert "min-height" not in body, (
+        ".preset-panel 有 min-height — 多面板预渲染架构下隐藏面板会累加空白! "
+        "短表单垂直平衡改用 description ≤30 字 + 运行日志移底部间接缓解."
+    )
+
+
+def test_preset_panels_host_has_zero_gap():
+    """.preset-panels-host 的 gap 必须为 0 (review 2026-07-14 累加空白根因修复).
+
+    这个 gr.Column 包含所有 preset 的 gr.Group (1 visible + 8 hidden).
+    Gradio 6 的 visible=False 只把 Group height 设 0, 不移出 flex 流.
+    host 是 flex column + gap:16px, height=0 的隐藏 panel 之间的 gap 会累加
+    → 越往后的工作流顶部空白越大. gap:0 消除累加 (同一时刻只有一个 panel 可见, 无副作用).
+    """
+    text = TOKENS_CSS.read_text(encoding="utf-8")
+    body = _extract_css_block(text, ".preset-panels-host")
+    assert body is not None, "tokens.css 缺 .preset-panels-host 块"
+    assert "gap" in body and "0" in body, (
+        ".preset-panels-host 缺 gap:0 — 隐藏 panel 之间的 flex gap 会累加成顶部空白!"
+    )
 

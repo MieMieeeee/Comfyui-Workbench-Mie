@@ -346,15 +346,19 @@ def example_to_form_values(preset_name):
     """把 preset 的 example 字典映射回表单值列表（按 user_facing_inputs 顺序）。
 
     给 UI 的"加载示例"按钮用：点击后一次性填好整个表单。
-    映射规则（按 spec 的 node_id + type）：
+    映射规则（按 spec 的 type，不再按 node_id 硬编码）：
     - file:image → example["reference_image"]（解析成绝对路径，见 _resolve_example_file）
     - file:video → example["drive_video"]
-    - node 362 (抠参考图提示词) → example["ref_prompt"]
-    - node 348 (抠驱动视频提示词) → example["drive_prompt"]
-    - node 360 (主提示词) → example["main_prompt"]
-    - node 479 (段数) → example["segments"]
     - prompt_pool → example["prompt"]
-    - 其它 → spec 的 default
+    - image_sizes → example["sizes"]
+    - int_random → example["seed"]（拆成 [Checkbox, Number] 两个值）
+    - 其它 → spec 的 example_key 字段（在 params.json 该 spec 上显式声明）
+            找不到时退 spec.default
+
+    数据驱动契约 (review 2026-07-14):
+      text 类 spec 必须在 params.json 上显式写 "example_key": "<example 字典里的 key>",
+      不再靠 node_id 隐式兜底。锁这条契约的是
+      tests/test_preset_must_have_example.py::test_every_basic_text_input_is_explicitly_backed_by_example.
 
     重要：文件槽位必须返回**绝对路径**。gr.File(type='filepath').postprocess 会对
     纯文件名调 Path(name).stat()，文件在 COMFY_INPUT_DIR 不在 CWD → FileNotFoundError
@@ -365,7 +369,6 @@ def example_to_form_values(preset_name):
     ex = cfg.get("example", {})
     values = []
     for spec in cfg["user_facing_inputs"]:
-        nid = str(spec.get("node_id", ""))
         typ = spec.get("type")
         if typ == "file:image":
             values.append(_resolve_example_file(ex.get("reference_image")))
@@ -375,15 +378,7 @@ def example_to_form_values(preset_name):
             values.append(ex.get("prompt", spec.get("default", "")))
         elif typ == "image_sizes":
             values.append(list(ex.get("sizes") or spec.get("default") or []))
-        elif nid == "362":
-            values.append(ex.get("ref_prompt", spec.get("default", "")))
-        elif nid == "348":
-            values.append(ex.get("drive_prompt", spec.get("default", "")))
-        elif nid == "360":
-            values.append(ex.get("main_prompt", spec.get("default", "")))
-        elif nid == "479":
-            values.append(ex.get("segments", spec.get("default", 0)))
-        elif spec.get("type") == "int_random":
+        elif typ == "int_random":
             # int_random 在 UI 里是 [Checkbox, Number] 两组件,这里也要返回 2 个值:
             #  - Checkbox state: example 给具体 seed 时不勾(=固定), 否则按 random_default
             #  - Number value:   example.seed 的具体值或 spec.default
@@ -422,9 +417,7 @@ def _manifest_to_form_values(preset_name, manifest):
     cfg = config.preset_config(preset_name)
     values = []
     for spec in cfg["user_facing_inputs"]:
-        nid = str(spec.get("node_id", ""))
         typ = spec.get("type")
-        field = spec.get("field", "")
         if typ == "file:image":
             values.append(_resolve_example_file(manifest.get("reference_image", "")))
         elif typ == "file:video":
@@ -434,7 +427,7 @@ def _manifest_to_form_values(preset_name, manifest):
         elif typ == "image_sizes":
             sizes = manifest.get("sizes")
             values.append(list(sizes or spec.get("default") or []))
-        elif spec.get("type") == "int_random":
+        elif typ == "int_random":
             seed = manifest.get("seed")
             # manifest 只存最终 seed 值, 没有 "是否随机" 状态。回退规则:
             # 有具体 seed -> 不勾 Checkbox (=固定值)
@@ -445,21 +438,18 @@ def _manifest_to_form_values(preset_name, manifest):
             else:
                 values.append(bool(spec.get("random_default", True)))
                 values.append(spec.get("default", 0))
-        elif nid == "362":
-            values.append(manifest.get("ref_prompt", spec.get("default", "")))
-        elif nid == "348":
-            values.append(manifest.get("drive_prompt", spec.get("default", "")))
-        elif nid == "360":
-            # 老 manifest 只存了 prompt_text（折叠三个 prompt），回退到它
-            values.append(manifest.get("main_prompt", manifest.get("prompt_text", spec.get("default", ""))))
-        elif nid == "367":
-            values.append(manifest.get("frames_per_segment", spec.get("default", 81)))
-        elif nid == "464":
-            values.append(manifest.get("pre_drop_frames", spec.get("default", 5)))
-        elif nid == "479":
-            values.append(manifest.get("max_segments", spec.get("default", 0)))
         else:
-            values.append(spec.get("default"))
+            # 跟 example_to_form_values 对称: 用 spec.example_key 从 manifest 取值,
+            # 找不到退 spec.default. manifest 的 key 名与 example 一致 (history.py
+            # 写入 ref_prompt / drive_prompt / main_prompt / frames_per_segment 等)。
+            # 老 manifest 只存了 prompt_text 折叠版, 没有 main_prompt 时回退它, 再退 default。
+            example_key = spec.get("example_key", spec.get("field", ""))
+            v = manifest.get(example_key)
+            if v is None and example_key in ("main_prompt", "prompt"):
+                v = manifest.get("prompt_text")
+            if v is None:
+                v = spec.get("default")
+            values.append(v)
     return values
 
 
@@ -1027,7 +1017,15 @@ def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[str, str, str, st
             run["output"].get("subfolder", ""),
             run["output"].get("type", "output"),
         )
-        is_image = run.get("preset") == "zimage" or                    str(run["output"].get("filename", "")).endswith((".png", ".jpg", ".jpeg", ".webp"))
+        # P0-1 follow-up: derive output_kind from preset config. Was a free
+        # variable before (closure); with demo.load firing this at startup,
+        # the latent NameError became visible on every fresh session.
+        preset_name = run.get("preset") or ""
+        try:
+            output_kind = _output_kind(config.preset_config(preset_name)) if preset_name else "video"
+        except Exception:
+            output_kind = "video"  # safe default for unknown preset
+        is_image = output_kind == "image"
         media_html = _media_to_html(view_url, output_kind)
 
     # 关键字段卡片(表格被简化后,详情须补上这些)
@@ -1147,7 +1145,7 @@ def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]]
     return rows, summary_html, media_html, json_str, prompt_md, count_label
 
 
-def _build_history_tab():
+def _build_history_tab(demo):
     """历史记录 tab:左 Dataframe + 右详情卡片的两栏布局。
 
     表格列从 10 列精简到 6 列(时间 / 状态 badge / preset / 耗时 / prompt / id),
@@ -1224,6 +1222,8 @@ def _build_history_tab():
     refresh_btn.click(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
     preset_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
     status_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
+    # review P0-1: 启动时自动加载,避免首次打开 tab 显示空表
+    demo.load(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
 
     # Rerun: 从历史记录加载到运行表单。点击后会:
     #   1. 切到"运行" tab (JS 前置器)
@@ -1496,10 +1496,14 @@ def _render_status_html(state, msg, elapsed_str=''):
         if len(msg) > 60:
             msg = msg[:60] + chr(0x2026)
     elapsed_html = ('<span class="run-status-elapsed">' + chr(0x23F1) + ' ' + elapsed_str + '</span>') if elapsed_str else ''
+    # review P3-9: insert ' · ' between state label and msg; otherwise rendered text
+    # reads 'waiting to run click below button to start' with no internal punctuation.
+    sep = ' · ' if (msg or '').strip() else ''
     return (
         '<div class="run-status-bar run-status-' + state + '">'
         + '<span class="run-status-icon">' + icon + '</span>'
         + '<span class="run-status-label">' + label + '</span>'
+        + '<span class="run-status-sep">' + sep + '</span>'
         + '<span class="run-status-msg">' + (msg or '') + '</span>'
         + elapsed_html
         + '</div>'
@@ -1799,6 +1803,19 @@ def _category_icon(cat: str) -> str:
     return _CATEGORY_ICON.get(cat, chr(0x1F4E6))
 
 
+def _wf_label(w: dict) -> str:
+    """build_ui nav Radio label. emoji + display_name only.
+
+    review P0-2 (2026 July 17): the trailing `image` / `video` / `audio` suffix
+    was redundant noise; emoji already conveys the category. Also pushed each
+    Radio row from single-line to two-line (60px height). Suffix removed.
+    """
+    cat = w.get("category", "other")
+    icon = _category_icon(cat)
+    return f"{icon} {w['display_name']}"
+
+
+
 def _yield_run_stream(
     run_fn,
     preset_name: str,
@@ -2066,16 +2083,13 @@ def _render_workflow_form(preset_name):
             #   - 跑了之后 _run_and_format 会用实际生成结果覆盖这个默认值
             #   - 默认值上有个小说明“示例效果”, 跑完后被覆盖不影响
 
-            # [运行日志] 折叠(默认收起,跑起来自动展开)
-            with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
-                status_box = gr.Textbox(
-                    value="等待运行,或点上方「加载示例素材」",
-                    label="状态",
-                    interactive=False,
-                    lines=4, max_lines=10,
-                )
+            # [生成结果] 是右栏顶部第一块 (review 2026-07-14).
+            # 原来运行日志 Accordion 在 output_box 上方, 它默认收起 (~40px) 跟左栏
+            # status_bar (44px+margin) 高度不同, 把两栏下方内容推到不同 Y 坐标 → 顶部不齐.
+            # 现在把运行日志移到最底部 (它默认收起, 不是首屏焦点), 让右栏顶部直接是预览图,
+            # 跟左栏顶部的 status_bar 形成「状态条(小) + 预览图(大)」的有意图不对称.
 
-            # [错误高亮] 默认隐藏
+            # [错误高亮] 默认隐藏 (output_box 之下)
             error_box = gr.HTML(value="", visible=False, elem_classes=["error-banner"])
 
             # [生成结果] -- 默认填 example 的 preview, 跑了之后被覆盖.
@@ -2127,6 +2141,15 @@ def _render_workflow_form(preset_name):
             open_dir_msg = gr.Markdown(value="", visible=False)
             open_dir_btn = gr.Button("📂 打开 ComfyUI 输出目录", variant="secondary", size="sm")
 
+            # [运行日志] 折叠(默认收起,跑起来自动展开) —— 放在最底部 (review 2026-07-14).
+            # 见上方注释: 移到 output_box 下方, 让右栏顶部直接是预览图.
+            with gr.Accordion("📜 运行日志", open=False, elem_classes=["custom-accordion"]):
+                status_box = gr.Textbox(
+                    value="等待运行,或点上方「加载示例素材」",
+                    label="状态",
+                    interactive=False,
+                    lines=4, max_lines=10,
+                )
     # === 事件绑定 ===
     has_image_sizes = any(spec.get("type") == "image_sizes" for spec in preset_cfg.get("user_facing_inputs", []))
     run_fn = run_image_workflow if has_image_sizes else run_workflow
@@ -2450,12 +2473,7 @@ def build_ui():
     preset_names = [w["name"] for w in workflows]
     default_wf = workflows[0]["name"]
 
-    # Radio 显示用 label:加分类 emoji,方便浏览
-    def _wf_label(w):
-        cat = w.get("category", "other")
-        icon = _category_icon(cat)
-        suffix = f" · {cat}" if cat != "other" else ""
-        return f"{icon} {w['display_name']}{suffix}"
+    # Radio label: use module-level _wf_label (review P0-2: English category suffix removed)
     full_choices = [(_wf_label(w), w["name"]) for w in workflows]
 
     # analytics_enabled=False —— 切断前端向 huggingface.co 发 telemetry 的外网请求。
@@ -2470,6 +2488,10 @@ def build_ui():
         # 必须在 Blocks 上下文内创建:否则它会被分配组件 ID 但不进 components 列表,
         # 导致 layout 树引用不存在的组件 -> Svelte 前端渲染卡死在"加载中"。
         theme_injector = gr.HTML(value=_apply_theme(_load_saved_theme()), visible=True, elem_id="theme-injector")
+
+        # review P2-5: page has no h1 / h2 (HEADERS: []). Add app title above Tabs so the
+        # first viewport has a visible brand instead of jumping straight into form.
+        gr.Markdown("# 🎬 ComfyUI 工作流运行器")
 
         with gr.Tabs() as main_tabs:
             with gr.Tab("运行"):
@@ -2537,15 +2559,19 @@ def build_ui():
                             )
 
                     # ============ RIGHT COLUMN ============
-                    with gr.Column(scale=4):
+                    with gr.Column(scale=4, elem_classes=["preset-panels-host"]):
                         # 关键改动:每个 preset 预渲染到自己 Group 里,通过 visibility 切换。
                         # 这样切换 workflow 时组件不被销毁,表单状态自动保留。
+                        # 注意: 这个 column 的 CSS gap 必须为 0 (见 tokens.css .preset-panels-host),
+                        # 因为 Gradio 6 的 visible=False 只把 panel height 设 0 而不移出 flex 流,
+                        # flex gap:16px 会在隐藏 panel 之间累加 → 越往后空白越多。
                         preset_panel_groups: dict[str, object] = {}
                         preset_inputs_map: dict[str, list] = {}
                         for wf in workflows:
                             with gr.Group(
                                 visible=(wf["name"] == default_wf),
                                 elem_id=f"panel-{wf['name']}",
+                                elem_classes=["preset-panel"],
                             ) as g:
                                 preset_panel_groups[wf["name"]] = g
                                 preset_inputs_map[wf["name"]] = _render_workflow_form(wf["name"])
@@ -2598,7 +2624,7 @@ def build_ui():
                         )
 
             with gr.Tab("历史记录"):
-                _build_history_tab()
+                _build_history_tab(demo)
 
             with gr.Tab("系统设置"):
                 _build_settings_tab(theme_injector)

@@ -49,7 +49,7 @@
   --text-primary:   #f3f4f6;
   --text-secondary: #c2c7d2;
   --text-muted:     #8b909b;
-  --text-faint:     #5f6470;
+  --text-faint:     #767c8a;  /* review P1-3: 2.85 -> 4.04 on --bg-card, non-critical helper text floor */
   --text-on-accent: #0f1115;
 
   /* ---------- Status (语义色,跨主题稳定) ---------- */
@@ -124,11 +124,16 @@
   --z-toast:   2000;
 }
 
+/* review P3-7: 强制 body 背景 = --bg-app,Gradio 6 inline style 会超越 :root.dark 设置 */
+body {
+  background: var(--bg-app) !important;
+}
+
 /* ============================================================
  * Gradio 6 全局覆盖
  * ============================================================ */
 .gradio-container {
-  max-width: 1400px !important;
+  max-width: 1700px !important;  /* review P2-4: 1400 too narrow on wide screens */
   background: var(--bg-app) !important;
 }
 
@@ -721,6 +726,26 @@ body.dark {
   margin-bottom: var(--space-3) !important;
   box-shadow: none !important;
 }
+
+/* ============================================================
+ * .preset-panels-host / .preset-panel —— preset 面板容器 (review 2026-07-14)
+ * ============================================================
+ * 架构: 9 个 preset 各预渲染到一个 gr.Group(panel-<name>, class=preset-panel),
+ * 全部放在同一个 .preset-panels-host (gr.Column) 里, 靠 visible 切换显示.
+ *
+ * 关键 bug 修复: Gradio 6 的 visible=False 只把 Group 的 height 设 0, 不移出 flex 流.
+ * host column 是 flex column + gap:16px, height=0 的隐藏 panel 之间的 gap 会累加
+ * → 越往后的工作流前面隐藏 panel 越多, 顶部空白越大 (每个 16px, 9 个可累加 ~130px).
+ * 修法: host column 的 gap 强制为 0. 同一时刻只有一个 panel 可见, gap=0 无视觉副作用.
+ */
+.preset-panels-host {
+  gap: 0 !important;
+}
+
+.preset-panel {
+  background: transparent !important;
+  border: none !important;
+}
 .preview-card {
   background: var(--bg-card) !important;
   border: 1px solid var(--border-subtle) !important;
@@ -940,7 +965,7 @@ body.dark {
   border: 1px solid var(--border-subtle) !important;
   border-left: 3px solid transparent !important;
   border-radius: var(--radius-md) !important;
-  padding: var(--space-3) var(--space-4) !important;
+  padding: var(--space-2) var(--space-3) !important;  /* review P2-6: drop vertical to 8px after P0-2 */
   color: var(--text-secondary) !important;
   font-family: var(--font-sans) !important;
   font-size: var(--text-sm) !important;
