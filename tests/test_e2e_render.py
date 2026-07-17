@@ -211,6 +211,32 @@ def test_run_log_accordion_is_in_right_column(preset_name):
             f"{preset_name}: 📜 运行日志 (id={acc._id}) 不在右预览栏 (col id={right_id}) 之后"
 
 
+@pytest.mark.parametrize("preset_name", [w["name"] for w in config.list_workflows()])
+def test_run_log_accordion_is_below_output_box(preset_name):
+    """📜 运行日志 Accordion 必须在 output_box 之后创建 (review 2026-07-14).
+
+    右栏顶部顺序: output_box (预览图) → error_box → re_run_btn → open_dir → 运行日志.
+    运行日志默认收起, 不是首屏焦点, 放在 output_box 下方, 让左右两栏顶部
+    分别是 status_bar (左) 和 output_box 预览图 (右), 消除顶部高度不齐.
+    """
+    import gradio as gr
+    with gr.Blocks() as demo:
+        scail2_app._render_workflow_form(preset_name)
+    log_accs = [b for b in demo.blocks.values()
+                if isinstance(b, gr.Accordion) and "运行日志" in str(b.label or "")]
+    assert log_accs, f"{preset_name}: 缺 📜 运行日志 Accordion"
+    outputs = [b for b in demo.blocks.values()
+               if isinstance(b, gr.HTML)
+               and "result-area" in (getattr(b, "elem_classes", None) or [])]
+    assert outputs, f"{preset_name}: 缺输出区 result-area HTML"
+    for acc in log_accs:
+        for out in outputs:
+            assert acc._id > out._id, (
+                f"{preset_name}: 📜 运行日志 (id={acc._id}) 必须在 output_box "
+                f"(id={out._id}) 之后创建, 当前在之前"
+            )
+
+
 def test_advanced_accordion_is_in_left_column():
     """sca12 的 🔧 高级参数 Accordion 必须在左控制栏 (指令 §A.2)。"""
     import gradio as gr

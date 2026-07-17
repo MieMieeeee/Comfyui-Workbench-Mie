@@ -37,6 +37,39 @@ SaaS / 着陆页式的装饰（hero 卡 / gradient / SVG illustration）一律�
 新增 category 时**先**在 `_CATEGORY_ICON` 里加 mapping，再用——别在 `params.json`
 里写一个 `_CATEGORY_ICON` 没收录的 category 然后期待前端自己想办法。
 
+### 2.1.1 `display_name` 命名规范（review 2026-07-14）
+
+`params.json` 每个 preset 的 `display_name` 必须统一成 **「中文任务类型 (模型名)」** 格式。
+
+| 规则 | 正例 | 反例 |
+| --- | --- | --- |
+| 以中文任务类型开头 | `文生视频 (LTX-2.3)` | `LTX-2.3 文生视频` |
+| 括号内只放模型名 | `文生图 (Qwen Image 2512)` | `文生图 (Qwen Image 2512 4step 海报/带字)` |
+| 全局唯一，同模型多 preset 靠任务类型区分 | `文生视频 (LTX-2.3)` / `图生视频 (LTX-2.3)` | 两个都叫 `文生视频 (LTX-2.3 Distill)` |
+| 用途 / 场景写进 `description`，不进括号 | — | `角色替换 (SCAIL2 海报用)` |
+
+任务类型词汇表（左侧 Radio 前缀，加 category emoji 后即 `_wf_label`）：
+`文生图` / `图生图编辑` / `文生视频` / `图生视频` / `动作迁移` / `角色替换` /
+`语音合成` / `音乐生成`。新任务类型先在此登记再用。
+
+锁这条契约的是 `tests/test_display_name_normalization.py`（display_name 格式 +
+括号无杂质词 + 全局唯一）。
+
+### 2.1.2 `order` 分段约定（review 2026-07-14）
+
+`order` 按 `category` 分段，每段留 10 的空号给未来新 preset（不要连号挤满）：
+
+| category | order 段 | 当前 preset |
+| --- | --- | --- |
+| `image` | 10 / 20 / 30 ... | zimage=10, qwen_image=20, klein=30 |
+| `video` | 100 / 110 / 120 / 130 ... | sca12_motion=100, sca12_replace=110, ltx_t2v=120, ltx_i2v=130 |
+| `audio` | 200 / 210 ... | qwen3_tts=200, ace_step=210 |
+| `3d` | 300+ | （预留） |
+| `other` | 900+ | 兜底 |
+
+`list_workflows()` 按 `order` 升序渲染左侧 Radio。锁分段的是
+`tests/test_display_name_normalization.py::test_order_segmented_by_category`。
+
 ### 2.2 组件 / 按钮前缀
 
 | 出现位置 | emoji | 说明 |
@@ -105,6 +138,8 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `.nav-divider` | 导航/系统之间的视觉分隔线 | 1px 透明→border→透明的 linear-gradient |
 | `.section-header` | 表单内小节标题 (review P4) | 14px primary text + 1px border-bottom, 替代 card-core 嵌套 |
 | `.step-card` | 基本输入 Group 容器 (review P4 改后无边框) | 只保留 padding/margin + section-header, 不再加 card-core |
+| `.preset-panels-host` | 包含所有 preset panel 的 `gr.Column` (review P7) | gap:0 — Gradio 6 visible=False 只置 height=0 不移出 flex 流, host 的 gap:16px 会在隐藏 panel 间累加成顶部空白 |
+| `.preset-panel` | 每个 preset 的 `gr.Group(panel-<name>)` 容器 (review P7) | 仅标识用, **禁止设 min-height** — 9 个面板预渲染在同一容器(1 visible + 8 hidden), min-height 会累加成顶部空白 |
 
 | `.btn-run-secondary` | 🔁 用相同参数再来（次操作，视觉降级） | 低彩度深灰底 + 微弱边框（Light Mode 白底灰边） |
 | `.btn-secondary-override` | 📥 / 📂 / 🔍 等次按钮兜底 | 次级灰底 |
@@ -185,7 +220,19 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | 栏 | `gr.Column` | 放什么 |
 | --- | --- | --- |
 | **左控制栏** | `scale=4` (min_width=380) | 顶部 **运行状态条**（review P2，跨 idle/running/success/failure/timeout 五态）→ ① 输入素材（basic 上传 / 提示词 / 尺寸，section-header 风格，不嵌套 card-core）→ 🔧 高级参数 Accordion → 段数预估（仅视频）→ 📥 加载示例 / 📂 加载上次 → 🚀 **开始运行**（唯一主按钮） |
-| **右作品预览栏** | `scale=7` (min_width=460) | 📜 运行日志 Accordion（默认收起）→ 错误红条 → 生成结果区（默认显示 example 预览）→ 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 |
+| **右作品预览栏** | `scale=7` (min_width=460) | 错误红条 → 生成结果区（默认显示 example 预览）→ 🔁 用相同参数再来（次按钮，降级）→ 📂 打开输出目录 → 📜 运行日志 Accordion（默认收起，放最底部） |
+
+第七阶段 review (2026-07-14) 起始位置统一调整:
+- **运行日志 Accordion 从右栏顶部移到底部**。原来它在 output_box 上方、默认收起
+  (~40px)，跟左栏 status_bar (44px+margin) 高度不同，把两栏下方内容推到不同 Y 坐标
+  → 顶部不齐。移到底部后，右栏顶部直接是预览图，跟左栏 status_bar 形成
+  「状态条(小) + 预览图(大)」的有意图不对称。
+- **description 统一 ≤30 字符**。标题区 Markdown 跨两栏，description 换行会让标题区
+  高度跳变，切换 preset 时整体下移。限制字数确保单行、标题区高度固定。
+- ⚠️ **`.preset-panel` 禁止设 min-height**。曾尝试用 min-height: 640px 做短表单垂直
+  平衡, 但 9 个面板预渲染在同一容器(1 visible + 8 hidden), 隐藏面板的 min-height
+  累加成顶部空白, 越往后越多. 已撤掉, 回归由 `test_preset_panel_has_no_min_height`
+  锁住. 短表单平衡改由 description ≤30 字 + 运行日志移底部间接缓解.
 
 第六阶段 review 调整: 左 scale 从 5 改 4, 右 scale 从 6 改 7, 给预览图更大空间。
 在 1280px 视口下预览列从 ~430px 涨到 ~687px (1.6x); 1920px 下从 ~800px 涨到 ~1095px,

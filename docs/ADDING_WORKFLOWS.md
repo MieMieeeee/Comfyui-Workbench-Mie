@@ -86,12 +86,23 @@
 
 ```jsonc
 {
-  "<your_preset_name>": {
+    "<your_preset_name>": {
     // --- 元信息 ---
-    "display_name": "中文显示名（用户视角，不要泄露 node_id）",
-    "category": "video | image | other",
-    "order": 30,                          // 越小越靠前，已有 10 / 20 / 30
-    "description": "一句话介绍，用户视角",
+    // display_name 格式见 docs/UI_STYLE.md §2.1.1: 「中文任务类型 (模型名)」
+    //   括号内只放模型名，用途/场景写进 description。
+    "display_name": "文生视频 (模型名)",
+    "category": "video | image | audio",
+    // order 按 category 分段，见 docs/UI_STYLE.md §2.1.2:
+    //   image=10+, video=100+, audio=200+, 3d=300+, other=900+
+    // 同类目内用 10 的间隔留空号给未来 preset。
+    "order": 120,
+    // description 是用户视角文案，禁止 node ID / 节点数 / LoRA / GGUF 等内部技术词。
+    // 必须 ≤30 字符 — description 显示在跨两栏的标题区 Markdown 里，超长会换行
+    // 导致切换 preset 时标题区高度跳变、下方两栏起始 Y 不一致。
+    // 锁这两条的是 tests/test_display_name_normalization.py
+    //   ::test_description_has_no_internal_tokens
+    //   ::test_description_under_30_chars
+    "description": "一句话介绍做什么，≤30字",
 
     // --- workflow 文件 ---
     "workflow_file": "<your_preset_name>.json",
@@ -107,11 +118,12 @@
         "node_id": "<node_id>",
         "field": "<input_field>",
         "label": "中文标签",
-        "type": "file:image | file:video | text | prompt_pool | int | bool | image_sizes | int_random",
+        "type": "file:image | file:video | text | prompt_pool | int | bool | image_sizes | int_random | select",
         "tier": "basic | advanced",
         "default": "...",
         "help": "...",                     // 可选，悬浮提示
         "min": 1, "max": 100, "step": 1,   // int 用
+        "example_key": "<example 字典里的 key>",  // text 类 spec 必填（见下方说明）
         "also_patch": [...],               // 可选，1 视频绑多 node 用
         "also_patch_reason": "..."         // 可选，给未来维护者看
       }
@@ -125,16 +137,25 @@
 
     // --- 运行时 example：用户打开工作流第一眼看到的 ---
     // 详见 §4 跑一次示例生成 preview
+    //
+    // text 类 spec 的取值映射 (review 2026-07-14):
+    //   basic tier 的 text spec 必须在 spec 上声明 "example_key": "<本字典里的 key>",
+    //   程序据此把 example[key] 填进表单。不再靠 node_id 隐式兜底。
+    //   锁这条契约的是 tests/test_preset_must_have_example.py
+    //                  ::test_every_basic_text_input_is_explicitly_backed_by_example
+    //   例如 sca12 的正向提示词 spec (field="text") 声明 example_key="main_prompt",
+    //   程序就取 example["main_prompt"] 填进去。
     "example": {
-      "reference_image": "<文件名.png>",     // file:image 自动解析
-      "drive_video":    "<文件名.mp4>",      // file:video 自动解析
-      "ref_prompt":     "human",             // node 362 的 text
-      "drive_prompt":   "human",             // node 348 的 text
-      "main_prompt":    "...",                // node 360 的 text
-      "segments":       3,                   // node 479 的 int
-      "prompt":         "...",                // prompt_pool 的 text
-      "sizes":          ["720x1280"],         // image_sizes 多选
-      "seed":           900259427766747,    // int_random 固定值 (给具体值时不勾随机)
+      "reference_image": "<文件名.png>",     // file:image 自动解析 (固定 key)
+      "drive_video":    "<文件名.mp4>",      // file:video 自动解析 (固定 key)
+      "ref_prompt":     "human",             // spec 用 example_key="ref_prompt" 引用
+      "drive_prompt":   "human",             // spec 用 example_key="drive_prompt" 引用
+      "main_prompt":    "...",               // spec 用 example_key="main_prompt" 引用
+      "frames_per_segment": 81,              // spec 用 example_key="frames_per_segment" 引用
+      "pre_drop_frames": 5,                  // spec 用 example_key="pre_drop_frames" 引用
+      "prompt":         "...",               // prompt_pool 固定走这个 key
+      "sizes":          ["720x1280"],         // image_sizes 固定走这个 key
+      "seed":           900259427766747,    // int_random 固定走这个 key
       "preview_image":  "app/static/examples/<preset>_<slug>.png",   // output_box 初始显示
       "preview_video":  "app/static/examples/<preset>_<slug>.mp4",   // 视频类 preset 必填
       "contract_sha256": "<参数 + 输入素材 + 预览素材的 SHA-256>"       // 跑完示例后签名

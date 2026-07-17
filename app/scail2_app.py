@@ -707,7 +707,13 @@ def run_workflow(preset_name, *component_values):
                 hist = scail2_client.get_history(prompt_id)
                 if output_kind == "image":
                     image_outputs = scail2_client.extract_all_image_outputs(hist or {})
-                    out = image_outputs[0] if image_outputs else None
+                    # Prefer type=output (final SaveImage), fallback type=temp (PreviewImage).
+                    # wordcloud workflow has 4 type=temp PreviewImage nodes (SAM / LaMa / RGBA2RGB /
+                    # upscale intermediate); only node 23 SaveImage is type=output. Without this
+                    # filter, image_outputs[0] returns node 10 SAM mask and output_box shows the
+                    # mask instead of the wordcloud. Mirrors commit 2113045 (video side fix).
+                    preferred = [im for im in image_outputs if im.get("type") == "output"]
+                    out = preferred[0] if preferred else (image_outputs[0] if image_outputs else None)
                 else:
                     out = scail2_client.extract_primary_video_output(hist or {})
                 if out:

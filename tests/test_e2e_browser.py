@@ -121,7 +121,7 @@ def test_key_ui_elements_present(page):
     time.sleep(2)
     body_text = pg.evaluate("document.body.innerText")
 
-    expected = ["运行", "历史记录", "系统设置", "SCAIL2", "文生图", "开始运行"]
+    expected = ["运行", "历史记录", "系统设置", "动作迁移", "文生图", "开始运行"]
     missing = [kw for kw in expected if kw not in body_text]
     assert not missing, (
         f"页面缺少关键 UI 元素: {missing}。"

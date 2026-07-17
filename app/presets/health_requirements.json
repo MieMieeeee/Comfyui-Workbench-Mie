@@ -193,43 +193,321 @@
   ],
   "custom_nodes": [
     {
-      "class_type": "SAM3_VideoTrack",
-      "package": "ComfyUI-MieNodes",
+      "class_type": "CFGGuider",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "CM_IntToFloat",
+      "package": "ComfyMath",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "ColorTransfer",
+      "package": "ComfyUI-KJNodes",
       "workflows": [
         "sca12_replace",
         "sca12_motion"
       ]
     },
     {
-      "class_type": "SCAIL2ColoredMask",
-      "package": "ComfyUI-MieNodes",
+      "class_type": "ComfyMathExpression",
+      "package": "ComfyMath",
       "workflows": [
         "sca12_replace",
         "sca12_motion"
       ]
     },
     {
-      "class_type": "WanSCAILToVideo",
-      "package": "ComfyUI-MieNodes",
+      "class_type": "ComfyWordCloud",
+      "package": "comfyui_wordcloud",
+      "workflows": [
+        "wordcloud"
+      ]
+    },
+    {
+      "class_type": "CreateShapeMask",
+      "package": "comfyui_essentials",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "DownloadAndLoadLivePortraitModels",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "EmptyAceStep1.5LatentAudio",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "EmptyFlux2LatentImage",
+      "package": "ComfyUI-FluxTrainer",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "EmptyImage",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill"
+      ]
+    },
+    {
+      "class_type": "EmptyLTXVLatentVideo",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "FB_Qwen3TTSVoiceDesign",
+      "package": "ComfyUI-Qwen3-TTS",
+      "workflows": [
+        "qwen3_tts"
+      ]
+    },
+    {
+      "class_type": "GetImageSize",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled",
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "GetImageSize+",
+      "package": "comfyui_essentials",
+      "workflows": [
+        "wordcloud"
+      ]
+    },
+    {
+      "class_type": "GetImageSizeAndCount",
+      "package": "comfyui_essentials",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "GrowMaskWithBlur",
+      "package": "comfyui_essentials",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "ImageResizeKJv2",
+      "package": "ComfyUI-KJNodes",
       "workflows": [
         "sca12_replace",
         "sca12_motion"
       ]
     },
     {
-      "class_type": "MieLoopStart|Mie",
-      "package": "ComfyUI-MieNodes",
+      "class_type": "ImageScaleBy",
+      "package": "ComfyUI_essentials",
       "workflows": [
-        "sca12_replace",
-        "sca12_motion"
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
       ]
     },
     {
-      "class_type": "MieLoopEnd|Mie",
-      "package": "ComfyUI-MieNodes",
+      "class_type": "ImpactExecutionOrderController",
+      "package": "ComfyUI-Impact-Pack",
       "workflows": [
-        "sca12_replace",
-        "sca12_motion"
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "KSamplerSelect",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio Text Encoder Loader",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio VAE Decode",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXV Audio VAE Loader",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVConcatAVLatent",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVConditioning",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVCropGuides",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVEmptyLatentAudio",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVImgToVideoInplace",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVLatentUpsampler",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVPreprocess",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVScheduler",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LTXVSeparateAVLatent",
+      "package": "ComfyUI-LTXVideo",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LatentUpscaleModelLoader",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "LayerMask: SegmentAnythingUltra V2",
+      "package": "comfyui_layerstyle",
+      "workflows": [
+        "wordcloud"
+      ]
+    },
+    {
+      "class_type": "LayerUtility: LaMa",
+      "package": "comfyui_layerstyle",
+      "workflows": [
+        "wordcloud"
+      ]
+    },
+    {
+      "class_type": "LivePortraitComposite",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "LivePortraitCropper",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "LivePortraitLoadCropper",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "LivePortraitProcess",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "LivePortraitRetargeting",
+      "package": "comfyui-liveportraitkj",
+      "workflows": [
+        "liveportrait"
+      ]
+    },
+    {
+      "class_type": "ManualSigmas",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "MaskPreview+",
+      "package": "comfyui_essentials",
+      "workflows": [
+        "liveportrait",
+        "wordcloud"
       ]
     },
     {
@@ -257,31 +535,15 @@
       ]
     },
     {
+      "class_type": "MieLoopEnd|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
       "class_type": "MieLoopFinalizeImages|Mie",
-      "package": "ComfyUI-MieNodes",
-      "workflows": [
-        "sca12_replace",
-        "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "MieLoopParamGetInt|Mie",
-      "package": "ComfyUI-MieNodes",
-      "workflows": [
-        "sca12_replace",
-        "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "MieLoopStateGetImage|Mie",
-      "package": "ComfyUI-MieNodes",
-      "workflows": [
-        "sca12_replace",
-        "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "MieLoopStateSetImageBatch|Mie",
       "package": "ComfyUI-MieNodes",
       "workflows": [
         "sca12_replace",
@@ -305,11 +567,126 @@
       ]
     },
     {
+      "class_type": "MieLoopParamGetInt|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStart|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStateGetImage|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "MieLoopStateSetImageBatch|Mie",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "ModelSamplingAuraFlow",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "qwen_image_2512_4step"
+      ]
+    },
+    {
+      "class_type": "ReferenceLatent",
+      "package": "ComfyUI-KJNodes",
+      "workflows": [
+        "klein_edit"
+      ]
+    },
+    {
+      "class_type": "SAM3_VideoTrack",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "SCAIL2ColoredMask",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sca12_replace",
+        "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "SamplerCustomAdvanced",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
+      "class_type": "SaveAudio",
+      "package": "ComfyUI-SaveAudioMP3",
+      "workflows": [
+        "qwen3_tts",
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "SaveAudioMP3",
+      "package": "ComfyUI-SaveAudioMP3",
+      "workflows": [
+        "qwen3_tts",
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "TextEncodeAceStepAudio1.5",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "VAEDecodeAudio",
+      "package": "ComfyUI-AceStep",
+      "workflows": [
+        "ace_step_15_music"
+      ]
+    },
+    {
+      "class_type": "VAEDecodeTiled",
+      "package": "ComfyUI_essentials",
+      "workflows": [
+        "ltx_23_t2v_distill",
+        "ltx_23_i2v_distilled"
+      ]
+    },
+    {
       "class_type": "VHS_LoadVideo",
       "package": "comfyui-videohelpersuite",
       "workflows": [
         "sca12_replace",
         "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "VHS_LoadVideo",
+      "package": "comfyui-videohelpersuite",
+      "workflows": [
+        "klein_edit"
       ]
     },
     {
@@ -337,289 +714,11 @@
       ]
     },
     {
-      "class_type": "ComfyMathExpression",
-      "package": "ComfyMath",
+      "class_type": "WanSCAILToVideo",
+      "package": "ComfyUI-MieNodes",
       "workflows": [
         "sca12_replace",
         "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "ImageResizeKJv2",
-      "package": "ComfyUI-KJNodes",
-      "workflows": [
-        "sca12_replace",
-        "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "ColorTransfer",
-      "package": "ComfyUI-KJNodes",
-      "workflows": [
-        "sca12_replace",
-        "sca12_motion"
-      ]
-    },
-    {
-      "class_type": "ModelSamplingAuraFlow",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "qwen_image_2512_4step"
-      ]
-    },
-    {
-      "class_type": "ReferenceLatent",
-      "package": "ComfyUI-KJNodes",
-      "workflows": [
-        "klein_edit"
-      ]
-    },
-    {
-      "class_type": "EmptyFlux2LatentImage",
-      "package": "ComfyUI-FluxTrainer",
-      "workflows": [
-        "klein_edit"
-      ]
-    },
-    {
-      "class_type": "VHS_LoadVideo",
-      "package": "comfyui-videohelpersuite",
-      "workflows": [
-        "klein_edit"
-      ]
-    },
-    {
-      "class_type": "LTXVScheduler",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVConditioning",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVEmptyLatentAudio",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVConcatAVLatent",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVSeparateAVLatent",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVLatentUpsampler",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVImgToVideoInplace",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVPreprocess",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXVCropGuides",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "EmptyLTXVLatentVideo",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXV Audio VAE Loader",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXV Audio VAE Decode",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LTXV Audio Text Encoder Loader",
-      "package": "ComfyUI-LTXVideo",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "SamplerCustomAdvanced",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "CFGGuider",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "ManualSigmas",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "KSamplerSelect",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "LatentUpscaleModelLoader",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "EmptyImage",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill"
-      ]
-    },
-    {
-      "class_type": "ImageScaleBy",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "GetImageSize",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled",
-        "klein_edit"
-      ]
-    },
-    {
-      "class_type": "CM_IntToFloat",
-      "package": "ComfyMath",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "VAEDecodeTiled",
-      "package": "ComfyUI_essentials",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "ImpactExecutionOrderController",
-      "package": "ComfyUI-Impact-Pack",
-      "workflows": [
-        "ltx_23_t2v_distill",
-        "ltx_23_i2v_distilled"
-      ]
-    },
-    {
-      "class_type": "FB_Qwen3TTSVoiceDesign",
-      "package": "ComfyUI-Qwen3-TTS",
-      "workflows": [
-        "qwen3_tts"
-      ]
-    },
-    {
-      "class_type": "TextEncodeAceStepAudio1.5",
-      "package": "ComfyUI-AceStep",
-      "workflows": [
-        "ace_step_15_music"
-      ]
-    },
-    {
-      "class_type": "EmptyAceStep1.5LatentAudio",
-      "package": "ComfyUI-AceStep",
-      "workflows": [
-        "ace_step_15_music"
-      ]
-    },
-    {
-      "class_type": "VAEDecodeAudio",
-      "package": "ComfyUI-AceStep",
-      "workflows": [
-        "ace_step_15_music"
-      ]
-    },
-    {
-      "class_type": "SaveAudioMP3",
-      "package": "ComfyUI-SaveAudioMP3",
-      "workflows": [
-        "qwen3_tts",
-        "ace_step_15_music"
-      ]
-    },
-    {
-      "class_type": "SaveAudio",
-      "package": "ComfyUI-SaveAudioMP3",
-      "workflows": [
-        "qwen3_tts",
-        "ace_step_15_music"
       ]
     }
   ]

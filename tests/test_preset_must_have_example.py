@@ -366,8 +366,14 @@ def test_every_example_contract_matches_current_params_and_assets():
     )
 
 def test_every_basic_text_input_is_explicitly_backed_by_example():
-    """A visible prompt must resolve to an example key, never an unrelated spec default."""
-    special_keys = {"362": "ref_prompt", "348": "drive_prompt", "360": "main_prompt"}
+    """A visible prompt must resolve to an example key, never an unrelated spec default.
+
+    契约 (review 2026-07-14):
+      - prompt_pool 类型固定走 example["prompt"]
+      - text 类型必须显式声明 spec["example_key"], 不再允许靠 node_id 隐式兜底
+        (旧的 special_keys = {"362":..., "348":..., "360":...} 机制已下线,
+         sca12 的 text spec 现在在 params.json 里显式写 example_key)
+    """
     failures = []
     for wf in config.list_workflows():
         preset_name = wf["name"]
@@ -376,11 +382,13 @@ def test_every_basic_text_input_is_explicitly_backed_by_example():
         for spec in cfg["user_facing_inputs"]:
             if spec.get("tier", "basic") != "basic" or spec["type"] not in ("text", "prompt_pool"):
                 continue
-            node_id = str(spec.get("node_id", ""))
             if spec["type"] == "prompt_pool":
                 example_key = "prompt"
             else:
-                example_key = spec.get("example_key") or special_keys.get(node_id) or spec["field"]
+                example_key = spec.get("example_key")
+                if not example_key:
+                    failures.append((preset_name, spec["label"], "<missing example_key>"))
+                    continue
             if example_key not in example:
                 failures.append((preset_name, spec["label"], example_key))
     assert not failures, (

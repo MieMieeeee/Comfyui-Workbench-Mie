@@ -1,0 +1,244 @@
+{
+  "1": {
+    "inputs": {
+      "image": "model-10.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "text": "Beauty\n",
+      "width": 512,
+      "height": 512,
+      "scale": 4,
+      "margin": 0,
+      "font_path": "arial.ttf",
+      "min_font_size": 4,
+      "max_font_size": 128,
+      "relative_scaling": 0.5,
+      "colormap": "viridis",
+      "background_color": "#FFFFFF",
+      "transparent_background": true,
+      "prefer_horizontal": 0.9,
+      "max_words": 200,
+      "repeat": true,
+      "include_numbers": false,
+      "random_state": -1,
+      "stopwords": "",
+      "contour_width": 0,
+      "contour_color": "#000000",
+      "keynote_words": "",
+      "keynote_weight": 60,
+      "color_ref_image": [
+        "1",
+        0
+      ],
+      "mask_image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "ComfyWordCloud",
+    "_meta": {
+      "title": "Word Cloud"
+    }
+  },
+  "7": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": [
+        "8",
+        0
+      ],
+      "height": [
+        "8",
+        1
+      ],
+      "crop": "disabled",
+      "image": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "8": {
+    "inputs": {
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "10": {
+    "inputs": {
+      "images": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "11": {
+    "inputs": {
+      "lama_model": "lama",
+      "device": "cpu",
+      "invert_mask": false,
+      "mask_grow": 30,
+      "mask_blur": 25,
+      "image": [
+        "16",
+        0
+      ],
+      "mask": [
+        "16",
+        1
+      ]
+    },
+    "class_type": "LayerUtility: LaMa",
+    "_meta": {
+      "title": "LayerUtility: LaMa(Advance)"
+    }
+  },
+  "16": {
+    "inputs": {
+      "sam_model": "sam_vit_h (2.56GB)",
+      "grounding_dino_model": "GroundingDINO_SwinT_OGC (694MB)",
+      "threshold": 0.2,
+      "detail_method": "VITMatte",
+      "detail_erode": 6,
+      "detail_dilate": 6,
+      "black_point": 0.15,
+      "white_point": 0.99,
+      "process_detail": true,
+      "prompt": "human",
+      "device": "cpu",
+      "max_megapixels": 2,
+      "cache_model": false,
+      "image": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "LayerMask: SegmentAnythingUltra V2",
+    "_meta": {
+      "title": "LayerMask: SegmentAnythingUltra V2(Advance)"
+    }
+  },
+  "17": {
+    "inputs": {
+      "mask": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Convert Mask to Image"
+    }
+  },
+  "18": {
+    "inputs": {
+      "mask": [
+        "16",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "Invert Mask"
+    }
+  },
+  "22": {
+    "inputs": {
+      "mask": [
+        "16",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "23": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "24",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "24": {
+    "inputs": {
+      "blend_factor": 0.5,
+      "blend_mode": "normal",
+      "image1": [
+        "27",
+        0
+      ],
+      "image2": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ImageBlend",
+    "_meta": {
+      "title": "Blend Images"
+    }
+  },
+  "25": {
+    "inputs": {
+      "images": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "27": {
+    "inputs": {
+      "image": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "ImageRGBA2RGB",
+    "_meta": {
+      "title": "Convert RGBA to RGB 🌌 ReActor"
+    }
+  },
+  "29": {
+    "inputs": {
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  }
+}
