@@ -224,14 +224,7 @@
         "sca12_motion"
       ]
     },
-    {
-      "class_type": "ComfyWordCloud",
-      "package": "comfyui_wordcloud",
-      "workflows": [
-        "wordcloud"
-      ]
-    },
-    {
+        {
       "class_type": "CreateShapeMask",
       "package": "comfyui_essentials",
       "workflows": [
@@ -290,14 +283,7 @@
         "klein_edit"
       ]
     },
-    {
-      "class_type": "GetImageSize+",
-      "package": "comfyui_essentials",
-      "workflows": [
-        "wordcloud"
-      ]
-    },
-    {
+        {
       "class_type": "GetImageSizeAndCount",
       "package": "comfyui_essentials",
       "workflows": [
@@ -445,21 +431,7 @@
         "ltx_23_i2v_distilled"
       ]
     },
-    {
-      "class_type": "LayerMask: SegmentAnythingUltra V2",
-      "package": "comfyui_layerstyle",
-      "workflows": [
-        "wordcloud"
-      ]
-    },
-    {
-      "class_type": "LayerUtility: LaMa",
-      "package": "comfyui_layerstyle",
-      "workflows": [
-        "wordcloud"
-      ]
-    },
-    {
+            {
       "class_type": "LivePortraitComposite",
       "package": "comfyui-liveportraitkj",
       "workflows": [
@@ -502,15 +474,7 @@
         "ltx_23_i2v_distilled"
       ]
     },
-    {
-      "class_type": "MaskPreview+",
-      "package": "comfyui_essentials",
-      "workflows": [
-        "liveportrait",
-        "wordcloud"
-      ]
-    },
-    {
+        {
       "class_type": "MieLoopBodyIn|Mie",
       "package": "ComfyUI-MieNodes",
       "workflows": [

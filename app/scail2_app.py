@@ -708,10 +708,11 @@ def run_workflow(preset_name, *component_values):
                 if output_kind == "image":
                     image_outputs = scail2_client.extract_all_image_outputs(hist or {})
                     # Prefer type=output (final SaveImage), fallback type=temp (PreviewImage).
-                    # wordcloud workflow has 4 type=temp PreviewImage nodes (SAM / LaMa / RGBA2RGB /
-                    # upscale intermediate); only node 23 SaveImage is type=output. Without this
-                    # filter, image_outputs[0] returns node 10 SAM mask and output_box shows the
-                    # mask instead of the wordcloud. Mirrors commit 2113045 (video side fix).
+                    # Mirrors commit 2113045 for video (extract_primary_video_output).
+                    # Defensive: if a workflow emits both (e.g. final SaveImage + intermediate
+                    # PreviewImages for SAM mask / blend preview / upscale), this filter picks
+                    # the user-facing final image. Add a regression test before relying on
+                    # this for any specific workflow (see tests/test_run_workflow_image_prefer_output.py).
                     preferred = [im for im in image_outputs if im.get("type") == "output"]
                     out = preferred[0] if preferred else (image_outputs[0] if image_outputs else None)
                 else:

@@ -52,6 +52,53 @@ For the full recipe (field reference, validation flow, debug sequence), see
   (add a type to _build_input_component, add fields to params.json).
   Do NOT bypass schema with a one-off code path for one workflow.**
 
+### Workflow output node -- when in doubt, ask the user
+
+When a workflow has more than one image / video output node (SaveImage /
+PreviewImage / VHS_VideoCombine / etc.), the runner has to pick which one
+to display in `output_box`. Don't guess.
+
+**Default protocol when adding / fixing a workflow**:
+
+1. Open the workflow JSON in ComfyUI, identify every output-capable node.
+2. For each candidate, look at:
+   - node `_meta.title` ("Preview Image" vs "Save Image" vs "Blend" vs "Mask Preview")
+   - whether it writes to `output/` (type="output") or `temp/` (type="temp")
+   - whether it's an intermediate blend / mask / scale step, or the final render
+3. If the answer is unambiguous from titles + storage type -> set it
+   directly in `params.json` (e.g. via a `do_not_modify_warnings` entry
+   naming "node N = final user-facing output").
+4. **If uncertain (e.g. a workflow has 3 PreviewImage nodes plus a SaveImage
+   and it's not obvious which one is the final), STOP and ask the author.**
+   Phrase the question concretely:
+   - "This workflow has image outputs at nodes X, Y, Z. Which one is what
+     the user should see in `output_box` after Run?"
+   - Or: "I've identified node N as the final image because of <reason>.
+     Confirm before I lock it in."
+
+**Why**: image-output selection happens at one chokepoint
+(`run_workflow` `output_kind=="image"` branch in `app/scail2_app.py`).
+Picking the wrong default silently displays the wrong image (e.g. a SAM
+mask instead of the wordcloud), and the user thinks "the workflow broke"
+when actually the runner picked the wrong node. Fixing this without
+user confirmation is hard-coding the agent's interpretation of the
+workflow into the runtime -- which is exactly what "data-driven, no new
+code" tries to avoid.
+
+**Don't**:
+- Don't auto-pick "the first type=output node" or "node 23 SaveImage" or
+  "the one that appears last in the JSON" without a written rationale.
+- Don't apply a defensive filter (like the `prefer type=output` image
+  fallback) without first checking that no current workflow relies on
+  the old behavior.
+- Don't ship a workflow whose "which node is the output" answer is "I
+  read the JSON and figured it out".
+
+**Exception**: a defensive fix that explicitly mirrors an existing
+established pattern (e.g. `extract_primary_video_output` for the video
+side, commit 2113045) is fine -- but the rationale must be cited in the
+commit message, not just in the code comment.
+
 ## Schema design direction -- minimize authoring pain
 
 For each new workflow, the author writes a user_facing_inputs array in params.json.
