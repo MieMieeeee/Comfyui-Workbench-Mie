@@ -70,11 +70,12 @@ def _run_with(tmp_path, captured, fake_patch, preset_name="sca12_replace"):
     with patch.object(scail2_app.scail2_client, "load_workflow_template", return_value=_synthetic_workflow()), \
          patch.object(scail2_app.scail2_client, "patch_workflow", side_effect=fake_patch), \
          patch.object(scail2_app.scail2_client, "upload", side_effect=_fake_upload_side_effect()), \
-         patch.object(scail2_app.scail2_client, "queue_prompt", return_value="pid-fake"), \
+         patch.object(scail2_app.scail2_client, "queue_prompt", return_value=("pid-fake", "client-fake")), \
          patch.object(scail2_app.scail2_client, "wait_for_completion", return_value=iter(["done in 00:01"])), \
          patch.object(scail2_app.scail2_client, "get_history", return_value=_fake_history_success()), \
          patch.object(scail2_app.scail2_client, "extract_primary_video_output", return_value={"filename": "out.mp4", "subfolder": "SCAIL-2", "type": "output"}), \
-         patch.object(scail2_app.scail2_client, "get_output_url", return_value="http://fake/view"):
+         patch.object(scail2_app.scail2_client, "get_output_url", return_value="http://fake/view"), \
+         patch.object(scail2_app.scail2_client, "start_progress_listener", return_value=__import__("queue").Queue()):
         _collect(scail2_app.run_workflow(preset_name, *positional_args))
     return captured.get("replacements")
 

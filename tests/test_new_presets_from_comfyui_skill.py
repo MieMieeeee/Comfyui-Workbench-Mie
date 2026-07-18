@@ -284,8 +284,9 @@ def test_run_workflow_preserves_fields_that_share_one_node(monkeypatch):
     monkeypatch.setattr(scail2_app, "validate_inputs", lambda *args: None)
     monkeypatch.setattr(scail2_app.scail2_client, "load_workflow_template", lambda preset: {"38": {"inputs": {}}})
     monkeypatch.setattr(scail2_app.scail2_client, "patch_workflow", lambda workflow, replacements, **kwargs: captured.update(replacements) or workflow)
-    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: "prompt-1")
+    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: ("prompt-1", "client-1"))
     monkeypatch.setattr(scail2_app.scail2_client, "wait_for_completion", lambda *args, **kwargs: iter(["stop after patch"]))
+    monkeypatch.setattr(scail2_app.scail2_client, "start_progress_listener", lambda *args, **kwargs: __import__("queue").Queue())
 
     values = ("Hello", "calm voice", "English", "0.6B", 123)
     list(scail2_app.run_workflow("qwen3_tts", *values))
@@ -309,8 +310,9 @@ def test_run_workflow_consumes_int_random_checkbox_and_value(monkeypatch, tmp_pa
     monkeypatch.setattr(scail2_app, "_resolve_upload_name", lambda *args, **kwargs: "person.png")
     monkeypatch.setattr(scail2_app.scail2_client, "load_workflow_template", lambda preset: {str(n): {"inputs": {}} for n in (76, 108, 109, 146)})
     monkeypatch.setattr(scail2_app.scail2_client, "patch_workflow", lambda workflow, replacements, **kwargs: captured.update(replacements) or workflow)
-    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: "prompt-2")
+    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: ("prompt-2", "client-2"))
     monkeypatch.setattr(scail2_app.scail2_client, "wait_for_completion", lambda *args, **kwargs: iter(["stop after patch"]))
+    monkeypatch.setattr(scail2_app.scail2_client, "start_progress_listener", lambda *args, **kwargs: __import__("queue").Queue())
 
     values = (str(image), "silver armor", "no blur", False, 456)
     list(scail2_app.run_workflow("klein_edit", *values))
@@ -353,8 +355,9 @@ def test_generic_image_runner_extracts_save_image_output(monkeypatch, tmp_path):
     monkeypatch.setattr(scail2_app, "_resolve_upload_name", lambda *args, **kwargs: "person.png")
     monkeypatch.setattr(scail2_app.scail2_client, "load_workflow_template", lambda preset: workflow)
     monkeypatch.setattr(scail2_app.scail2_client, "patch_workflow", lambda workflow, replacements, **kwargs: workflow)
-    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: "prompt-image")
+    monkeypatch.setattr(scail2_app.scail2_client, "queue_prompt", lambda *args, **kwargs: ("prompt-image", "client-image"))
     monkeypatch.setattr(scail2_app.scail2_client, "wait_for_completion", lambda *args, **kwargs: iter(["✅ done"]))
+    monkeypatch.setattr(scail2_app.scail2_client, "start_progress_listener", lambda *args, **kwargs: __import__("queue").Queue())
     monkeypatch.setattr(scail2_app.scail2_client, "get_history", lambda *args: result_history)
     monkeypatch.setattr(scail2_app.history, "write_manifest", lambda *args, **kwargs: None)
 

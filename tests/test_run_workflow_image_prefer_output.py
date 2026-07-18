@@ -90,7 +90,7 @@ def patched_client():
     mock_cfg = _make_config_mock()
     with patch.object(scail2_app, "config", mock_cfg), \
          patch.object(scail2_app.scail2_client, "load_workflow_template") as mock_load, \
-         patch.object(scail2_app.scail2_client, "queue_prompt", return_value="pid-test"), \
+         patch.object(scail2_app.scail2_client, "queue_prompt", return_value=("pid-test", "client-test")), \
          patch.object(scail2_app.scail2_client, "wait_for_completion",
                       side_effect=lambda *a, **kw: _make_success_status()), \
          patch.object(scail2_app.scail2_client, "get_history", return_value=_mixed_history()), \
@@ -98,7 +98,9 @@ def patched_client():
                       return_value=_mixed_outputs()), \
          patch.object(scail2_app.scail2_client, "get_output_url", side_effect=_fake_url), \
          patch.object(scail2_app.scail2_client, "patch_workflow",
-                      side_effect=lambda wf, repl, **kw: wf):
+                      side_effect=lambda wf, repl, **kw: wf), \
+         patch.object(scail2_app.scail2_client, "start_progress_listener",
+                      return_value=__import__("queue").Queue()):
         mock_load.return_value = {
             "1": {"inputs": {"image": "x.png"}, "class_type": "LoadImage"},
             "2": {"inputs": {"text": "x", "colormap": "viridis"}, "class_type": "ComfyWC"},

@@ -49,11 +49,12 @@ def patched_client(tmp_path):
     """mock 掉 scail2_client 的所有 HTTP/IO 调用。"""
     ref, drive = _make_ref_and_drive(tmp_path)
     with patch.object(scail2_app.scail2_client, "upload") as mock_up, \
-         patch.object(scail2_app.scail2_client, "queue_prompt", return_value="pid-fake-1234"), \
+         patch.object(scail2_app.scail2_client, "queue_prompt", return_value=("pid-fake-1234", "client-fake")), \
          patch.object(scail2_app.scail2_client, "wait_for_completion", return_value=iter(["✅ done in 00:01"])), \
          patch.object(scail2_app.scail2_client, "get_history", return_value=_fake_history_success()), \
          patch.object(scail2_app.scail2_client, "extract_primary_video_output", return_value={"filename": "out.mp4", "subfolder": "SCAIL-2", "type": "output"}), \
-         patch.object(scail2_app.scail2_client, "get_output_url", return_value="http://fake/view"):
+         patch.object(scail2_app.scail2_client, "get_output_url", return_value="http://fake/view"), \
+         patch.object(scail2_app.scail2_client, "start_progress_listener", return_value=__import__("queue").Queue()):
         mock_up.side_effect = lambda f, kind="image": {"name": Path(f).name, "subfolder": "", "type": "input"}
         yield ref, drive, mock_up
 

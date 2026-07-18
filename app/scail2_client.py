@@ -10,8 +10,11 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import mimetypes
+import queue
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -21,6 +24,16 @@ import requests
 
 from . import config
 from .workflow_validator import validate, WorkflowValidationError
+
+# websockets 是 gradio -> fastapi -> starlette 的 transitive dep, 一般已装。
+# 不在 venv 时 (理论上不会发生) -> _websockets_available=False, ws 监听降级到空队列,
+# wait_for_completion 回退到 /history 轮询 (AGENTS.md 信任模型: 失败不堆防御)。
+try:
+    import websockets  # type: ignore
+    _websockets_available = True
+except ImportError:  # pragma: no cover - 环境差异分支
+    websockets = None  # type: ignore
+    _websockets_available = False
 
 
 # --- 自定义异常（阶段 4 会用，先定义好） ---
@@ -204,10 +217,17 @@ def upload(file_path: str | Path, kind: str = "image") -> dict[str, str]:
 def queue_prompt(
     workflow: dict[str, Any],
     client_id: str | None = None,
-) -> str:
+) -> tuple[str, str]:
     """入队一个 workflow 到 ComfyUI。
 
-    返回 prompt_id（str）。
+    返回 (prompt_id, client_id) 元组。
+    - prompt_id: ComfyUI 分配的本次执行 id
+    - client_id: 实际用的 client_id (传了就用传入的; 没传自动生成 uuid4)
+
+    调用方拿 client_id 喂 start_progress_listener(client_id) 开 ws 监听进度。
+    为什么返回 client_id 而不是让调用方自己管: queue_prompt 是唯一知道实际
+    client_id 的地方 (没传时生成 uuid), 让调用方重新生成会跟 /prompt body
+    里的不一致, ws 订阅就拿不到事件。
 
     注意：workflow 是 node_id → 配置 的 dict，HTTP body 会被包成
     {"prompt": <workflow>, "client_id": <id>}。
@@ -242,7 +262,7 @@ def queue_prompt(
     if "prompt_id" not in result:
         raise ProtocolError_(f"queue_prompt response missing 'prompt_id': {result}")
 
-    return result["prompt_id"]
+    return result["prompt_id"], cid
 
 
 def get_history(prompt_id: str) -> dict[str, Any] | None:
@@ -346,20 +366,157 @@ def get_output_url(filename: str, subfolder: str = "", kind: str = "output") -> 
 
 # --- 流式轮询 ---
 
+def _parse_ws_event(msg: dict[str, Any]) -> tuple[str, int | None, int | None, str | None] | None:
+    """解析单条 ComfyUI websocket 事件。
+
+    返回 (kind, value, max, node_id) 或 None (未知 / 异常帧, 调用方跳过)。
+    - kind="progress": KSampler/SamplerCustom step 进度, value/max 是当前 step / 总 step
+    - kind="executing": 节点开始执行, node_id 是 ComfyUI node_id (如 "367")
+    - kind="done": 整个 prompt 完成 (executing 事件 data.node == None)
+
+    ComfyUI ws 实测事件格式:
+      {"type":"progress","data":{"value":12,"max":20}}
+      {"type":"executing","data":{"node":"367"}}
+      {"type":"executing","data":{"node":null}}   <- prompt 完成
+      {"type":"execution_cached","data":{"nodes":[...]}}
+      {"type":"status",...}  (心跳/状态, 与进度无关)
+    """
+    if not isinstance(msg, dict):
+        return None
+    mtype = msg.get("type")
+    data = msg.get("data") or {}
+    if mtype == "progress":
+        value = data.get("value")
+        mx = data.get("max")
+        if not isinstance(value, int) or not isinstance(mx, int):
+            return None
+        return ("progress", value, mx, None)
+    if mtype == "executing":
+        node = data.get("node")
+        if node is None:
+            return ("done", None, None, None)
+        return ("executing", None, None, str(node))
+    return None
+
+
+def _ws_loop(base_url: str, client_id: str, event_queue: queue.Queue) -> None:
+    """ws 后台线程的 asyncio 入口 (在 daemon 线程里 asyncio.run 跑)。
+
+    连上 ComfyUI /ws?clientId= 后逐条读消息, 解析后塞进 event_queue。
+    event_queue 收到 None sentinel (调用方在 wait_for_completion 结束时 put)
+    -> 线程退出。任何异常 (连不上 / 中途断) 静默, 轮询路径照跑 (AGENTS.md
+    信任模型: ComfyUI 配套整合包, 失败不堆防御)。
+    """
+    async def _run():
+        # ws_url: http:// -> ws://, https:// -> wss://
+        ws_url = base_url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = ws_url.rstrip("/") + f"/ws?clientId={client_id}"
+        try:
+            async with websockets.connect(ws_url, open_timeout=10, close_timeout=5) as ws:  # type: ignore[union-attr]
+                while True:
+                    # 先看 sentinel (非阻塞, 跟 ws 读并行)
+                    try:
+                        sig = event_queue.get_nowait()
+                        if sig is None:
+                            return  # 调用方通知退出
+                        # 不是 sentinel 就放回 (理论上不会发生, queue 只放 ws 事件 + sentinel)
+                        event_queue.put(sig)
+                    except queue.Empty:
+                        pass
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        continue  # 没消息, 循环回去看 sentinel
+                    except Exception:
+                        break  # ws 断开, 退出 (轮询照跑)
+                    try:
+                        msg = json.loads(raw)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if _parse_ws_event(msg) is not None:
+                        event_queue.put(msg)
+        except Exception:
+            # 连不上 / 握手失败 -> 静默, event_queue 留空, 轮询降级
+            return
+
+    try:
+        asyncio.run(_run())
+    except Exception:
+        return
+
+
+def start_progress_listener(
+    client_id: str, base_url: str | None = None,
+) -> queue.Queue:
+    """启动后台 ws 线程监听 ComfyUI 进度事件, 返回事件队列。
+
+    - websockets 没装 / client_id 为空 -> 返回空队列, 不开线程 (静默降级)
+    - 线程 daemon=True: 进程退出时自动回收, 不阻塞主流程
+    - 调用方在 wait_for_completion 结束时 event_queue.put(None) 通知线程退出
+
+    返回的 queue.Queue 元素:
+      - dict (ComfyUI ws 事件原帧, 调用方用 _parse_ws_event 解析)
+      - None sentinel (调用方发的退出信号)
+    """
+    q: queue.Queue = queue.Queue()
+    if not _websockets_available or not client_id:
+        return q
+    url = base_url or get_base_url()
+    t = threading.Thread(target=_ws_loop, args=(url, client_id, q), daemon=True)
+    t.start()
+    return q
+
+
 def wait_for_completion(
     prompt_id: str,
     timeout_sec: int | None = None,
     poll_interval_sec: int | None = None,
+    title_map: dict[str, str] | None = None,
+    progress_queue: queue.Queue | None = None,
 ) -> Iterator[str]:
-    """轮询 /history/{id} 直到 completed 或 timeout。
+    """轮询 /history/{id} 直到 completed 或 timeout, 可选叠加 ws step 进度。
 
     yield 状态字符串给 Gradio 流式更新。
+    - title_map (P1): 传了把 executing node_id 翻译成 _meta.title
+    - progress_queue (P0): 传了 (start_progress_listener 的返回值) drain ws 事件,
+      拿到 KSampler/SamplerCustom 的 value/max 拼 "12/20" 进 running 消息。
+      空队列 / None -> 跟现状一致 (匀速假进度由调用方管, 这里只拼节点名)。
+
+    emoji 前缀协议 (锁定, 下游 _extract_status_kind / _yield_run_stream 依赖):
+      ⏳ = 进行中 (waiting / running)
+      ✅ = 成功
+      ❌ = 失败 (connection / execution error)
+      ⏰ = 超时
     """
     timeout = timeout_sec if timeout_sec is not None else config.DEFAULT_TIMEOUT_SEC
     interval = poll_interval_sec if poll_interval_sec is not None else config.POLL_INTERVAL_SEC
     start = time.time()
+    # 当前 step 进度 (value, max), 由 ws progress 事件更新; None = 没有 step 信息
+    cur_progress: tuple[int, int] | None = None
+
+    def _drain_progress():
+        nonlocal cur_progress
+        if progress_queue is None:
+            return
+        while True:
+            try:
+                evt = progress_queue.get_nowait()
+            except queue.Empty:
+                break
+            if evt is None:
+                # sentinel: 调用方通知退出, 不影响进度 (轮询继续到完成)
+                continue
+            parsed = _parse_ws_event(evt)
+            if parsed is None:
+                continue
+            kind, value, mx, _node = parsed
+            if kind == "progress" and value is not None and mx is not None and mx > 0:
+                # 值只增不减 (cache hit 可能跳 step -> max(seen, new) 防倒退)
+                if cur_progress is None or value >= cur_progress[0]:
+                    cur_progress = (value, mx)
 
     while time.time() - start < timeout:
+        _drain_progress()
         try:
             hist = get_history(prompt_id)
         except ConnectionError_ as e:
@@ -385,10 +542,13 @@ def wait_for_completion(
                 yield f"\u274c {status_str}: {err}"
             return
 
-        # 未完成：报最近执行的节点（如果有）
-        last_node = _last_executed_node(hist)
+        # 未完成：报最近执行的节点 + ws step 进度 (如果有)
+        last_node = _last_executed_node(hist, title_map=title_map)
         suffix = f"  {last_node}" if last_node else ""
-        yield f"\u23f3 {elapsed // 60:02d}:{elapsed % 60:02d}  running\u2026{suffix}"
+        step_str = ""
+        if cur_progress is not None:
+            step_str = f"  {cur_progress[0]}/{cur_progress[1]}"
+        yield f"\u23f3 {elapsed // 60:02d}:{elapsed % 60:02d}  running\u2026{suffix}{step_str}"
         time.sleep(interval)
 
     yield f"\u23f0 timeout after {timeout // 60} min"
@@ -412,12 +572,52 @@ def _extract_error_from_status(status: dict[str, Any]) -> str:
     return str(last)[:200]
 
 
-def _last_executed_node(history: dict[str, Any]) -> str | None:
-    """从 status.messages 找最近执行的节点号（"30" / "479" 等）。"""
+def build_node_title_map(workflow: dict[str, Any]) -> dict[str, str]:
+    """从 workflow JSON 抽 node_id -> 人类可读 title 映射。
+
+    ComfyUI API 格式 workflow 每个节点都带 `_meta.title` (作者在 ComfyUI 里
+    改的标题, e.g. "KSampler" / "SamplerCustom" / "Load Image" / "Video Combine")。
+    patch_workflow 深拷贝时保留 _meta, 所以 patched workflow 仍是 title 权威来源。
+
+    三级回退 (避免 None/空串显示在 status_bar):
+      1. node._meta.title  (最人类可读; 偶尔是空串 -> 视为缺失)
+      2. node.class_type   (ComfyUI 内置类型名, 仍比 node_id 可读)
+      3. node_id 本身      (退化节点, 不返回空串)
+
+    为什么: P1 消 node 号泄漏 —— 之前 _last_executed_node 直接返回 "node 367",
+    违反 AGENTS.md "Never leak node numbers into UI copy"。
+    """
+    out: dict[str, str] = {}
+    for nid, node in workflow.items():
+        if not isinstance(node, dict):
+            out[nid] = nid
+            continue
+        meta = node.get("_meta") or {}
+        title = (meta.get("title") or "").strip()
+        if title:
+            out[nid] = title
+            continue
+        cls = (node.get("class_type") or "").strip()
+        out[nid] = cls or nid
+    return out
+
+
+def _last_executed_node(
+    history: dict[str, Any], title_map: dict[str, str] | None = None,
+) -> str | None:
+    """从 status.messages 找最近执行的节点, 返回人类可读名。
+
+    title_map (optional): build_node_title_map(workflow) 的结果。传了它,
+    返回 title_map[node_id] (缺失则回退到 node_id 本身); 不传则保持旧行为
+    返回 "node {node_id}" —— 向后兼容锁 (现有调用方 / 测试不动)。
+    """
     messages = history.get("status", {}).get("messages", [])
     for msg in reversed(messages):
         if isinstance(msg, list) and len(msg) >= 2:
             kind, content = msg[0], msg[1]
             if "executing" in str(kind).lower() and isinstance(content, str):
+                if title_map is not None:
+                    # 调用方想要 title 视图: 缺失就显示原始 id (不带 "node " 前缀)
+                    return title_map.get(content, content)
                 return f"node {content}"
     return None

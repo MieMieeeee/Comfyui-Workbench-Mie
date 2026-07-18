@@ -33,11 +33,13 @@ def patched_image_client():
     queue_count = {"n": 0}
     def fake_queue(wf, client_id=None):
         queue_count["n"] += 1
-        return f"pid-image-{queue_count['n']}"
+        return (f"pid-image-{queue_count['n']}", f"client-{queue_count['n']}")
 
     def fake_wait(pid, **kw):
         return iter([f"✅ done ({pid})"])
 
+    # P0: mock start_progress_listener 返回空队列, 不开真 ws 线程
+    import queue as _qmod
     with patch.object(scail2_app.scail2_client, "load_workflow_template") as mock_load, \
          patch.object(scail2_app.scail2_client, "queue_prompt", side_effect=fake_queue), \
          patch.object(scail2_app.scail2_client, "wait_for_completion", side_effect=fake_wait), \
@@ -45,7 +47,8 @@ def patched_image_client():
          patch.object(scail2_app.scail2_client, "extract_all_image_outputs",
                       return_value=[{"filename": "z_00001_.png", "subfolder": "", "type": "output"}]), \
          patch.object(scail2_app.scail2_client, "get_output_url",
-                      side_effect=lambda f, s="", k="output": f"http://fake/view?f={f}"):
+                      side_effect=lambda f, s="", k="output": f"http://fake/view?f={f}"), \
+         patch.object(scail2_app.scail2_client, "start_progress_listener", return_value=_qmod.Queue()):
         # load 一个真实最小 zimage 结构给 patch_workflow 用
         mock_load.return_value = {
             "6": {"inputs": {"text": "x"}, "class_type": "CLIPTextEncode"},
