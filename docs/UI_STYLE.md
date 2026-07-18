@@ -79,7 +79,7 @@ SaaS / 着陆页式的装饰（hero 卡 / gradient / SVG illustration）一律�
 | 高级参数折叠 | 🔧 | `gr.Accordion("🔧 高级参数(一般不用改)", open=False)` |
 | 加载示例素材 | 📥 | `gr.Button("📥 加载示例素材", ...)` |
 | 随机提示词 | 🎲 | `gr.Button("🎲 随机提示词", ...)` 和 `🎲 随机3条` |
-| 开始运行 | 🚀 | `gr.Button("🚀 开始运行", variant="primary", size="lg", scale=3)` |
+| 开始运行 | 🚀 | `gr.Button("🚀 开始运行", variant="primary", size="md", scale=3)` |
 | 用相同参数再来 | 🔁 | 跑成功后出现的次按钮，`.btn-run-secondary` 降级样式，hidden 在 success 前 |
 | 输出区（图片 / 视频） | 🖼 / 🗂 | gallery / video 嵌入输出区 |
 | 完整健康检查 | 🔍 | `gr.Button("🔍 完整健康检查", ...)` |
@@ -133,9 +133,11 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 | `.btn-run-primary` | 🚀 开始运行（唯一绝对主操作） | 主题色渐变 + glow |
 | `.btn-run-primary.is-running` | 运行中态 | 脉冲 + spinner |
 | `.run-status-bar` + `.run-status-idle/running/success/failure/timeout` | 顶部运行状态条 (review P2) | 5 态切换颜色 + 图标; running 时带脉冲动画 + icon 旋转 + mm:ss 已耗时 |
+| `.run-status-progress` | 状态条百分比胶囊 (review 2026-07-17 进度显示) | mono 小字号 + 主题色边框 + 半透明填充; 有真实 step `%` 时才渲染, 位置在 elapsed 之后 (单行 flex 最右) |
 | `.sizes-cards` | 「尺寸选项」多选卡片 (review P1) | 替代 gr.CheckboxGroup 默认的「圆点小列表」, 每项独立卡片 + hover + 主题色选中 |
 | `.nav-group` / `.nav-group-system` | 左栏导航 / 系统两个 Group (review P3) | 视觉分组 + 小标题 uppercase 灰字 |
 | `.nav-divider` | 导航/系统之间的视觉分隔线 | 1px 透明→border→透明的 linear-gradient |
+| `.footer-notice` | 限制说明页脚 (review 2026-07-17 排版) | margin-top: --space-3; 给页脚跟 preset panel 之间呼吸 (host gap:0 锁定, 在页脚侧补) |
 | `.section-header` | 表单内小节标题 (review P4) | 14px primary text + 1px border-bottom, 替代 card-core 嵌套 |
 | `.step-card` | 基本输入 Group 容器 (review P4 改后无边框) | 只保留 padding/margin + section-header, 不再加 card-core |
 | `.preset-panels-host` | 包含所有 preset panel 的 `gr.Column` (review P7) | gap:0 — Gradio 6 visible=False 只置 height=0 不移出 flex 流, host 的 gap:16px 会在隐藏 panel 间累加成顶部空白 |

@@ -1858,7 +1858,7 @@ def _render_workflow_form(preset_name):
 
             # [运行] 唯一绝对主操作按钮 (左栏底部)
             run_btn = gr.Button(
-                "🚀 开始运行", variant="primary", size="lg",
+                "🚀 开始运行", variant="primary", size="md",
                 elem_classes=["btn-run-primary"],
             )
 
@@ -1925,7 +1925,7 @@ def _render_workflow_form(preset_name):
             re_run_btn = gr.Button(
                 "🔁 用相同参数再来",
                 variant="secondary",
-                size="lg",
+                size="md",
                 visible=False,
                 elem_classes=["btn-run-secondary"],
             )
