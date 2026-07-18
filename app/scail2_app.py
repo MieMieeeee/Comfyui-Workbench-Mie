@@ -64,6 +64,13 @@ _TABS_REF = None  # type: ignore[assignment]
 # 保持“用户最后一次显式操作”的状态.
 _AUTO_LOADED: set = set()
 
+# 历史 tab 行点击查找缓存: key=(preset_filter_raw, status_filter_raw), value=runs 列表。
+# review 2026-07-17 历史卡死修复: 之前历史 Dataframe 没有 df.select 处理器, 点行无反应,
+# 用户感觉"卡死"。现在 refresh 把 runs 存进 cache, _on_history_row_select 按 evt.index
+# 从 cache 查 run, 渲染对应详情卡片。cache 只用于 select 查找; refresh 按钮永远重新
+# 读盘覆盖 cache, 不会跟磁盘长期不同步。
+_HISTORY_RUNS_CACHE: dict[tuple[str, str], list[dict]] = {}
+
 
 def _iter_preset_names():
     """顺序返回所有 preset name（与 build_ui 里 preset_inputs_map 的顺序一致）。
@@ -523,6 +530,32 @@ def _extract_status_kind(status_msg):
     return None, None
 
 
+# 匹配 wait_for_completion yield 的 running 消息里的 "value/max" step 进度
+# (P0 之后格式: "⏳ MM:SS  running…  KSampler 12/20")。
+# 注意: 时间戳是 MM:SS (冒号), 不会误匹配这个斜杠模式。
+_STEP_PROGRESS_RE = _re.compile(r"(\d+)/(\d+)(?!\d)")
+
+
+def _extract_step_progress(status_msg: str) -> tuple[int, int] | None:
+    """从 status_msg 抽 step 进度 (value, max), 无则 None。
+
+    用于 P2: 把 wait_for_completion yield 的 "12/20" 抽出来喂 gr.Progress,
+    让顶部固定进度条跟状态条的真实 step 一致 (不再 _wait_p += 0.02 匀速假进度)。
+
+    取 msg 里最后一个 value/max (max>0); 时间戳 MM:SS 用冒号不会误匹配。
+    max=0 视为异常 (除零风险) -> None。
+    """
+    matches = _STEP_PROGRESS_RE.findall(status_msg)
+    for value_str, max_str in reversed(matches):
+        try:
+            v, mx = int(value_str), int(max_str)
+        except ValueError:
+            continue
+        if mx > 0:
+            return (v, mx)
+    return None
+
+
 def run_workflow(preset_name, *component_values):
     """运行指定 preset 的 workflow。preset_name 决定走哪个模板。
 
@@ -685,7 +718,7 @@ def run_workflow(preset_name, *component_values):
     progress(0.40, desc="入队 ComfyUI...")
     yield "⏳ [4/5] queuing prompt to ComfyUI...", None
     try:
-        prompt_id = scail2_client.queue_prompt(patched, client_id="gradio-ui")
+        prompt_id, client_id = scail2_client.queue_prompt(patched)
     except (ComfyUIError, ProtocolError_) as e:
         gr.Error(str(e))
         progress(0, desc=f"❌ 入队失败: {e}")
@@ -698,46 +731,65 @@ def run_workflow(preset_name, *component_values):
     progress(0.45, desc="等待 ComfyUI 执行...")
     yield "⏳ [5/5] waiting for ComfyUI execution...", None
     _wait_p = 0.45
-    for status_msg in scail2_client.wait_for_completion(prompt_id):
-        # 进度按轮询渐进推进（0.45 → 0.92），留 0.08 给最终完成
-        _wait_p = min(0.92, _wait_p + 0.02)
-        progress(_wait_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40] or "执行中...")
-        if status_msg.startswith("✅"):
-            try:
-                hist = scail2_client.get_history(prompt_id)
-                if output_kind == "image":
-                    image_outputs = scail2_client.extract_all_image_outputs(hist or {})
-                    # Prefer type=output (final SaveImage), fallback type=temp (PreviewImage).
-                    # Mirrors commit 2113045 for video (extract_primary_video_output).
-                    # Defensive: if a workflow emits both (e.g. final SaveImage + intermediate
-                    # PreviewImages for SAM mask / blend preview / upscale), this filter picks
-                    # the user-facing final image. Add a regression test before relying on
-                    # this for any specific workflow (see tests/test_run_workflow_image_prefer_output.py).
-                    preferred = [im for im in image_outputs if im.get("type") == "output"]
-                    out = preferred[0] if preferred else (image_outputs[0] if image_outputs else None)
-                else:
-                    out = scail2_client.extract_primary_video_output(hist or {})
-                if out:
-                    view_url = scail2_client.get_output_url(
-                        out["filename"], out["subfolder"], out["type"]
-                    )
-                    final_output = {
-                        "filename": out["filename"],
-                        "subfolder": out["subfolder"],
-                        "type": out["type"],
-                    }
-                    # output_box 是 gr.HTML，直接用 /view URL（_media_to_html 转 <video> 标签）
-                    video_url = view_url
-            except Exception as e:
-                status_msg = f"{status_msg} (拉 outputs 失败: {e})"
-        kind, err = _extract_status_kind(status_msg)
-        if kind is not None:
-            final_status = kind
-            if err:
-                final_error = err
-        yield status_msg, video_url
-        if status_msg.startswith(("✅", "❌", "⏰")):
-            break
+    # P1: build node_id -> title map from patched workflow so status_bar shows
+    # "KSampler" / "Load Image" instead of leaking "node 367" (AGENTS.md rule).
+    _title_map = scail2_client.build_node_title_map(patched)
+    # P0: 后台 ws 线程拿 KSampler/SamplerCustom step value/max, 拼 "12/20" 进状态。
+    # 连不上/断开静默降级到 /history 轮询 (start_progress_listener 返回空队列)。
+    _pq = scail2_client.start_progress_listener(client_id)
+    try:
+        for status_msg in scail2_client.wait_for_completion(
+            prompt_id, title_map=_title_map, progress_queue=_pq,
+        ):
+            # P2: 有真实 step 进度时 (wait_for_completion yield 的 "12/20") 用真实百分比,
+            # 映射到 [0.45, 0.92] 区间 (留 0.08 给最终完成)。无 step 才回退匀速估算。
+            _step = _extract_step_progress(status_msg)
+            if _step is not None:
+                _ratio = _step[0] / _step[1]
+                _wait_p = min(0.92, 0.45 + _ratio * (0.92 - 0.45))
+            else:
+                # 进度按轮询渐进推进（0.45 → 0.92），留 0.08 给最终完成
+                _wait_p = min(0.92, _wait_p + 0.02)
+            progress(_wait_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40] or "执行中...")
+            if status_msg.startswith("✅"):
+                try:
+                    hist = scail2_client.get_history(prompt_id)
+                    if output_kind == "image":
+                        image_outputs = scail2_client.extract_all_image_outputs(hist or {})
+                        # Prefer type=output (final SaveImage), fallback type=temp (PreviewImage).
+                        # Mirrors commit 2113045 for video (extract_primary_video_output).
+                        # Defensive: if a workflow emits both (e.g. final SaveImage + intermediate
+                        # PreviewImages for SAM mask / blend preview / upscale), this filter picks
+                        # the user-facing final image. Add a regression test before relying on
+                        # this for any specific workflow (see tests/test_run_workflow_image_prefer_output.py).
+                        preferred = [im for im in image_outputs if im.get("type") == "output"]
+                        out = preferred[0] if preferred else (image_outputs[0] if image_outputs else None)
+                    else:
+                        out = scail2_client.extract_primary_video_output(hist or {})
+                    if out:
+                        view_url = scail2_client.get_output_url(
+                            out["filename"], out["subfolder"], out["type"]
+                        )
+                        final_output = {
+                            "filename": out["filename"],
+                            "subfolder": out["subfolder"],
+                            "type": out["type"],
+                        }
+                        # output_box 是 gr.HTML，直接用 /view URL（_media_to_html 转 <video> 标签）
+                        video_url = view_url
+                except Exception as e:
+                    status_msg = f"{status_msg} (拉 outputs 失败: {e})"
+            kind, err = _extract_status_kind(status_msg)
+            if kind is not None:
+                final_status = kind
+                if err:
+                    final_error = err
+            yield status_msg, video_url
+            if status_msg.startswith(("✅", "❌", "⏰")):
+                break
+    finally:
+        # 通知 ws 后台线程退出 (daemon=True 已保进程退出不卡, 这里及时收尾)
+        _pq.put(None)
 
     # 最终进度：成功 1.0，失败/超时也归零并标注
     if final_status == "success":
@@ -863,6 +915,8 @@ def run_image_workflow(preset_name, *component_values):
         gr.Error(str(e))
         yield f"❌ load: {e}", None
         return
+    # P1: node_id -> title map, 在尺寸循环外建一次 (workflow 模板不变, title 通用)
+    _title_map = scail2_client.build_node_title_map(wf_base)
 
     yield f"⏳ 准备生成 {len(sizes)} 张图...", None
 
@@ -890,7 +944,7 @@ def run_image_workflow(preset_name, *component_values):
             patched = scail2_client.patch_workflow(
                 wf_base, replacements, preset_config=preset_cfg, validate_after=False,
             )
-            prompt_id = scail2_client.queue_prompt(patched, client_id="gradio-ui-image")
+            prompt_id, client_id = scail2_client.queue_prompt(patched)
             prompt_ids.append(prompt_id)
         except (ComfyUIError, ProtocolError_, WorkflowValidationError, FileNotFoundError) as e:
             gr.Error(str(e))
@@ -899,21 +953,35 @@ def run_image_workflow(preset_name, *component_values):
             yield f"❌ [{idx}/{len(sizes)}] queue failed: {e}", list(gallery_urls)
             continue
 
+        # P0: 每个尺寸独立 ws 监听 (各自有自己的 client_id)
+        _seg_pq = scail2_client.start_progress_listener(client_id)
         # 轮询这一个尺寸
         _seg_p = seg_start
-        for status_msg in scail2_client.wait_for_completion(prompt_id):
-            kind, err = _extract_status_kind(status_msg)
-            if kind == "failure":
-                final_status = "failure"
-                if err:
-                    final_error = err
-            elif kind == "timeout":
-                final_status = "timeout"
-            _seg_p = min(seg_end - 0.01, _seg_p + 0.02)
-            progress(_seg_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40])
-            yield f"[{idx}/{len(sizes)}] {status_msg}", list(gallery_urls)
-            if status_msg.startswith(("✅", "❌", "⏰")):
-                break
+        try:
+            for status_msg in scail2_client.wait_for_completion(
+                prompt_id, title_map=_title_map, progress_queue=_seg_pq,
+            ):
+                kind, err = _extract_status_kind(status_msg)
+                if kind == "failure":
+                    final_status = "failure"
+                    if err:
+                        final_error = err
+                elif kind == "timeout":
+                    final_status = "timeout"
+                # P3: 有真实 step 时 (当前尺寸内 KSampler value/max), 把 step 填进
+                # 当前尺寸的 [seg_start, seg_end] 区间; 无 step 才回退匀速估算。
+                _step = _extract_step_progress(status_msg)
+                if _step is not None:
+                    _ratio = _step[0] / _step[1]
+                    _seg_p = min(seg_end - 0.01, seg_start + _ratio * (seg_end - seg_start))
+                else:
+                    _seg_p = min(seg_end - 0.01, _seg_p + 0.02)
+                progress(_seg_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40])
+                yield f"[{idx}/{len(sizes)}] {status_msg}", list(gallery_urls)
+                if status_msg.startswith(("✅", "❌", "⏰")):
+                    break
+        finally:
+            _seg_pq.put(None)  # 通知该尺寸的 ws 线程退出
 
         # 抓这个尺寸的 image 输出，累积进 gallery_urls（Gallery 显示所有已完成图）
         try:
@@ -1002,13 +1070,17 @@ def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[str, str, str, st
     """从单条 manifest 构造 detail (summary_html, media_html, json_str, prompt_md)。
 
     summary_html 是一段结构化 HTML(卡片化展示关键字段),media_html 是输出预览,
-    json_str 是原始 manifest JSON(给隐藏 manifest 组件 + rerun 用),
+    json_str 是给 gr.JSON 的 manifest 数据:
+      - 有 run: json.dumps(manifest) 的 str (走 orjson.loads 分支)
+      - 无 run: Python dict {} (走 orjson.dumps 分支; "" 会抛
+        "Invalid JSON string: Input is a zero-length, empty document"
+        -> red toast + queue 卡顿. review 2026-07-18)
     prompt_md 是带代码块包裹的提示词全文(给 "提示词全文" accordion 用)。
     """
     empty = (
         "<div class='detail-empty'>选中一条记录查看详情</div>",
         "<div class='detail-empty'>—</div>",
-        "",
+        {},
         "",
     )
     if not run:
@@ -1137,23 +1209,97 @@ def _render_summary_html(badge_html, fields, prompt):
     )
 
 
-def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]], str, str, str, str, str]:
-    """按 preset + status 过滤后,刷新 dataframe + 详情。
 
-    返回: (rows, summary_html, media_html, json_str, prompt_md, count_label)
-    count_label 是屏幕只读的记录数提示,例如 "共 12 条"。
+
+
+
+
+
+
+def _refresh_history_dataframe(preset: str, status: str) -> list[list[str]]:
+    """只刷 Dataframe + 填 _HISTORY_RUNS_CACHE。
+
+    返回 list[list[str]] (rows), 单 output, 用于 .change 事件。
+
+    review 2026-07-18 历史卡死根治 (TDD): 从 _refresh_history_filtered 拆出来。
+    原 6-output handler 在 preset_filter.change / status_filter.change 上跑会:
+      a) 重新 list_runs (筛选切换每次都读盘)
+      b) 重渲详情面板 (跟筛选无关, 用户切 preset 时详情不需要变)
+      c) 重跑 _make_detail_from_run (可能很贵)
+    拆完后 .change 只刷 Dataframe, 详情面板保持选中行不变。
     """
     p = preset if preset and preset != "全部" else None
     s_arg = status if status and status != "全部" else None
     runs = history.list_runs(preset=p, status=s_arg)
-    rows = [_run_row(r) for r in runs]
+    # cache 用 raw 筛选值 (select handler 从 Gradio 收到的就是 raw 值)
+    _HISTORY_RUNS_CACHE[(preset or "全部", status or "全部")] = runs
+    return [_run_row(r) for r in runs]
+
+
+def _refresh_history_details(preset: str, status: str) -> tuple[str, str, str, str, str]:
+    """只刷详情面板 (5 output: summary_html, media_html, json_str, prompt_md, count_label)。
+
+    从 _HISTORY_RUNS_CACHE 读, 不重新 list_runs。
+    关键不变量: 跟 _refresh_history_dataframe 写的 cache 配对使用 —— 后者写、
+    前者读, 不出现 "df 写 cache 用 5 条, details 从盘读 100 条" 的竞态。
+    """
+    runs = _HISTORY_RUNS_CACHE.get((preset or "全部", status or "全部"), [])
     summary_html, media_html, json_str, prompt_md = _make_detail_from_run(runs[0] if runs else None)
     count_label = f"共 {len(runs)} 条"
-    return rows, summary_html, media_html, json_str, prompt_md, count_label
+    return summary_html, media_html, json_str, prompt_md, count_label
 
 
-def _build_history_tab(demo):
+def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]], str, str, str, str, str]:
+    """组合刷新: df + 详情 + count_label 一次性原子更新。
+
+    返回: (rows, summary_html, media_html, json_str, prompt_md, count_label)
+
+    用于 tab.select / refresh_btn.click (用户主动刷新, 需要 6 个 output 同步)。
+
+    review 2026-07-18: 内部委托给 _refresh_history_dataframe + _refresh_history_details。
+    保留这个组合 handler 是为了 .change 之外的入口 (tab.select, refresh_btn) 能保证
+    df 写入和详情写入是同一个 event (避免 df 新了但详情还显示旧 cache 的中间态)。
+    """
+    rows = _refresh_history_dataframe(preset, status)
+    return (rows, *_refresh_history_details(preset, status))
+
+def _on_history_row_select(evt: gr.SelectData, preset: str, status: str):
+    """行点击 → 详情卡片。从 _HISTORY_RUNS_CACHE 按 evt.index 查 run。
+
+    review 2026-07-17 历史卡死修复: 之前没有这个 handler, 点 Dataframe 行无反应。
+    evt: gr.SelectData —— 必须显式类型注解, Gradio 6 据此自动注入事件数据 (含 .index)。
+    没注解的话 Gradio 当普通参数, 不注入 evt, 会报 "Expected 3 arguments, received 2"。
+
+    cache 存了当前筛选的 runs (排好序的), evt.index 是 Gradio 给的行号 (0-based),
+    直接 runs[idx] 渲染详情。边界 (idx 越界 / cache miss) 返回空占位, 不崩。
+
+    返回: (summary_html, media_html, json_str, prompt_md) —— 4 个详情输出。
+    """
+    empty = (
+        "<div class='detail-empty'>选中一条记录查看详情</div>",
+        "<div class='detail-empty'>—</div>",
+        {},
+        "",
+    )
+    key = (preset or "全部", status or "全部")
+    runs = _HISTORY_RUNS_CACHE.get(key)
+    if not runs:
+        return empty
+    # evt.index 对一维 Dataframe 是 int; 防御 tuple (理论上不会, 但 isinstance 兜底)
+    idx = getattr(evt, "index", None)
+    if isinstance(idx, tuple):
+        idx = idx[0]
+    if not isinstance(idx, int) or idx < 0 or idx >= len(runs):
+        return empty
+    return _make_detail_from_run(runs[idx])
+
+
+def _build_history_tab(demo, tab=None):
     """历史记录 tab:左 Dataframe + 右详情卡片的两栏布局。
+
+    tab (optional): 外层 gr.Tab 对象。传了会在它的 .select 事件上绑刷新 ——
+    因为 Gradio 6 对非活动 tab 懒渲染, demo.load 触发时 Dataframe 还不在 DOM,
+    必须等用户点开 tab 才能真正写入数据 (review 2026-07-17 历史卡死修复)。
 
     表格列从 10 列精简到 6 列(时间 / 状态 badge / preset / 耗时 / prompt / id),
     详细字段(参考图 / 驱动视频 / cache / 段数估 / 参数组 / 输出文件)挪到右侧详情
@@ -1222,15 +1368,43 @@ def _build_history_tab(demo):
                 elem_classes=["btn-run-primary"],
             )
 
-    # 三个事件源都触发同一个 handler
-    # outputs: rows, summary_html, media_html, json_str, prompt_md, count_label
+    # === 事件架构 (review 2026-07-18 TDD 重构) ===
+    # outputs 拆成两组:
+    #   - df_outputs: 仅 Dataframe (1 个) — .change 用 df-only handler, 不重渲详情。
+    #   - detail_outputs: 详情面板 + count_label (5 个) — 行点击用。
+    #   - event_outputs: df + 详情 + count_label (6 个) — tab.select / refresh_btn 用,
+    #     保证 df 写入和详情写入是同一 event (不出现 df 新但详情旧的中间态)。
+    df_outputs = [df]
+    detail_outputs = [detail_summary, detail_media, detail_manifest, detail_prompt_md]
     event_outputs = [df, detail_summary, detail_media, detail_manifest, detail_prompt_md, count_label]
     event_inputs = [preset_filter, status_filter]
+    # 1) 手动刷新按钮: 全量刷 (df + 详情 + count)
     refresh_btn.click(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
-    preset_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
-    status_filter.change(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
-    # review P0-1: 启动时自动加载,避免首次打开 tab 显示空表
-    demo.load(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
+    # 2) preset/status .change: 只刷 Dataframe, 详情面板保持选中行不变。
+    #    concurrency_limit=1 防快速切换排队全量重建 (review 2026-07-18: 之前 demo.load 跟这俩
+    #    在 page-load 时同入队, concurrency_limit=1 互相阻塞 → 卡死; 现在 demo.load 已删,
+    #    限制 1 只影响两个 .change 互相竞争, 安全)。
+    preset_filter.change(
+        fn=_refresh_history_dataframe, inputs=event_inputs, outputs=df_outputs,
+        concurrency_limit=1,
+    )
+    status_filter.change(
+        fn=_refresh_history_dataframe, inputs=event_inputs, outputs=df_outputs,
+        concurrency_limit=1,
+    )
+    # 3) demo.load: 不绑! Gradio 6 对非活动 tab 懒渲染, demo.load 触发时 Dataframe 还不在
+    #    DOM, 写入被丢。真正的写入时机是 tab.select (用户点开 tab 时)。
+    #    (review 2026-07-17 留 demo.load 想当 fallback, 实际从未生效, 删掉省 list_runs 一次。)
+    # 4) tab.select: 用户点开 tab 触发全量刷 (df + 详情 + count), 此时 Dataframe 已在 DOM,
+    #    写入能真正落到前端。
+    if tab is not None:
+        tab.select(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
+
+    # review 2026-07-17 历史卡死修复 (核心): 行点击 → 详情。
+    # 之前没有 df.select, 点行什么都不发生, 用户感觉"卡死"。现在 _on_history_row_select
+    # 从 _HISTORY_RUNS_CACHE 按 evt.index 查 run, 渲染对应详情卡片。
+    detail_outputs = [detail_summary, detail_media, detail_manifest, detail_prompt_md]
+    df.select(fn=_on_history_row_select, inputs=event_inputs, outputs=detail_outputs)
 
     # Rerun: 从历史记录加载到运行表单。点击后会:
     #   1. 切到"运行" tab (JS 前置器)
@@ -1484,12 +1658,15 @@ def _now_ts():
     return time.monotonic()
 
 
-def _render_status_html(state, msg, elapsed_str=''):
+def _render_status_html(state, msg, elapsed_str='', progress_str=''):
     """生成 run-status-bar 的 HTML 内容,根据运行状态切视觉。
 
     state ∈ {idle, running, success, failure, timeout}: 决定颜色 + 图标。
     elapsed_str: 已耗时字符串(例如 '00:42'),只在 running 时显示。
+    progress_str: step 百分比字符串(例如 '60%'),P0/P2/P3 接真实 step 后才有值;
+        空串/不传 -> 不渲染胶囊(向后兼容锁, 现有调用方不传)。
     review P2 副标题 2: 让'运行中'成为全局主状态, 状态感更强。
+    review 2026-07-17 进度显示: progress_str 让状态条跟 gr.Progress 同步显示真实百分比。
     """
     icons = {'idle': chr(0x23F8), 'running': chr(0x1F504), 'success': chr(0x2705), 'failure': chr(0x274C), 'timeout': chr(0x23F0)}
     state_cn = {'idle': '等待运行', 'running': '正在运行', 'success': '已完成', 'failure': '运行失败', 'timeout': '运行超时'}
@@ -1503,6 +1680,8 @@ def _render_status_html(state, msg, elapsed_str=''):
         if len(msg) > 60:
             msg = msg[:60] + chr(0x2026)
     elapsed_html = ('<span class="run-status-elapsed">' + chr(0x23F1) + ' ' + elapsed_str + '</span>') if elapsed_str else ''
+    # progress 胶囊: 有真实 step 百分比时渲染, 否则不渲染 (单行 flex 最右侧)
+    progress_html = ('<span class="run-status-progress">' + (progress_str or '') + '</span>') if progress_str else ''
     # review P3-9: insert ' · ' between state label and msg; otherwise rendered text
     # reads 'waiting to run click below button to start' with no internal punctuation.
     sep = ' · ' if (msg or '').strip() else ''
@@ -1513,6 +1692,7 @@ def _render_status_html(state, msg, elapsed_str=''):
         + '<span class="run-status-sep">' + sep + '</span>'
         + '<span class="run-status-msg">' + (msg or '') + '</span>'
         + elapsed_html
+        + progress_html
         + '</div>'
     )
 
@@ -1575,24 +1755,24 @@ def _media_to_html(media, output_kind: str = "image") -> str:
     直接用 ComfyUI /view URL (浏览器同机可访问), 绕过 gr.Video/gr.Audio 不支持外部 URL 的限制.
     """
     if not media:
-        return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
+        return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
 
     # image 类特化: list → 网格
     if output_kind == "image":
         if isinstance(media, list):
             if not media:
-                return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
+                return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
             imgs = "".join(
-                "<img src=\"" + str(u) + "\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:8px\"/>"
+                "<img src=\"" + str(u) + "\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
                 for u in media if u
             )
             return "<div style=\"padding:8px\">" + imgs + "</div>"
-        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
+        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # video / audio: 单 URL, 扩展名分桶
     src = media[0] if isinstance(media, list) else media
     if not src or not isinstance(src, str):
-        return "<div style=\"color:#6b7280;padding:20px\">等待结果...</div>"
+        return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
 
     ext = _media_ext_from_url(src)
     video_ext = (".mp4", ".mov", ".webm", ".gif")
@@ -1621,7 +1801,7 @@ def _media_to_html(media, output_kind: str = "image") -> str:
                     '<source src=\"' + url + '\"/></audio></div>')
     if ext in video_ext:
         if src.startswith("http"):
-            return ("<div style=\"padding:8px\"><video controls autoplay style=\"max-width:100%;border-radius:8px\">"
+            return ("<div style=\"padding:8px\"><video controls autoplay style=\"max-width:100%;border-radius:var(--radius-md)\">"
                     "<source src=\"" + src + "\"/></video></div>")
         from pathlib import Path as _P
         sp = _P(src)
@@ -1629,13 +1809,13 @@ def _media_to_html(media, output_kind: str = "image") -> str:
             try:
                 rel = sp.relative_to(config.REPO_ROOT)
                 file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-                return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:8px\">"
+                return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:var(--radius-md)\">"
                         "<source src=\"" + file_url + "\"/></video></div>")
             except ValueError:
                 pass
     if ext in image_ext:
         url = _to_url(src) or src
-        return "<div style=\"padding:8px\"><img src=\"" + url + "\" style=\"max-width:100%;border-radius:8px\"/></div>"
+        return "<div style=\"padding:8px\"><img src=\"" + url + "\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # 兜底: 输出 kind 对应的 banner
     if output_kind == "audio":
@@ -1935,15 +2115,18 @@ def _render_workflow_form(preset_name):
         _flat_index += _value_count
 
     # [顶部] 工作流标题 + 简介
+    # 用 ## (h2): 全局 h1=app 标题, h2=工作流, section-header=form 小节, 三级层级清晰。
+    # 之前用 ### (h3) 跳过了 h2 层级, 且 h3 颜色是 --text-secondary (灰) 比下面的
+    # section-header (primary 白) 还暗, 副标题比标题醒目 (review 2026-07-17 排版审计)。
     gr.Markdown(
-        f"### {preset_cfg.get('display_name', preset_name)}\n"
-        f"<span style='color:#9ba1a8'>{preset_cfg.get('description', '')}</span>"
+        f"## {preset_cfg.get('display_name', preset_name)}\n"
+        f"<span style='color:var(--text-muted)'>{preset_cfg.get('description', '')}</span>"
     )
 
     # ===== 第四阶段 §A：两栏工作台布局 =====
-    # with gr.Row(equal_height=False) 包左右两栏:
-    #   左控制栏 gr.Column(scale=5): basic 输入 + 高级参数 + 段数预估 + 示例按钮 + 🚀 开始运行
-    #   右预览栏 gr.Column(scale=6): 📜 运行日志 + 错误条 + 结果区 + 🔁 再来 + 打开输出目录
+    # with gr.Row(equal_height=True) 包左右两栏 (review 2026-07-17: 改 True 让两栏等高):
+    #   左控制栏 gr.Column(scale=4): basic 输入 + 高级参数 + 段数预估 + 示例按钮 + 🚀 开始运行
+    #   右预览栏 gr.Column(scale=7): 📜 运行日志 + 错误条 + 结果区 + 🔁 再来 + 打开输出目录
     # 组件创建顺序保证: 左栏全部组件 → 右栏全部组件 (事件绑定在两栏关闭后才做,
     # 引用的都是已存在的组件对象,不受布局影响)。
     # 按 spec index 存 component —— 同一 node 上多 spec (例如 469 同时挂
@@ -1959,7 +2142,11 @@ def _render_workflow_form(preset_name):
     basic_specs = [s for s in specs if s.get("tier", "basic") == "basic"]
     advanced_specs = [s for s in specs if s.get("tier") == "advanced"]
 
-    with gr.Row(equal_height=False):
+    # review 2026-07-17 排版审计: 改 equal_height=True。
+    # 原 False 让左右子栏不等高, 运行按钮 (左) 和输出区 (右) Y 坐标飘 —— 首次成功后
+    # re_run_btn 出现, 右栏长一截, 运行按钮原本对齐输出区中部, 之后错位。True 让两栏
+    # 顶部对齐, 运行按钮锚定左栏底部, 不随右栏内容增长而漂移。
+    with gr.Row(equal_height=True):
         # ============ 左控制栏 ============
         # scale=4 + min_width=380:保证表单控件(尤其是带 info 的输入)有足够宽度,
         # 而右预览栏用 scale=7 拿走剩余 64% → review P0「预览自然扩展」。
@@ -2121,15 +2308,15 @@ def _render_workflow_form(preset_name):
             _pv_audio_raw = _ex_for_default.get("preview_audio")
             if _pv_video_raw:
                 _pv_url = _resolve_preview_path(_pv_video_raw)
-                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<video controls style='max-width:100%;border-radius:8px'>\n<source src='SRC_PLACEHOLDER'/></video>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<video controls style='max-width:100%;border-radius:var(--radius-md)'>\n<source src='SRC_PLACEHOLDER'/></video>\n<div class='result-area-caption' style='font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
             elif _pv_image_raw:
                 _pv_url = _resolve_preview_path(_pv_image_raw)
-                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<img src='SRC_PLACEHOLDER' style='max-width:100%;border-radius:8px'/>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<img src='SRC_PLACEHOLDER' style='max-width:100%;border-radius:var(--radius-md)'/>\n<div class='result-area-caption' style='font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
             elif _pv_audio_raw:
                 _pv_url = _resolve_preview_path(_pv_audio_raw)
-                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<audio controls preload='metadata' style='width:100%;max-width:480px'>\n<source src='SRC_PLACEHOLDER'/></audio>\n<div class='result-area-caption' style='font-size:12px;color:#9ba1a8;margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
+                _default_output_html = "<div class='result-area-default' style='padding:8px'>\n<audio controls preload='metadata' style='width:100%;max-width:480px'>\n<source src='SRC_PLACEHOLDER'/></audio>\n<div class='result-area-caption' style='font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center'>📸 示例效果 (默认参数对应的结果)</div>\n</div>".replace("SRC_PLACEHOLDER", _pv_url)
             else:
-                _default_output_html = "<div style='color:#6b7280;padding:20px'>运行后这里显示结果</div>"
+                _default_output_html = "<div style='color:var(--text-faint);padding:20px'>运行后这里显示结果</div>"
             output_box = gr.HTML(
                 value=_default_output_html,
                 elem_classes=["result-area"],
@@ -2223,7 +2410,10 @@ def _render_workflow_form(preset_name):
                 elif status_msg.startswith(chr(0x23F0)):
                     _state = 'timeout'
                 _elapsed = _format_elapsed(_now_ts() - _run_start_ts)
-                _status_bar_update = gr.update(value=_render_status_html(_state, status_msg, _elapsed))
+                # P2: 有 step 时算百分比喂状态条胶囊 (跟 gr.Progress 同源), 无则空串不渲染
+                _step = _extract_step_progress(status_msg)
+                _pct = (f"{int(_step[0] / _step[1] * 100)}%") if _step is not None else ''
+                _status_bar_update = gr.update(value=_render_status_html(_state, status_msg, _elapsed, _pct))
                 yield (
                     status_msg,
                     media_html,
@@ -2314,23 +2504,6 @@ _THEMES_CACHE: list[dict] | None = None
 _DEFAULT_THEME_ID = "coral-orange"  # fallback only —— actual startup value comes from _resolve_initial_theme()
 _THEMES_PATH = config.REPO_ROOT / "app" / "presets" / "themes.json"
 _TOKENS_PATH = config.REPO_ROOT / "app" / "static" / "tokens.css"
-
-# 表面 / 文字 / 边框 token —— dark 是默认值已经在 :root 里写过了。
-_DARK_SURFACE = """  --bg-app:        #0f1115;
-  --bg-panel:      #15181e;
-  --bg-card:       #1a1d23;
-  --bg-card-hover: #1f232b;
-  --bg-overlay:    #23272f;
-  --bg-input:      #0c0e12;
-  --border-subtle: #252830;
-  --border-default: #2f333d;
-  --border-strong:  #4b5160;
-  --text-primary:   #f3f4f6;
-  --text-secondary: #c2c7d2;
-  --text-muted:     #8b909b;
-  --text-faint:     #5f6470;
-  --text-on-accent: #0f1115;"""
-
 
 
 
@@ -2623,15 +2796,27 @@ def build_ui():
                             outputs=all_inputs_flat,
                         )
 
+                        # review 2026-07-17 排版审计: 加 elem_classes 给页脚 margin-top。
+                        # .preset-panels-host gap:0 (锁定, Gradio 6 visible=False bug workaround)
+                        # 让这个页脚贴着 preset panel 底部无呼吸; 这里用 CSS 类加 margin-top,
+                        # 不破坏 host gap:0 契约。
                         gr.Markdown(
-                            f"<small style='color:#6b7280'>"
+                            f"<small style='color:var(--text-faint)'>"
                             f"限制: 参考图 ≤{config.MAX_IMAGE_MB}MB / 驱动视频 ≤{config.MAX_VIDEO_MB}MB / "
                             f"提示词 ≤{config.MAX_PROMPT_CHARS}字符 · 超时 {config.DEFAULT_TIMEOUT_SEC // 60} 分钟"
-                            f"</small>"
+                            f"</small>",
+                            elem_classes=["footer-notice"],
                         )
 
-            with gr.Tab("历史记录"):
-                _build_history_tab(demo)
+            # review 2026-07-17 历史卡死修复 (E2E 复现根因):
+            # Gradio 6 对非活动 tab 内容懒渲染 —— 页面加载时"历史记录" tab 不可见,
+            # _build_history_tab 里的 Dataframe 根本不在 DOM 里。demo.load 触发
+            # _refresh_history_filtered 返回 61 行, 但目标组件不存在 → 更新被丢弃,
+            # 用户点开历史记录 tab 后 Dataframe 是空的 → 感觉"卡死"。
+            # 修法: history_tab.select 事件绑刷新 —— 用户点开 tab 时 Dataframe 已在 DOM,
+            # 这时刷新才能真正写入。demo.load 保留作 fallback (Gradio 未来可能修懒渲染)。
+            with gr.Tab("历史记录") as history_tab:
+                _build_history_tab(demo, tab=history_tab)
 
             with gr.Tab("系统设置"):
                 _build_settings_tab(theme_injector)

@@ -64,5 +64,8 @@ def test_make_detail_no_run_returns_empty():
     """Empty run must still return the 4-tuple empty placeholders (existing contract)."""
     summary, media, json_str, prompt_md = scail2_app._make_detail_from_run(None)
     assert "选中一条记录查看详情" in summary
-    assert json_str == ""
+    # json_str empty placeholder: must be a dict (not "") so gr.JSON.postprocess
+    # does not raise "Invalid JSON string: Input is a zero-length, empty document".
+    # review 2026-07-18 fix for tab-freeze / red-toast bug.
+    assert isinstance(json_str, dict), f"empty placeholder json_str should be dict, got {type(json_str).__name__}: {json_str!r}"
     assert prompt_md == ""
