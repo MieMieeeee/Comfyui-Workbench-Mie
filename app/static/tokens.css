@@ -76,7 +76,7 @@
   /* ---------- Radius ---------- */
   --radius-sm:   6px;
   --radius-md:   10px;
-  --radius-lg:   14px;
+  --radius-lg:   12px;
   --radius-pill: 9999px;
 
   /* ---------- Shadow / elevation ---------- */
@@ -94,8 +94,7 @@
   --text-xs:   12px;
   --text-sm:   13px;
   --text-base: 14px;
-  --text-md:   15px;
-  --text-lg:   17px;
+  --text-lg:   16px;
   --text-xl:   20px;
   --text-2xl:  24px;
 
@@ -135,6 +134,10 @@ body {
 .gradio-container {
   max-width: 1700px !important;  /* review P2-4: 1400 too narrow on wide screens */
   background: var(--bg-app) !important;
+  /* review 2026-07-17 排版审计组6: 整体水平边距。
+   * 原 container 无 padding, 内容直接贴浏览器窗口/外缘, "贴边"感总根源。
+   * 加 var(--space-4) 水平 padding, 左右各 16px 呼吸 (max-width 锁定不能动)。 */
+  padding: var(--space-4) var(--space-5) !important;
 }
 
 /* block-label 兜底软杀——`:root.dark{}` 块的 `--block-label-background-fill` 已设为 transparent,
@@ -214,8 +217,8 @@ body.dark {
   background: linear-gradient(180deg, var(--theme-accent-400) 0%, var(--theme-accent-500) 100%) !important;
   color: var(--text-on-accent) !important;
   font-family: var(--font-sans) !important;
-  font-size: var(--text-md) !important;
-  font-weight: 600 !important;
+  font-size: var(--text-lg) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.01em;
   border: 1px solid var(--theme-accent-600) !important;
   border-radius: var(--radius-button) !important;
@@ -281,7 +284,7 @@ body.dark {
   justify-content: center;
   gap: var(--space-2);
   min-width: 140px;
-  padding: var(--space-3) var(--space-5) !important;
+  padding: var(--space-3) var(--space-6) !important;
   background: var(--bg-card) !important;
   color: var(--text-secondary) !important;
   font-family: var(--font-sans) !important;
@@ -475,10 +478,25 @@ body.dark {
 }
 .custom-dataframe tbody tr {
   transition: background var(--duration-fast) var(--ease-out);
+  /* review 2026-07-17 历史卡死修复: 行可点 (select handler 已加), 让用户知道能点 +
+   * 点击有即时反馈, 不再感觉"卡死"。 */
+  cursor: pointer;
 }
 .custom-dataframe tbody tr:nth-child(odd)  { background: rgba(255, 255, 255, 0.015); }
 .custom-dataframe tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.04); }
 .custom-dataframe tbody tr:hover { background: var(--bg-card-hover) !important; }
+/* 点击瞬间反馈: 按下行变色, 让用户知道点击已注册 (select 往返前的即时确认)。 */
+.custom-dataframe tbody tr:active {
+  background: var(--bg-overlay) !important;
+}
+/* 选中态: 点过的行保持高亮, 跟右侧详情对应 (不混乱)。Gradio 6 Dataframe 选中的行
+ * 加 .row-selected / data-selected, 这里覆盖几种可能的标记。 */
+.custom-dataframe tbody tr.row-selected,
+.custom-dataframe tbody tr[data-selected="true"],
+.custom-dataframe tbody tr.selected {
+  background: var(--theme-accent-glow) !important;
+  border-left: 2px solid var(--theme-accent-500);
+}
 .custom-dataframe tbody td {
   padding: var(--space-3) var(--space-4) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
@@ -670,7 +688,9 @@ body.dark {
 .nav-group {
   background: transparent !important;
   border: none !important;
-  padding: 0 !important;
+  /* review 2026-07-17 排版审计组6: 原 padding: 0 —— "导航"标题 + 工作流列表贴 Group 边。
+   * 加 var(--space-3) 四向 padding, 让导航内容有 12px 呼吸 (跟 step-card 一致)。 */
+  padding: var(--space-3) !important;
   margin-bottom: var(--space-3) !important;
 }
 .nav-group .prose {
@@ -713,7 +733,7 @@ body.dark {
 .section-header p {
   margin: 0 !important;
   font-family: var(--font-sans) !important;
-  font-size: var(--text-md) !important;
+  font-size: var(--text-base) !important;
   font-weight: 600 !important;
   color: var(--text-primary) !important;
   letter-spacing: 0.01em;
@@ -722,7 +742,10 @@ body.dark {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  padding: 0 0 var(--space-4) 0 !important;
+  /* review 2026-07-17 排版审计组6: 之前四向 padding 几乎全 0, "输入素材"标题
+   * 和表单字段贴卡片边。现在四向都给 --space-3, 底部留 --space-4 拉开跟高级参数
+   * 折叠区的距离。 */
+  padding: var(--space-3) var(--space-3) var(--space-4) var(--space-3) !important;
   margin-bottom: var(--space-3) !important;
   box-shadow: none !important;
 }
@@ -740,6 +763,14 @@ body.dark {
  */
 .preset-panels-host {
   gap: 0 !important;
+}
+
+/* review 2026-07-17 排版审计: 页脚呼吸。
+ * .preset-panels-host gap:0 (上面那个锁定) 让限制说明页脚贴着 preset panel 底部,
+ * 无视觉缓冲。这里给页脚单独加 margin-top (host gap 不动), 让 "限制: 参考图 ≤5MB..."
+ * 跟上方表单之间有 --space-3 (12px) 呼吸。 */
+.footer-notice {
+  margin-top: var(--space-3) !important;
 }
 
 .preset-panel {
@@ -817,6 +848,23 @@ body.dark {
   background: var(--bg-overlay);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
+}
+
+/* P0/P2/P3 真实 step 进度的百分比胶囊 (review 2026-07-17 进度显示)。
+ * 跟 .run-status-elapsed 同风格 (mono / 小字号 / flex-shrink), 但用主题色
+ * 边框 + 半透明填充, 让"还差多少"一眼可见。只有有真实 step 时才渲染
+ * (_render_status_html progress_str 为空就不出这个 span)。
+ * 位置: 单行 flex 最右侧, 在 elapsed 之后 (布局: icon · label · msg · elapsed · progress)。 */
+.run-status-progress {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--theme-accent-300);
+  padding: 2px var(--space-2);
+  background: var(--theme-accent-glow);
+  border: 1px solid var(--theme-accent-500);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  font-weight: 600;
 }
 
 /* idle */
@@ -1036,6 +1084,7 @@ body.dark {
   color: var(--text-primary) !important;
   font-family: var(--font-sans) !important;
   padding: var(--space-3) var(--space-4) !important;
+  line-height: var(--leading-normal) !important;
   transition: border-color var(--duration-base) var(--ease-out),
               box-shadow var(--duration-base) var(--ease-out);
 }
@@ -1195,15 +1244,31 @@ body.dark {
   font-family: var(--font-sans) !important;
   font-size: var(--text-xl) !important;
   font-weight: 600 !important;
-  margin: var(--space-5) 0 var(--space-3) !important;
+  margin: var(--space-3) 0 var(--space-3) !important;
 }
 .gradio-container .prose h3,
 .gradio-container h3 {
-  color: var(--text-secondary) !important;
+  color: var(--text-primary) !important;
   font-family: var(--font-sans) !important;
   font-size: var(--text-lg) !important;
   font-weight: 600 !important;
   margin: var(--space-4) 0 var(--space-2) !important;
+}
+/* review 2026-07-17 排版审计: emoji baseline + 文字行高修正。
+ * Windows Segoe UI Emoji 默认 baseline 偏高, 🚀/📥/🔄/🎬 跟汉字/英文基线不齐
+ * ("看不出哪里不对但别扭")。给所有含 emoji 的文字容器 (按钮/标签/标题/状态条) 统一:
+ *   - line-height: --leading-normal (1.5, 给 emoji 留垂直空间, 不挤)
+ *   - vertical-align: -0.15em (把 inline 内容往下拉, emoji 跟文字 baseline 对齐)
+ * 选不到 emoji 字形本身, 用容器级规则近似 (容器内所有 inline 内容统一对齐)。 */
+.gradio-container button,
+.gradio-container label,
+.gradio-container .section-header,
+.gradio-container .run-status-bar,
+.gradio-container h1,
+.gradio-container h2,
+.gradio-container h3 {
+  line-height: var(--leading-normal);
+  vertical-align: -0.15em;
 }
 .gradio-container .prose code,
 .gradio-container code,
