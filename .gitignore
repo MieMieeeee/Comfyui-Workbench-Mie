@@ -42,3 +42,9 @@ app/static/examples/*_run.*
 # spurious diff churn.
 webui.out.log
 webui.err.log
+
+# Local debug/probe scripts (not committed)
+_probe*.py
+_debug*.js
+_debug*.py
+_ui_shots/
