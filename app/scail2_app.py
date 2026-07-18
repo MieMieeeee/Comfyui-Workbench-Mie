@@ -51,7 +51,6 @@ logging.basicConfig(filename=str(_LOG_PATH), level=logging.DEBUG, format="%(asct
 _log = logging.getLogger("scail2_app")
 
 # 跨 tab 状态：历史记录点 "🔄 加载到运行" 需要跳到“运行” tab + 切 preset + 填表单，
-# 这些组件在 build_ui 里创建，build_ui 赋值到这三个模块变量，_build_history_tab 里读取。
 _ALL_INPUTS_FLAT: list = []
 _WF_RADIO_REF = None  # type: ignore[assignment]
 _TABS_REF = None  # type: ignore[assignment]
@@ -66,10 +65,8 @@ _AUTO_LOADED: set = set()
 
 # 历史 tab 行点击查找缓存: key=(preset_filter_raw, status_filter_raw), value=runs 列表。
 # review 2026-07-17 历史卡死修复: 之前历史 Dataframe 没有 df.select 处理器, 点行无反应,
-# 用户感觉"卡死"。现在 refresh 把 runs 存进 cache, _on_history_row_select 按 evt.index
 # 从 cache 查 run, 渲染对应详情卡片。cache 只用于 select 查找; refresh 按钮永远重新
 # 读盘覆盖 cache, 不会跟磁盘长期不同步。
-_HISTORY_RUNS_CACHE: dict[tuple[str, str], list[dict]] = {}
 
 
 def _iter_preset_names():
@@ -1032,181 +1029,6 @@ def run_image_workflow(preset_name, *component_values):
     yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
 
 
-def _run_row(run: dict[str, Any]) -> list[str]:
-    """把一条 manifest 拍平成 Dataframe 一行 (6 列精简版)。
-
-    status 列返回 HTML badge 字符串,Dataframe 会按字符串渲染;其余列保持纯文本。
-    详细字段(参考图 / 驱动视频 / cache / 段数估 / 参数组)放到详情卡片。
-    """
-    status = run.get("status", "unknown")
-    badge = (
-        f"<span class='status-badge status-badge-{status}'>"
-        f"{_status_label(status)}</span>"
-    )
-    prompt = run.get("prompt_text", "") or ""
-    if len(prompt) > 60:
-        prompt = prompt[:60] + "…"
-    return [
-        run.get("created_at", "?")[:19].replace("T", " "),
-        badge,
-        run.get("preset", "?"),
-        f"{run.get('duration_sec', '?')}s",
-        prompt,
-        run.get("prompt_id", "?")[:8],
-    ]
-
-
-def _status_label(status: str) -> str:
-    """把内部状态值翻译成中文短标签(badge 显示用)。"""
-    return {
-        "success": "✓ 成功",
-        "failure": "✗ 失败",
-        "timeout": "⚠ 超时",
-        "running": "● 运行中",
-    }.get(status, status or "未知")
-
-
-def _make_detail_from_run(run: dict[str, Any] | None) -> tuple[str, str, str, str]:
-    """从单条 manifest 构造 detail (summary_html, media_html, json_str, prompt_md)。
-
-    summary_html 是一段结构化 HTML(卡片化展示关键字段),media_html 是输出预览,
-    json_str 是给 gr.JSON 的 manifest 数据:
-      - 有 run: json.dumps(manifest) 的 str (走 orjson.loads 分支)
-      - 无 run: Python dict {} (走 orjson.dumps 分支; "" 会抛
-        "Invalid JSON string: Input is a zero-length, empty document"
-        -> red toast + queue 卡顿. review 2026-07-18)
-    prompt_md 是带代码块包裹的提示词全文(给 "提示词全文" accordion 用)。
-    """
-    empty = (
-        "<div class='detail-empty'>选中一条记录查看详情</div>",
-        "<div class='detail-empty'>—</div>",
-        {},
-        "",
-    )
-    if not run:
-        return empty
-
-    status = run.get("status", "unknown")
-    badge_html = f"<span class='status-badge status-badge-{status}'>{_status_label(status)}</span>"
-
-    media_html = "<div class='detail-empty'>无输出文件</div>"
-    if run.get("output"):
-        view_url = history.make_view_url(
-            run["output"]["filename"],
-            run["output"].get("subfolder", ""),
-            run["output"].get("type", "output"),
-        )
-        # P0-1 follow-up: derive output_kind from preset config. Was a free
-        # variable before (closure); with demo.load firing this at startup,
-        # the latent NameError became visible on every fresh session.
-        preset_name = run.get("preset") or ""
-        try:
-            output_kind = _output_kind(config.preset_config(preset_name)) if preset_name else "video"
-        except Exception:
-            output_kind = "video"  # safe default for unknown preset
-        is_image = output_kind == "image"
-        media_html = _media_to_html(view_url, output_kind)
-
-    # 关键字段卡片(表格被简化后,详情须补上这些)
-    fields = []
-    fields.append(("Preset", run.get("preset", "?")))
-    fields.append(("Prompt ID", f"<code>{run.get('prompt_id', '?')}</code>"))
-    fields.append(("开始", _fmt_time(run.get("created_at"))))
-    fields.append(("结束", _fmt_time(run.get("finished_at"))))
-    fields.append(("耗时", f"{run.get('duration_sec', '?')}s"))
-    fields.append(("Cache hit", "是" if run.get("cache_hit") else "否"))
-
-    preset = run.get("preset", "")
-    if preset == "zimage":
-        sizes = run.get("sizes") or []
-        if sizes:
-            fields.append(("尺寸", " / ".join(str(s) for s in sizes)))
-        seed = run.get("seed")
-        if seed is not None:
-            fields.append(("Seed", str(seed)))
-    else:
-        ref = run.get("reference_image") or "—"
-        drive = run.get("drive_video") or "—"
-        fields.append(("参考图", _truncate(ref, 40)))
-        fields.append(("驱动视频", _truncate(drive, 40)))
-        if run.get("frames_per_segment") is not None:
-            fields.append(("每段帧数", str(run["frames_per_segment"])))
-        if run.get("pre_drop_frames") is not None:
-            fields.append(("段间帧数", str(run["pre_drop_frames"])))
-        if run.get("video_frames") is not None:
-            fields.append(("驱动总帧数", str(run["video_frames"])))
-        if run.get("estimated_segments") is not None:
-            fields.append(("预估段数", str(run["estimated_segments"])))
-
-    if run.get("error"):
-        fields.append(("错误", f"<span class='detail-error'>{_escape(run['error'])}</span>"))
-    if run.get("output"):
-        dl_url = history.make_view_url(
-            run["output"]["filename"],
-            run["output"].get("subfolder", ""),
-            run["output"].get("type", "output"),
-        )
-        fields.append(("输出", f"<a href='{dl_url}' target='_blank'>{run['output']['filename']}</a>"))
-
-    summary_html = _render_summary_html(badge_html, fields, run.get("prompt_text", "") or "")
-    json_str = json.dumps(run, ensure_ascii=False, indent=2)
-    prompt_md = _wrap_prompt_markdown(run.get("prompt_text", "") or "")
-    return summary_html, media_html, json_str, prompt_md
-
-
-def _wrap_prompt_markdown(text):
-    """把提示词包成 markdown 代码块(供 accordion 用)。空文本返空串。"""
-    if not text:
-        return ""
-    return f"```\n{text}\n```"
-
-
-def _fmt_time(iso):
-    """精简 ISO 时间到分钟。空/无效返 "—"。"""
-    if not iso or not isinstance(iso, str):
-        return "—"
-    return iso[:19].replace("T", " ") or "—"
-
-
-def _truncate(text, max_len):
-    if not text:
-        return "—"
-    text = str(text)
-    if len(text) <= max_len:
-        return text
-    return text[:max_len] + "…"
-
-
-def _escape(text):
-    """轻量 HTML 转义(用于用户输入文本场景,避免页面报错)。"""
-    if text is None:
-        return ""
-    s = str(text)
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-
-
-def _render_summary_html(badge_html, fields, prompt):
-    """拼装详情卡片:顶部 badge + 关键字段 + prompt 预览。"""
-    field_rows = "".join(
-        f"<div class='detail-field'><span class='detail-label'>{_escape(k)}</span>"
-        f"<span class='detail-value'>{v}</span></div>"
-        for k, v in fields
-    )
-    prompt_block = ""
-    if prompt:
-        prompt_block = (
-            "<div class='detail-prompt'>"
-            "<div class='detail-label'>提示词</div>"
-            f"<div class='detail-prompt-body'>{_escape(prompt)}</div>"
-            "</div>"
-        )
-    return (
-        "<div class='detail-card'>"
-        f"<div class='detail-header'>{badge_html}</div>"
-        f"<div class='detail-fields'>{field_rows}</div>"
-        f"{prompt_block}"
-        "</div>"
-    )
 
 
 
@@ -1216,254 +1038,7 @@ def _render_summary_html(badge_html, fields, prompt):
 
 
 
-def _refresh_history_dataframe(preset: str, status: str) -> list[list[str]]:
-    """只刷 Dataframe + 填 _HISTORY_RUNS_CACHE。
 
-    返回 list[list[str]] (rows), 单 output, 用于 .change 事件。
-
-    review 2026-07-18 历史卡死根治 (TDD): 从 _refresh_history_filtered 拆出来。
-    原 6-output handler 在 preset_filter.change / status_filter.change 上跑会:
-      a) 重新 list_runs (筛选切换每次都读盘)
-      b) 重渲详情面板 (跟筛选无关, 用户切 preset 时详情不需要变)
-      c) 重跑 _make_detail_from_run (可能很贵)
-    拆完后 .change 只刷 Dataframe, 详情面板保持选中行不变。
-    """
-    p = preset if preset and preset != "全部" else None
-    s_arg = status if status and status != "全部" else None
-    runs = history.list_runs(preset=p, status=s_arg)
-    # cache 用 raw 筛选值 (select handler 从 Gradio 收到的就是 raw 值)
-    _HISTORY_RUNS_CACHE[(preset or "全部", status or "全部")] = runs
-    return [_run_row(r) for r in runs]
-
-
-def _refresh_history_details(preset: str, status: str) -> tuple[str, str, str, str, str]:
-    """只刷详情面板 (5 output: summary_html, media_html, json_str, prompt_md, count_label)。
-
-    从 _HISTORY_RUNS_CACHE 读, 不重新 list_runs。
-    关键不变量: 跟 _refresh_history_dataframe 写的 cache 配对使用 —— 后者写、
-    前者读, 不出现 "df 写 cache 用 5 条, details 从盘读 100 条" 的竞态。
-    """
-    runs = _HISTORY_RUNS_CACHE.get((preset or "全部", status or "全部"), [])
-    summary_html, media_html, json_str, prompt_md = _make_detail_from_run(runs[0] if runs else None)
-    count_label = f"共 {len(runs)} 条"
-    return summary_html, media_html, json_str, prompt_md, count_label
-
-
-def _refresh_history_filtered(preset: str, status: str) -> tuple[list[list[str]], str, str, str, str, str]:
-    """组合刷新: df + 详情 + count_label 一次性原子更新。
-
-    返回: (rows, summary_html, media_html, json_str, prompt_md, count_label)
-
-    用于 tab.select / refresh_btn.click (用户主动刷新, 需要 6 个 output 同步)。
-
-    review 2026-07-18: 内部委托给 _refresh_history_dataframe + _refresh_history_details。
-    保留这个组合 handler 是为了 .change 之外的入口 (tab.select, refresh_btn) 能保证
-    df 写入和详情写入是同一个 event (避免 df 新了但详情还显示旧 cache 的中间态)。
-    """
-    rows = _refresh_history_dataframe(preset, status)
-    return (rows, *_refresh_history_details(preset, status))
-
-def _on_history_row_select(evt: gr.SelectData, preset: str, status: str):
-    """行点击 → 详情卡片。从 _HISTORY_RUNS_CACHE 按 evt.index 查 run。
-
-    review 2026-07-17 历史卡死修复: 之前没有这个 handler, 点 Dataframe 行无反应。
-    evt: gr.SelectData —— 必须显式类型注解, Gradio 6 据此自动注入事件数据 (含 .index)。
-    没注解的话 Gradio 当普通参数, 不注入 evt, 会报 "Expected 3 arguments, received 2"。
-
-    cache 存了当前筛选的 runs (排好序的), evt.index 是 Gradio 给的行号 (0-based),
-    直接 runs[idx] 渲染详情。边界 (idx 越界 / cache miss) 返回空占位, 不崩。
-
-    返回: (summary_html, media_html, json_str, prompt_md) —— 4 个详情输出。
-    """
-    empty = (
-        "<div class='detail-empty'>选中一条记录查看详情</div>",
-        "<div class='detail-empty'>—</div>",
-        {},
-        "",
-    )
-    key = (preset or "全部", status or "全部")
-    runs = _HISTORY_RUNS_CACHE.get(key)
-    if not runs:
-        return empty
-    # evt.index 对一维 Dataframe 是 int; 防御 tuple (理论上不会, 但 isinstance 兜底)
-    idx = getattr(evt, "index", None)
-    if isinstance(idx, tuple):
-        idx = idx[0]
-    if not isinstance(idx, int) or idx < 0 or idx >= len(runs):
-        return empty
-    return _make_detail_from_run(runs[idx])
-
-
-def _build_history_tab(demo, tab=None):
-    """历史记录 tab:左 Dataframe + 右详情卡片的两栏布局。
-
-    tab (optional): 外层 gr.Tab 对象。传了会在它的 .select 事件上绑刷新 ——
-    因为 Gradio 6 对非活动 tab 懒渲染, demo.load 触发时 Dataframe 还不在 DOM,
-    必须等用户点开 tab 才能真正写入数据 (review 2026-07-17 历史卡死修复)。
-
-    表格列从 10 列精简到 6 列(时间 / 状态 badge / preset / 耗时 / prompt / id),
-    详细字段(参考图 / 驱动视频 / cache / 段数估 / 参数组 / 输出文件)挪到右侧详情
-    卡片。详情默认展示 badge + 关键字段 + 提示词摘要,提示词全文与原始 manifest
-    折叠收起;rerun 按钮始终可见,直接把 manifest 喂回运行表单。
-    """
-    gr.Markdown("## 历史记录")
-    gr.Markdown(
-        f"manifest 目录 `{config.RUNS_DIR}`。切换过滤条件或点「🔃 刷新」重新读取。"
-    )
-
-    workflows = config.list_workflows()
-    preset_options = [("全部", "全部")] + [(w["display_name"], w["name"]) for w in workflows]
-    status_options = [
-        ("全部", "全部"),
-        ("成功", "success"),
-        ("失败", "failure"),
-        ("超时", "timeout"),
-    ]
-
-    # 筛选条:Preset 下拉 + 状态 pills + 结果数 + 刷新,挤在一行
-    with gr.Row(elem_classes=["history-filter-bar"]):
-        preset_filter = gr.Dropdown(
-            choices=preset_options, value="全部", label="Preset",
-            scale=3, elem_classes=["history-filter-preset"],
-        )
-        status_filter = gr.Radio(
-            choices=status_options, value="全部", label="状态",
-            scale=4, elem_classes=["history-filter-status", "custom-pills"],
-        )
-        count_label = gr.Markdown(
-            value="共 0 条", elem_classes=["history-count"],
-        )
-        refresh_btn = gr.Button("🔃 刷新", variant="secondary", scale=1)
-
-    # 两栏:左 7 Dataframe / 右 5 详情
-    with gr.Row():
-        with gr.Column(scale=7, elem_classes=["history-list-col"]):
-            df = gr.Dataframe(
-                headers=["时间", "状态", "preset", "耗时", "prompt", "id"],
-                # 第 2 列 (状态) 用 html 渲染,让 _run_row 返回的 badge 标签生效
-                # (Gradio 6 默认把 HTML 当字符串 escape)
-                datatype=["str", "html", "str", "str", "str", "str"],
-                # 列宽按内容优先级: prompt 摘要最宽,id 最窄
-                column_widths=["17%", "11%", "14%", "9%", "37%", "12%"],
-                interactive=False, wrap=True,
-                elem_classes=["custom-dataframe"],
-            )
-        with gr.Column(scale=5, elem_classes=["history-detail-col"]):
-            detail_summary = gr.HTML(
-                value="<div class='detail-empty'>选中一条记录查看详情</div>",
-                elem_classes=["detail-summary-wrap"],
-            )
-            detail_media = gr.HTML(
-                value="<div class='detail-empty'>—</div>",
-                label="输出预览",
-            )
-            with gr.Accordion(
-                "📝 提示词全文", open=False, elem_classes=["custom-accordion"]
-            ):
-                detail_prompt_md = gr.Markdown(value="")
-            # 隐藏 manifest JSON 组件,专门给 rerun 用 (Gradio JSON 自动反序列化)
-            detail_manifest = gr.JSON(value={}, visible=False)
-            rerun_btn = gr.Button(
-                "🔁 加载到运行", variant="primary",
-                elem_classes=["btn-run-primary"],
-            )
-
-    # === 事件架构 (review 2026-07-18 TDD 重构) ===
-    # outputs 拆成两组:
-    #   - df_outputs: 仅 Dataframe (1 个) — .change 用 df-only handler, 不重渲详情。
-    #   - detail_outputs: 详情面板 + count_label (5 个) — 行点击用。
-    #   - event_outputs: df + 详情 + count_label (6 个) — tab.select / refresh_btn 用,
-    #     保证 df 写入和详情写入是同一 event (不出现 df 新但详情旧的中间态)。
-    df_outputs = [df]
-    detail_outputs = [detail_summary, detail_media, detail_manifest, detail_prompt_md]
-    event_outputs = [df, detail_summary, detail_media, detail_manifest, detail_prompt_md, count_label]
-    event_inputs = [preset_filter, status_filter]
-    # 1) 手动刷新按钮: 全量刷 (df + 详情 + count)
-    refresh_btn.click(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
-    # 2) preset/status .change: 只刷 Dataframe, 详情面板保持选中行不变。
-    #    concurrency_limit=1 防快速切换排队全量重建 (review 2026-07-18: 之前 demo.load 跟这俩
-    #    在 page-load 时同入队, concurrency_limit=1 互相阻塞 → 卡死; 现在 demo.load 已删,
-    #    限制 1 只影响两个 .change 互相竞争, 安全)。
-    preset_filter.change(
-        fn=_refresh_history_dataframe, inputs=event_inputs, outputs=df_outputs,
-        concurrency_limit=1,
-    )
-    status_filter.change(
-        fn=_refresh_history_dataframe, inputs=event_inputs, outputs=df_outputs,
-        concurrency_limit=1,
-    )
-    # 3) demo.load: 不绑! Gradio 6 对非活动 tab 懒渲染, demo.load 触发时 Dataframe 还不在
-    #    DOM, 写入被丢。真正的写入时机是 tab.select (用户点开 tab 时)。
-    #    (review 2026-07-17 留 demo.load 想当 fallback, 实际从未生效, 删掉省 list_runs 一次。)
-    # 4) tab.select: 用户点开 tab 触发全量刷 (df + 详情 + count), 此时 Dataframe 已在 DOM,
-    #    写入能真正落到前端。
-    if tab is not None:
-        tab.select(fn=_refresh_history_filtered, inputs=event_inputs, outputs=event_outputs)
-
-    # review 2026-07-17 历史卡死修复 (核心): 行点击 → 详情。
-    # 之前没有 df.select, 点行什么都不发生, 用户感觉"卡死"。现在 _on_history_row_select
-    # 从 _HISTORY_RUNS_CACHE 按 evt.index 查 run, 渲染对应详情卡片。
-    detail_outputs = [detail_summary, detail_media, detail_manifest, detail_prompt_md]
-    df.select(fn=_on_history_row_select, inputs=event_inputs, outputs=detail_outputs)
-
-    # Rerun: 从历史记录加载到运行表单。点击后会:
-    #   1. 切到"运行" tab (JS 前置器)
-    #   2. 选中该 manifest 对应的 preset (会触发 wf_radio.change, 该 change 会调
-    #      example_to_form_values, 但我们随后在 .then() 里用 manifest 覆盖默认值)
-    #   3. 用 manifest 里的 prompt/sizes/seed/file 填表单
-    def _stage_rerun(manifest):
-        """Step 1: 选 preset + 跳过下次自动填表单。返回 manifest 给下一步。
-        Tab 切换由 JS 前置器处理(gr.update(selected=...) 对 Tabs 不生效)。"""
-        if not manifest:
-            return gr.update(), gr.update()
-        preset = manifest.get("preset") or "zimage"
-        # 加载到 _AUTO_LOADED, 下次 wf_radio.change 不会用 example 覆盖 manifest 填进的值
-        _AUTO_LOADED.add(preset)
-        return gr.update(value=preset), gr.update(value=manifest)
-
-    def _fill_from_manifest(preset_name, manifest):
-        """Step 2: 用 manifest 填表单。在 wf_radio.change 之后跑,覆盖 example 自动填。"""
-        if not preset_name or not manifest:
-            return [gr.update() for _ in _ALL_INPUTS_FLAT]
-        target_values = _manifest_to_form_values(preset_name, manifest)
-        result = []
-        for name in _iter_preset_names():
-            try:
-                cfg = config.preset_config(name)
-                n = len(cfg["user_facing_inputs"])
-            except Exception:
-                n = 0
-            if name == preset_name:
-                if len(target_values) < n:
-                    target_values = target_values + [None] * (n - len(target_values))
-                result.extend(target_values[:n])
-            else:
-                result.extend([gr.update() for _ in range(n)])
-        return result
-
-    if _TABS_REF is not None and _WF_RADIO_REF is not None and _ALL_INPUTS_FLAT:
-        _rerun_js = """
-(manifest) => {
-  if (!manifest) return null;
-  const tabs = document.querySelectorAll('button[role="tab"]');
-  if (tabs && tabs.length > 0 && tabs[0]) tabs[0].click();
-  return null;
-}
-"""
-        rerun_btn.click(
-            fn=_stage_rerun,
-            inputs=[detail_manifest],
-            outputs=[_WF_RADIO_REF, detail_manifest],
-            js=_rerun_js,
-        ).then(
-            fn=_fill_from_manifest,
-            inputs=[_WF_RADIO_REF, detail_manifest],
-            outputs=_ALL_INPUTS_FLAT,
-        )
-    else:
-        _log.warning("history rerun btn disabled: build_ui not yet wired (refs None)")
-
-    return df, detail_manifest, detail_summary, detail_media, refresh_btn, rerun_btn
 
 
 
@@ -1962,6 +1537,30 @@ def _comfy_status_text() -> str:
         ok = False
     dot = chr(0x1F7E2) if ok else chr(0x1F534)  # 绿色 / 红色圆点
     return f"ComfyUI: {dot} `{scail2_client.get_base_url()}`"
+
+
+def _open_comfy_output_dir() -> str:
+    """Open the ComfyUI output directory in the OS file explorer.
+
+    Returns a status string describing the result (suitable for display
+    in the workflow sidebar). The button replaces the removed history tab
+    (2026-07-18 redesign) as the way to find generated files.
+
+    Behavior:
+      - config.COMFY_OUTPUT_DIR exists: opens it via os.startfile
+        (server-side call, only effective when WebUI is launched locally --
+        which is the supported deployment per project AGENTS.md).
+      - directory missing: returns an error message; does NOT call
+        os.startfile (avoids FileNotFoundError / Windows error dialog).
+    """
+    path = config.COMFY_OUTPUT_DIR
+    if not path.exists():
+        return '❌ 输出目录不存在： ' + str(path)
+    try:
+        _os.startfile(str(path))
+    except Exception as e:
+        return '❌ 打开输出目录失败： ' + str(e)
+    return '✅ 已在文件管理器中打开： ' + str(path)
 
 
 _CATEGORY_ICON = {"video": chr(0x1F3AC), "image": chr(0x1F5BC) + chr(0xFE0F),
@@ -2737,6 +2336,14 @@ def build_ui():
                                 fn=_comfy_status_text,
                                 outputs=[comfy_status],
                             )
+                            open_output_btn = gr.Button(
+                                '📁 打开输出文件夹', size='sm',
+                            )
+                            open_output_btn.click(
+                                fn=_open_comfy_output_dir,
+                                outputs=[comfy_status],
+                            )
+
 
                     # ============ RIGHT COLUMN ============
                     with gr.Column(scale=4, elem_classes=["preset-panels-host"]):
@@ -2807,16 +2414,6 @@ def build_ui():
                             f"</small>",
                             elem_classes=["footer-notice"],
                         )
-
-            # review 2026-07-17 历史卡死修复 (E2E 复现根因):
-            # Gradio 6 对非活动 tab 内容懒渲染 —— 页面加载时"历史记录" tab 不可见,
-            # _build_history_tab 里的 Dataframe 根本不在 DOM 里。demo.load 触发
-            # _refresh_history_filtered 返回 61 行, 但目标组件不存在 → 更新被丢弃,
-            # 用户点开历史记录 tab 后 Dataframe 是空的 → 感觉"卡死"。
-            # 修法: history_tab.select 事件绑刷新 —— 用户点开 tab 时 Dataframe 已在 DOM,
-            # 这时刷新才能真正写入。demo.load 保留作 fallback (Gradio 未来可能修懒渲染)。
-            with gr.Tab("历史记录") as history_tab:
-                _build_history_tab(demo, tab=history_tab)
 
             with gr.Tab("系统设置"):
                 _build_settings_tab(theme_injector)

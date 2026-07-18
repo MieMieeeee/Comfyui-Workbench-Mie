@@ -415,13 +415,6 @@ def test_wf_radio_has_custom_radio_class():
     assert radios, "wf_radio 缺 elem_classes=['custom-radio']"
 
 
-def test_history_dataframe_has_custom_dataframe_class():
-    """历史记录 tab 的 Dataframe 带 .custom-dataframe。"""
-    with gr.Blocks() as demo:
-        scail2_app._build_history_tab(demo)
-    dfs = _by_class(demo, "custom-dataframe")
-    assert dfs, "历史记录 Dataframe 缺 .custom-dataframe"
-
 
 # ============ E. 主题注入器契约 ============
 

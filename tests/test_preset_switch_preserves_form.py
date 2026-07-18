@@ -156,19 +156,6 @@ def test_last_btn_click_marks_preset_as_loaded():
     )
 
 
-def test_stage_rerun_marks_preset_as_loaded():
-    import inspect
-    src = inspect.getsource(scail2_app)
-    idx = src.index("def _stage_rerun(")
-    end = src.index("def _fill_from_manifest(", idx)
-    block = src[idx:end]
-    assert "_AUTO_LOADED.add(preset)" in block, (
-        "_stage_rerun should add to _AUTO_LOADED, got: " + repr(block)
-    )
-    assert "_SKIP_AUTO_LOAD" not in block, (
-        "_stage_rerun should not reference _SKIP_AUTO_LOAD anymore"
-    )
-
 
 # ---------- boundaries ----------
 
