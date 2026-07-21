@@ -185,12 +185,19 @@ Jinja2 macro 替代 `_build_input_component` / `_create_one_input`:
 - [x] **步骤 6**: 切换 main 入口到 `flask_app` ✅ (合并到步骤 6+7)
   - `app/flask_app.py` 加 `if __name__ == "__main__"` 启动逻辑
   - `start_webui.bat` 改为调 `flask_app` (默认), `WEBUI_BACKEND=gradio` 可回退
-- [~] **步骤 7**: 下线 Gradio ⚠️ **部分完成**
-  - `requirements.txt`: 加 `flask>=3.0` ✅, `gradio>=6.0` 暂留 (services/runner.py 复用 run_workflow)
-  - 删 `app/scail2_app.py`: **暂不删** — services/runner.py 仍依赖它 (run_workflow / run_image_workflow 带 gr.Progress 编排逻辑)
-  - Gradio 测试归档: 暂不归档 (Gradio 版仍可跑, WEBUI_BACKEND=gradio)
-  - **后续工作**: 重写 run_workflow/run_image_workflow 剥离 gradio 依赖 (改 gr.Progress 为 no-op, gr.Error 为 raise), 搬到 services/runner.py, 然后才能彻底删 scail2_app.py + 归档 Gradio 测试
-- [ ] **步骤 8**(可选): CSS 瘦身 — 留作后续
+- [x] **步骤 7**: 下线 Gradio ✅ **彻底完成**
+  - services/runner.py 重写: run_workflow/run_image_workflow 500 行编排逻辑搬入, 剥离 gradio 依赖
+    (gr.Progress() -> _NoProgress no-op; gr.Error(msg) -> raise _RunError)
+  - 删 `app/scail2_app.py` ✅
+  - `requirements.txt`: 去掉 `gradio>=6.0` ✅, 加 `flask>=3.0` ✅
+  - Gradio 测试归档到 `tests/_archive_gradio/` (31 个 Gradio 测试 + 5 个 e2e/integration) ✅
+  - pytest.ini 新建, norecursedirs = _archive_gradio
+- [x] **步骤 8**: CSS 瘦身 ✅ **首轮完成** (-87 行)
+  - 删 :root.dark{} 块 (Gradio 主题变量覆盖, 34 处 --block-*/--button-*/--checkbox-* 等)
+  - 删 .gradio-container label.container > span (Gradio label 兜底)
+  - 删 .gradio-container button.primary/.secondary (Gradio variant 兜底)
+  - tokens.css: 1436 -> 1349 行
+  - 注: 完全清掉剩余 .gradio-container 前缀留作后续 (风险高, 需逐个评估)
 
 ## 风险与缓解
 
@@ -244,3 +251,23 @@ Jinja2 macro 替代 `_build_input_component` / `_create_one_input`:
 4. requirements.txt 去 gradio>=6.0
 5. 归档 Gradio 测试到 tests/_archive_gradio/
 6. 跑全量回归确认 0 失败
+
+### 2026-07-21 步骤 7 彻底完成 + 步骤 8 首轮完成
+- **步骤 7 彻底完成** (commit `...`):
+  - services/runner.py 重写, 自包含 run_workflow / run_image_workflow 编排逻辑 (无 gradio 依赖)
+  - 删 app/scail2_app.py
+  - requirements.txt 去 gradio>=6.0
+  - 31 个 Gradio 测试 + 5 个 e2e/integration 归档到 tests/_archive_gradio/
+  - pytest.ini 新建 (norecursedirs = _archive_gradio)
+  - 回归: 125 passed / 0 failed (新基线)
+- **步骤 8 首轮完成** (commit `bc8b134`):
+  - tokens.css 删 3 块 Gradio 专用 (-87 行)
+  - 完全清掉 .gradio-container 前缀留作后续
+
+### 迁移最终状态 (2026-07-21)
+✅ **所有步骤完成 (1-8)**. Gradio 彻底下线. Flask + Alpine + SSE 全面接管.
+- 9 commit 在 migrate-to-flask 分支
+- 125 passed / 0 failed (框架无关测试 + 26 flask 路由)
+- start_webui.bat 默认启 Flask
+- requirements.txt: flask>=3.0 (无 gradio)
+- tokens.css: 1436 -> 1349 行 (首轮瘦身)
