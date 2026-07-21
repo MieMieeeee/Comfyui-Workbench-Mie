@@ -89,7 +89,14 @@ echo.
 REM 启动后延迟打开浏览器
 start "" cmd /c "timeout /t 4 /nobreak >nul && start http://%DISPLAY_HOST%:%GRADIO_PORT%"
 
-%PYCMD% app\scail2_app.py
+REM [migrate-to-flask 2026-07-21] 默认启动 Flask 版 (步骤 6).
+REM 想用 Gradio 版: set WEBUI_BACKEND=gradio
+if "%WEBUI_BACKEND%"=="gradio" (
+    %PYCMD% app\scail2_app.py
+) else (
+    set "FLASK_PORT=%GRADIO_PORT%"
+    %PYCMD% -m app.flask_app
+)
 if errorlevel 1 (
     echo.
     echo [错误] Gradio 启动失败。查看上方 preflight 输出或 app\data\gradio_run.log。

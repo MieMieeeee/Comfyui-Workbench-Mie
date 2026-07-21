@@ -12,10 +12,9 @@
   <style id="theme-injector">{{ theme_css_content | safe }}</style>
   <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
 
-  <!-- Alpine.js (本地, 无 build step, 离线可用) -->
-  <script defer src="{{ url_for('static', filename='alpine.min.js') }}"></script>
-  <!-- app.js: Alpine 组件 + 主题切换 helper -->
+  <!-- app.js 必须先加载, 再加载 Alpine (Alpine 启动时需要 appShell/runTab/settingsTab 已定义) -->
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='alpine.min.js') }}"></script>
 </head>
 <body x-data="appShell()" x-init="init()" :class="{ 'theme-pending': pending }">
   <!-- 应用头部 -->
@@ -29,7 +28,7 @@
        :class="{ active: currentTab === 'run' }">▶ 运行</a>
     <a href="{{ url_for('settings_page') }}"
        :class="{ active: currentTab === 'settings' }">⚙️ 系统设置</a>
-    <span class="nav-status" x-show="comfyStatus" x-html="comfyStatusHtml"></span>
+    <span class="nav-status" x-show="comfyStatusHtml" x-html="comfyStatusHtml"></span>
   </nav>
 
   <!-- 主内容区 (子模板填充) -->
