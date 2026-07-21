@@ -159,69 +159,11 @@ body {
     calc(var(--space-5) + env(safe-area-inset-left)) !important;
 }
 
-/* block-label 兜底软杀——`:root.dark{}` 块的 `--block-label-background-fill` 已设为 transparent,
- * 但 Gradio 6 内部某些路径仍可能给 label/fieldset 直接套上 orange-100, 这里 class 选择器再洗一遍。
- * 命中任何 LABEL/FORM/FIELDSET/SECTION 内的"文字标签"色块都强制透明。
- */
-.gradio-container label.container > span,
-.gradio-container fieldset.block > span,
-.gradio-container .block > * > span:first-child {
-  background-color: transparent !important;
-  background: transparent !important;
-  border-color: transparent !important;
-}
+/* [步骤 8 CSS 瘦身 2026-07-21] 原 Gradio label 容器覆盖块已删除 (Flask 不需要). */
 
-:root,
-:root.dark,
-:root .dark,
-body.dark {
-  --body-background-fill: var(--bg-app);
-  --block-background-fill: var(--bg-card);
-  --border-color-primary: var(--border-default);
-  --block-border-color: var(--border-default);
-  --block-radius: var(--radius-lg);
-  --layout-gap: var(--space-4);
-  --block-label-background-fill: transparent;
-  --block-label-border-color: transparent;
-  --block-label-text-color: var(--text-secondary);
-  --block-title-text-color: var(--text-primary);
-
-  /* === Gradio 原生 primary 按钮 ===
-   * Gradio Soft 主题把 --button-primary-background-fill 锁成 primary_hue=orange,
-   * dark 下再走到 *primary_600 = #ea580c。这里把 fill/hover/text/border
-   * 全部挂到 --theme-accent-*,切主题/切色调时跟着变。 */
-  --button-primary-background-fill: var(--theme-accent-500);
-  --button-primary-background-fill-hover: var(--theme-accent-400);
-  --button-primary-background-fill-hover-dark: var(--theme-accent-400);
-  --button-primary-text-color: var(--text-on-accent);
-  --button-primary-text-color-hover: var(--text-on-accent);
-  --button-primary-border-color: var(--theme-accent-600);
-
-  /* === Gradio 原生 secondary 按钮 ===
-   * 默认 *neutral_50 在 dark 下仍是纯白块,跟暗背景违和。
-   * 覆盖为 --bg-card / --bg-card-hover。 */
-  --button-secondary-background-fill: var(--bg-card);
-  --button-secondary-background-fill-hover: var(--bg-card-hover);
-  --button-secondary-text-color: var(--text-secondary);
-  --button-secondary-text-color-hover: var(--text-primary);
-  --button-secondary-border-color: var(--border-default);
-  --button-secondary-border-color-hover: var(--border-strong);
-
-  /* === Checkbox 选中态 === 选中色 / 边框 / 高亮背景跟随主题色。 */
-  --checkbox-background-color-selected: var(--theme-accent-500);
-  --checkbox-background-color-selected-hover: var(--theme-accent-400);
-  --checkbox-border-color-selected: var(--theme-accent-500);
-  --checkbox-border-color-selected-hover: var(--theme-accent-400);
-  --checkbox-label-background-fill-selected: var(--theme-accent-glow);
-  --checkbox-label-text-color-selected: var(--text-primary);
-  --checkbox-checkmark-color: var(--text-on-accent);
-
-  /* === Radio / Slider / 通用 accent === */
-  --radio-color: var(--theme-accent-500);
-  --slider-color: var(--theme-accent-500);
-  --color-accent: var(--theme-accent-500);
-  --color-accent-soft: var(--theme-accent-300);
-}
+/* [步骤 8 CSS 瘦身 2026-07-21] 原 :root.dark 块 (Gradio 主题变量覆盖) 已删除.
+ * Flask 版不用 Gradio 主题层, 直接消费 --bg-* / --theme-* / --text-* 等原始变量.
+ * 保留 :root 顶部的 color-scheme + theme 变量, 见文件开头. */
 
 /* ============================================================
  * .btn-run-primary —— 主运行按钮 (🚀 开始运行 / 🔁 用相同参数再来)
@@ -338,38 +280,9 @@ body.dark {
   cursor: not-allowed !important;
 }
 
-/* ============================================================
- * .primary / .secondary class 直接覆盖 —— 给纯 variant 按钮兜底
- * ============================================================
- * 上面 :root.dark{} 块已经把 --button-primary-background-fill 等全部
- * 挂到 --theme-accent-*,但万一 Gradio 6.x 改内部变量名 / 链路径,这里再
- * 加一道 class 级 !important 兜底,只覆盖 background/color/border-color
- * 三属性,不碰 padding/font 这些已被 btn-run-primary/btn-secondary-override
- * 管过的。
- */
-.gradio-container button.primary,
-.gradio-container .primary {
-  background: var(--theme-accent-500) !important;
-  color: var(--text-on-accent) !important;
-  border-color: var(--theme-accent-600) !important;
-}
-.gradio-container button.primary:hover,
-.gradio-container .primary:hover {
-  background: var(--theme-accent-400) !important;
-  color: var(--text-on-accent) !important;
-}
-.gradio-container button.secondary,
-.gradio-container .secondary {
-  background: var(--bg-card) !important;
-  color: var(--text-secondary) !important;
-  border-color: var(--border-default) !important;
-}
-.gradio-container button.secondary:hover,
-.gradio-container .secondary:hover {
-  background: var(--bg-card-hover) !important;
-  color: var(--text-primary) !important;
-  border-color: var(--border-strong) !important;
-}
+/* [步骤 8 CSS 瘦身 2026-07-21] 原 .gradio-container button.primary/.secondary
+ * 兜底块 (Gradio button variant 覆盖) 已删除. Flask 版 button 用 .btn-run-primary
+ * / .btn-secondary 类, 不走 Gradio variant. */
 
 /* ============================================================
  * .btn-run-primary.is-running —— 运行中视觉状态
