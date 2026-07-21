@@ -850,21 +850,95 @@ body.dark {
   flex-shrink: 0;
 }
 
-/* P0/P2/P3 真实 step 进度的百分比胶囊 (review 2026-07-17 进度显示)。
- * 跟 .run-status-elapsed 同风格 (mono / 小字号 / flex-shrink), 但用主题色
- * 边框 + 半透明填充, 让"还差多少"一眼可见。只有有真实 step 时才渲染
- * (_render_status_html progress_str 为空就不出这个 span)。
- * 位置: 单行 flex 最右侧, 在 elapsed 之后 (布局: icon · label · msg · elapsed · progress)。 */
-.run-status-progress {
+/* review 2026-07-21 进度区域重构: task 清单取代百分比胶囊。
+ * 之前 P0/P2/P3 在这里渲服 ‘’60%’ 胶囊 —— 那跟 gr.Progress 在作品预览那条
+ * 进度条上已经显示过的信息, 重复。改成 task 清单: 每个 task 一行 (icon · text · detail),
+ * 跟 .run-status-elapsed 同套颜变量 (主题色高亮), 让用户能看清
+ * ‘现在做哪一步 / 前面几步完成没’, 进度条归作品预览独占。
+ * 位置: header (icon · label) + elapsed 在第一行, task_list 全宽换到第二行;
+ * hint 仍走 flex-basis:100% 换第三行。 */
+.run-status-tasks {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.run-status-task {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  min-height: 22px;
+}
+.run-status-task-icon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--text-faint);
+}
+.run-status-task-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.run-status-task-detail {
+  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--theme-accent-300);
-  padding: 2px var(--space-2);
-  background: var(--theme-accent-glow);
-  border: 1px solid var(--theme-accent-500);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  font-weight: 600;
+  padding-left: var(--space-1);
+}
+/* done: 文本 + 图标及色 (完成感, 不抢当前任务视觉) */
+.run-status-task-done .run-status-task-text {
+  color: var(--text-faint);
+}
+.run-status-task-done .run-status-task-icon {
+  color: var(--color-success);
+  opacity: 0.7;
+}
+.run-status-task-done .run-status-task-detail {
+  color: var(--text-faint);
+  opacity: 0.7;
+}
+/* current: 主任务高亮 + 图标旋转, 让“正在做这一步”一眼可见 */
+.run-status-task-current .run-status-task-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.run-status-task-current .run-status-task-icon {
+  color: var(--theme-accent-400);
+  animation: run-status-spin 1.4s linear infinite;
+  display: inline-block;
+}
+.run-status-task-current .run-status-task-detail {
+  color: var(--theme-accent-300);
+}
+/* pending: 还没到的任务, 最暗 */
+.run-status-task-pending .run-status-task-text {
+  color: var(--text-faint);
+  opacity: 0.6;
+}
+.run-status-task-pending .run-status-task-icon {
+  opacity: 0.6;
+}
+/* failed: 错误色, 跟 .run-status-failure 状态条左边框同色 */
+.run-status-task-failed .run-status-task-text {
+  color: var(--color-error);
+}
+.run-status-task-failed .run-status-task-icon {
+  color: var(--color-error);
+}
+.run-status-task-failed .run-status-task-detail {
+  color: var(--color-error);
+  opacity: 0.8;
 }
 
 /* idle */

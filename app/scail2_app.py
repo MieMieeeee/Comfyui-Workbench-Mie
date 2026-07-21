@@ -552,6 +552,41 @@ def _extract_step_progress(status_msg: str) -> tuple[int, int] | None:
             return (v, mx)
     return None
 
+# review 2026-07-21 ��递首区域重构:
+# 把 _yield_run_stream yield 的 status_msg 拆成 (action, phase_text, detail),
+# _run_and_format 用它累积 task_list 喂给 _render_status_html
+# (不再叠 60% 胶囊, 改成 task 清单, gr.Progress 单独管进度条)。
+#
+# 规则:
+#   ⏳ MM:SS  ...    -> live_update (wait_for_completion 长轮询, 只更新当前 task detail)
+#   ⏳ <其它>         -> new_task    (phase_text 是阶段名)
+#   ✅                -> task_done   (当前 task 标 done, run 也成功结束)
+#   ❌                -> task_failed (当前 task 标 failed)
+#   ⏰                -> task_timeout
+_LIVE_RE = _re.compile(rf"^{chr(0x23F3)}\s+\d{{2}}:\d{{2}}\s")
+
+
+def _phase_from_status(status_msg):
+    if not status_msg:
+        return ("idle", "", "")
+    if status_msg.startswith(chr(0x2705)):
+        return ("task_done", "", "")
+    if status_msg.startswith(chr(0x274C)):
+        return ("task_failed", "", "")
+    if status_msg.startswith(chr(0x23F0)):
+        return ("task_timeout", "", "")
+    if status_msg.startswith(chr(0x23F3)):
+        if _LIVE_RE.match(status_msg):
+            detail = status_msg[len(chr(0x23F3)):].strip()
+            if len(detail) > 50:
+                detail = detail[:50] + chr(0x2026)
+            return ("live_update", "", detail)
+        text = status_msg[len(chr(0x23F3)):].strip()
+        if len(text) > 50:
+            text = text[:50] + chr(0x2026)
+        return ("new_task", text, "")
+    return ("idle", "", "")
+
 
 def run_workflow(preset_name, *component_values):
     """运行指定 preset 的 workflow。preset_name 决定走哪个模板。
@@ -1233,44 +1268,109 @@ def _now_ts():
     return time.monotonic()
 
 
-def _render_status_html(state, msg, elapsed_str='', progress_str=''):
-    """生成 run-status-bar 的 HTML 内容,根据运行状态切视觉。
+def _failure_hint(msg):
+    """Phase 5: 失败/超时时给出具体下一步建议, 而不是只把错误翻给用户。
 
-    state ∈ {idle, running, success, failure, timeout}: 决定颜色 + 图标。
-    elapsed_str: 已耗时字符串(例如 '00:42'),只在 running 时显示。
-    progress_str: step 百分比字符串(例如 '60%'),P0/P2/P3 接真实 step 后才有值;
-        空串/不传 -> 不渲染胶囊(向后兼容锁, 现有调用方不传)。
-    review P2 副标题 2: 让'运行中'成为全局主状态, 状态感更强。
-    review 2026-07-17 进度显示: progress_str 让状态条跟 gr.Progress 同步显示真实百分比。
+    按 AGENTS.md 的 Failure-investigation priority (用户输入 → ComfyUI 进程 → 资源 → 工作流),
+    根据错误关键词推断最可能的下一步。返回 HTML 行 (空串 = 无匹配建议)。
+    """
+    if not msg:
+        return ''
+    low = msg.lower()
+    # 关键词 → 建议. 顺序按“最常见 → 最不可能”排列。
+    if 'upload' in low or '上传' in msg or 'input dir' in low or 'cannot move' in low:
+        return '下一步: 检查文件路径是否含特殊字符 / ComfyUI 的 input 目录是否可写。'
+    if 'queue' in low or '入队' in msg or 'connection' in low or 'connect' in low or 'refused' in low:
+        return '下一步: 确认 ComfyUI 已启动 (设置 tab 顶部状态灯),端口未被占用。'
+    if 'timeout' in low or '超时' in msg or 'timed out' in low:
+        return '下一步: 通常是显存/磁盘不足或模型加载慢, 可缩小尺经 / 段数后重试。'
+    if 'patch' in low or 'workflow' in low or 'node' in low or 'validator' in low:
+        return '下一步: workflow JSON 与 params.json 不一致, 检查最近是否手动改过 preset 配置。'
+    if 'cuda' in low or 'out of memory' in low or 'vram' in low or 'memory' in low:
+        return '下一步: 显存不足, 缩小输出尺经 / 段数, 或关闭其他占用 GPU 的程序。'
+    if 'file' in low and ('too large' in low or 'size' in low or 'big' in low):
+        return '下一步: 文件过大, 参考图 ≤5MB / 驱动视频 ≤200MB, 压缩后重试。'
+    return ''
+
+
+def _render_status_html(state, msg='', elapsed_str='', task_list=None):
+    """
+    state in {idle, running, success, failure, timeout}: 决定颜色 + 图标。
+    elapsed_str: 已耗时字符串(例如 ‘00:42’),使用在 running/最终态。
+    task_list: list[dict],每个 dict = {text, status, detail};
+        status in {‘done’, ‘current’, ‘pending’, ‘failed’}。
+        传了 -> 渲服成 checklist, 主区域不再依赖 msg。
+        不传 -> 退回到旧版单条 msg (idle / 初始化路径)。
+    msg: 最新一条 status_msg (含 emoji 前缀)。task_list 渲服时主区域不用 msg,
+        但 failure/timeout 时仍传给 _failure_hint 查具体下一步建议。
+
+    review 2026-07-21 进度区域重构:
+        不再渲服 ‘’60%’ 百分比胶囊 —— 那是 gr.Progress 在作品预览那条
+        进度条上已经显示过的信息, 重复。改渲服成 task 清单, 用户能看见
+        ‘现在做哪一步 / 前面几步完成没’, 进度条归作品预览独占。
+    review P2 副标题 2: 让’运行中’成为全局主状态, 状态感更强。
+    Phase 5: failure / timeout 时附加 _failure_hint (具体下一步建议), 不只报错。
     """
     icons = {'idle': chr(0x23F8), 'running': chr(0x1F504), 'success': chr(0x2705), 'failure': chr(0x274C), 'timeout': chr(0x23F0)}
     state_cn = {'idle': '等待运行', 'running': '正在运行', 'success': '已完成', 'failure': '运行失败', 'timeout': '运行超时'}
-    icon = icons.get(state, '•')
+    icon = icons.get(state, chr(0x2022))
     label = state_cn.get(state, state)
-    if msg:
-        for prefix in (chr(0x23F3), chr(0x2705), chr(0x274C), chr(0x23F0)):
-            if msg.startswith(prefix):
-                msg = msg[len(prefix):].strip()
-                break
-        if len(msg) > 60:
-            msg = msg[:60] + chr(0x2026)
+    header_html = (
+        '<span class="run-status-icon">' + icon + '</span>'
+        + '<span class="run-status-label">' + label + '</span>'
+    )
     elapsed_html = ('<span class="run-status-elapsed">' + chr(0x23F1) + ' ' + elapsed_str + '</span>') if elapsed_str else ''
-    # progress 胶囊: 有真实 step 百分比时渲染, 否则不渲染 (单行 flex 最右侧)
-    progress_html = ('<span class="run-status-progress">' + (progress_str or '') + '</span>') if progress_str else ''
-    # review P3-9: insert ' · ' between state label and msg; otherwise rendered text
-    # reads 'waiting to run click below button to start' with no internal punctuation.
-    sep = ' · ' if (msg or '').strip() else ''
+    if task_list:
+        task_icons = {'done': chr(0x2713), 'current': chr(0x25C9), 'pending': chr(0x25CB), 'failed': chr(0x2717)}
+        items = []
+        for t in task_list:
+            if isinstance(t, dict):
+                s = t.get('status') or 'pending'
+                text = t.get('text') or ''
+                detail = t.get('detail') or ''
+            else:
+                s = 'pending'
+                text = str(t)
+                detail = ''
+            ti = task_icons.get(s, chr(0x2022))
+            detail_html = (' <span class="run-status-task-detail">' + detail + '</span>') if detail else ''
+            cls = 'run-status-task run-status-task-' + s
+            items.append(
+                '<li class="' + cls + '">'
+                + '<span class="run-status-task-icon">' + ti + '</span>'
+                + '<span class="run-status-task-text">' + text + '</span>'
+                + detail_html
+                + '</li>'
+            )
+        body_html = '<ul class="run-status-tasks">' + ''.join(items) + '</ul>'
+    else:
+        # 旧版单条 msg (idle / 初始化), review P3-9: ‘’ 分隔符 + 截断到 60 字
+        clean = msg or ''
+        if clean:
+            for prefix in (chr(0x23F3), chr(0x2705), chr(0x274C), chr(0x23F0)):
+                if clean.startswith(prefix):
+                    clean = clean[len(prefix):].strip()
+                    break
+            if len(clean) > 60:
+                clean = clean[:60] + chr(0x2026)
+        sep = ' · ' if clean.strip() else ''
+        body_html = (
+            '<span class="run-status-sep">' + sep + '</span>'
+            + '<span class="run-status-msg">' + clean + '</span>'
+        )
+    hint_html = ''
+    if state in ('failure', 'timeout'):
+        hint = _failure_hint(msg)
+        if hint:
+            hint_html = '<div class="run-status-hint">' + hint + '</div>'
     return (
         '<div class="run-status-bar run-status-' + state + '">'
-        + '<span class="run-status-icon">' + icon + '</span>'
-        + '<span class="run-status-label">' + label + '</span>'
-        + '<span class="run-status-sep">' + sep + '</span>'
-        + '<span class="run-status-msg">' + (msg or '') + '</span>'
+        + header_html
         + elapsed_html
-        + progress_html
+        + body_html
+        + hint_html
         + '</div>'
     )
-
 
 def _media_ext_from_url(src):
     """从 URL / 路径里取文件扩展名 (含 query 参数里的 filename).
@@ -1991,15 +2091,20 @@ def _render_workflow_form(preset_name):
 
         log_text = ""
         last_media = None
+        # review 2026-07-21: 进度区域用 task_list 取代 ‘’60%’ 胶囊; gr.Progress 单独管进度条。
+        # task_list 在循环外声明, 跨 yield 累积, 直到 run 结束。
+        task_list: list[dict] = []
         try:
-            for status_msg, media_html, err_upd, re_run_upd, open_dir_upd, last_media in _yield_run_stream(
+            for log_text, media_html, err_upd, re_run_upd, open_dir_upd, last_media in _yield_run_stream(
                 run_fn=run_fn,
                 preset_name=preset_name,
                 vals=vals,
                 output_kind=output_kind,
                 on_status_done=_on_done,
             ):
-                log_text = status_msg
+                # _yield_run_stream 第一项是 chr(10).join(log[-12:]) (拼接日志),
+                # 状态条 / task_list 只关心最后一条 single msg (最新一行).
+                status_msg = log_text.split(chr(10))[-1] if log_text else ""
                 # P2: 根据 status_msg 前缀切换状态条 (✅→success, ❌/⏰→failure/timeout, 其它→running)
                 _state = 'running'
                 if status_msg.startswith(chr(0x2705)):
@@ -2009,12 +2114,26 @@ def _render_workflow_form(preset_name):
                 elif status_msg.startswith(chr(0x23F0)):
                     _state = 'timeout'
                 _elapsed = _format_elapsed(_now_ts() - _run_start_ts)
-                # P2: 有 step 时算百分比喂状态条胶囊 (跟 gr.Progress 同源), 无则空串不渲染
-                _step = _extract_step_progress(status_msg)
-                _pct = (f"{int(_step[0] / _step[1] * 100)}%") if _step is not None else ''
-                _status_bar_update = gr.update(value=_render_status_html(_state, status_msg, _elapsed, _pct))
+                # review 2026-07-21: 把 status_msg 解析成 phase action, 累积 task_list
+                # (live_update 只刷新当前 task 的 detail, 不开新行; 长轮询刷几十条不会爆)
+                _action, _phase_text, _detail = _phase_from_status(status_msg)
+                if _action == 'new_task':
+                    # 之前 current 的 task 收尾
+                    if task_list and task_list[-1]['status'] == 'current':
+                        task_list[-1]['status'] = 'done'
+                    task_list.append({'text': _phase_text, 'status': 'current', 'detail': ''})
+                elif _action == 'live_update':
+                    if task_list:
+                        task_list[-1]['detail'] = _detail
+                elif _action == 'task_done':
+                    if task_list and task_list[-1]['status'] == 'current':
+                        task_list[-1]['status'] = 'done'
+                elif _action in ('task_failed', 'task_timeout'):
+                    if task_list and task_list[-1]['status'] == 'current':
+                        task_list[-1]['status'] = 'failed'
+                _status_bar_update = gr.update(value=_render_status_html(_state, status_msg, _elapsed, task_list))
                 yield (
-                    status_msg,
+                    log_text,
                     media_html,
                     err_upd,
                     re_run_upd,
@@ -2025,19 +2144,23 @@ def _render_workflow_form(preset_name):
         finally:
             run_btn.interactive = True
 
-        # P2: 根据最后 status_msg 决定状态条终态
+        # P2: 根据最后一条 status_msg 决定状态条终态 (log_text 是拼接 log,
+        # 真正的 latest single msg 是最后一行)
+        _latest = log_text.split(chr(10))[-1] if log_text else ""
         _final_state = 'idle'
-        if log_text.startswith(chr(0x2705)):
+        if _latest.startswith(chr(0x2705)):
             _final_state = 'success'
-        elif log_text.startswith(chr(0x274C)):
+        elif _latest.startswith(chr(0x274C)):
             _final_state = 'failure'
-        elif log_text.startswith(chr(0x23F0)):
+        elif _latest.startswith(chr(0x23F0)):
             _final_state = 'timeout'
         elif log_text:
-            # 跑完但 log_text 末尾没有特殊前缀 (异常退出), 仍归 success 让按钮可见
+            # 跑完但 latest 末尾没有特殊前缀 (异常退出), 仍归 success 让按钮可见
             _final_state = 'success'
         _final_elapsed = _format_elapsed(_now_ts() - _run_start_ts)
-        _final_status_bar = gr.update(value=_render_status_html(_final_state, log_text, _final_elapsed if _final_state == 'running' else ''))
+        # review 2026-07-21: 终态也带上 task_list (用户能看到完整过程),
+        # 失败/超时 task 还保留最后一个 failed 状态作为线索。
+        _final_status_bar = gr.update(value=_render_status_html(_final_state, log_text, _final_elapsed if _final_state == 'running' else '', task_list))
         # 最终 yield:按钮切回 RESTING,media_html 用 last_media(若有),
         # 保留刚生成的图/视频/音频,不要被 _media_to_html(None, ...) 覆盖成占位。
         yield (
