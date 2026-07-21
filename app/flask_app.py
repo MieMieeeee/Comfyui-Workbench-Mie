@@ -391,6 +391,63 @@ def run_preset(preset_name):
     )
 
 
+# ============================================================
+# API 路由 — 文件上传 (步骤 5)
+# ============================================================
+
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    """上传文件到 ComfyUI input 目录.
+
+    multipart form: file=<文件>
+    返回 {"name": "<ComfyUI 端文件名>", "subfolder": "...", "type": "input"}.
+    前端把 name 存进 formValues, run_workflow 的 _resolve_upload_name 会识别
+    它已在 ComfyUI input 目录, 跳过重复上传.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "missing 'file' in form data"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "empty filename"}), 400
+
+    # 校验扩展名 (按 kind 参数, 默认 image)
+    kind = request.form.get("kind", "image")
+    from pathlib import Path as _P
+    ext = _P(f.filename).suffix.lower()
+    allowed = config.ALLOWED_IMAGE_EXT if kind == "image" else config.ALLOWED_VIDEO_EXT
+    if ext not in allowed:
+        return jsonify({
+            "error": f"extension {ext} not allowed (allowed: {sorted(allowed)})",
+        }), 400
+
+    # 校验大小
+    f.stream.seek(0, 2)
+    size = f.stream.tell()
+    f.stream.seek(0)
+    size_mb = size / (1024 * 1024)
+    max_mb = config.MAX_IMAGE_MB if kind == "image" else config.MAX_VIDEO_MB
+    if size_mb > max_mb:
+        return jsonify({
+            "error": f"file too large: {size_mb:.1f}MB > {max_mb}MB",
+        }), 400
+
+    # 保存到临时目录, 调 scail2_client.upload 上传到 ComfyUI
+    import tempfile
+    import os as _os
+    from werkzeug.utils import secure_filename
+    safe_name = secure_filename(f.filename) or "upload.bin"
+    tmp_path = _P(tempfile.gettempdir()) / safe_name
+    f.save(str(tmp_path))
+    try:
+        result = scail2_client.upload(str(tmp_path), kind=kind)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    return jsonify(result)
+
+
 @app.route("/api/preset_cfg/<preset_name>")
 def preset_cfg(preset_name):
     """返回 preset 的 user_facing_inputs spec 列表, 供前端动态渲染表单字段."""

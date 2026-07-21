@@ -83,6 +83,51 @@ def test_run_to_sse_serializes_tuple_progress():
     assert '"progress": [5, 20]' in sse  # list 不是 tuple
     assert "[DONE]" not in sse
 
+
+# ============================================================
+# 文件上传 (步骤 5)
+# ============================================================
+
+def test_upload_no_file_returns_400(client):
+    """POST /api/upload 没有 file 字段返回 400."""
+    r = client.post("/api/upload")
+    assert r.status_code == 400
+
+
+def test_upload_bad_extension_returns_400(client):
+    """POST /api/upload 扩展名不允许返回 400."""
+    import io
+    r = client.post("/api/upload",
+                    data={"file": (io.BytesIO(b"x"), "evil.exe"), "kind": "image"},
+                    content_type="multipart/form-data")
+    assert r.status_code == 400
+    data = r.get_json()
+    assert "error" in data
+    assert "not allowed" in data["error"] or "extension" in data["error"].lower()
+
+
+def test_upload_calls_comfy_upload(monkeypatch):
+    """上传合法文件时调用 scail2_client.upload, 返回 ComfyUI 给的 name."""
+    # 用 monkeypatch 替换 scail2_client.upload, 避免真连 ComfyUI
+    import io
+    from app import flask_app as fa
+    from app import scail2_client
+
+    def fake_upload(file_path, kind="image"):
+        return {"name": "uploaded_name.png", "subfolder": "", "type": "input"}
+
+    monkeypatch.setattr(scail2_client, "upload", fake_upload)
+
+    fa.app.config["TESTING"] = True
+    with fa.app.test_client() as c:
+        r = c.post("/api/upload",
+                   data={"file": (io.BytesIO(b"fake-png-content"), "test.png"), "kind": "image"},
+                   content_type="multipart/form-data")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["name"] == "uploaded_name.png"
+    assert data["type"] == "input"
+
 def test_index_returns_html(client):
     """GET / 返回运行页 HTML (200)."""
     r = client.get("/")

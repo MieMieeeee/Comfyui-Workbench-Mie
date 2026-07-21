@@ -162,12 +162,32 @@ function runTab(workflows, presetCfgs) {
     sizeLabel(opt) { return typeof opt === 'object' ? opt.label : opt; },
 
     async onFileSelect(event, presetName, specIdx, kind) {
-      // [步骤 5] 接 /api/upload. 步骤 3 占位.
+      // 步骤 5: 真正上传到 ComfyUI, 把返回的 name 存进 formValues.
+      // run_workflow 的 _resolve_upload_name 会识别它在 ComfyUI input 目录, 跳过重复上传.
       const file = event.target.files[0];
       if (!file) return;
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
-      if (panel) panel.__x.$data.formValues[specIdx] = file.name;
-      console.log('文件选中 (步骤 5 接上传):', file.name);
+      if (!panel) return;
+
+      // 先用本地文件名占位, 显示"上传中"
+      panel.__x.$data.formValues[specIdx] = file.name + ' (上传中…)';
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('kind', kind);
+      try {
+        const r = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || `${r.status} ${r.statusText}`);
+        }
+        const data = await r.json();
+        // 用 ComfyUI 端的 name 替换占位
+        panel.__x.$data.formValues[specIdx] = data.name;
+      } catch (e) {
+        panel.__x.$data.formValues[specIdx] = '';
+        alert('上传失败: ' + e.message);
+      }
     },
 
     onSizeToggle(event, presetName, specIdx) {
