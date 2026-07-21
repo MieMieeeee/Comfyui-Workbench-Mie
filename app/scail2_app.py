@@ -113,116 +113,21 @@ def _resolve_auto_load_updates(preset_inputs_map, name):
 
 
 
-# --- 预估段数 / 帧数探测 ---
-
-def get_video_frames(path):
-    """用 ffprobe 读驱动视频总帧数。失败返 None。"""
-    if not path:
-        return None
-    try:
-        r = subprocess.run([
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-count_frames", "-show_entries", "stream=nb_read_frames",
-            "-of", "csv=p=0", str(path),
-        ], capture_output=True, text=True, timeout=15)
-        if r.returncode == 0 and r.stdout.strip():
-            return int(r.stdout.strip())
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
-    return None
-
-
-def estimated_segments(frames, per_seg, pre_drop, max_segments=0):
-    """估算段数 = 1 + ceil(max(0, video_frames - per_seg) / max(1, per_seg - pre_drop))。"""
-    if frames is None or frames <= 0:
-        return None
-    per_seg = max(1, int(per_seg))
-    pre_drop = max(0, int(pre_drop))
-    net = max(1, per_seg - pre_drop)
-    auto = max(1, 1 + math.ceil(max(0, frames - per_seg) / net))
-    if max_segments and max_segments > 0:
-        return min(auto, int(max_segments))
-    return auto
-
-
-# --- 输入校验 ---
-
-def _file_extension(p):
-    if not p:
-        return ""
-    return Path(p).suffix.lower()
-
-
-def _file_size_mb(p):
-    if not p:
-        return 0.0
-    try:
-        return Path(p).stat().st_size / (1024 * 1024)
-    except OSError:
-        return 0.0
-
-
-def validate_inputs(ref_path, drive_path, preset_cfg):
-    """校验 user_facing_inputs 里的 file:image / file:video 是否合规。
-
-    - 只校验 preset 实际声明的 file type (audit by user_facing_inputs)。
-      音频类 preset (qwen3_tts / ace_step_15_music) 没有 file inputs, 跳过整段校验。
-    - 历史上先无条件校验 ref/drive, 但加 audio preset 后不能继续这样 (audio 无 file)。
-    """
-    has_image_input = any(s.get("type") == "file:image" for s in preset_cfg.get("user_facing_inputs", []))
-    has_video_input = any(s.get("type") == "file:video" for s in preset_cfg.get("user_facing_inputs", []))
-    if has_image_input:
-        if not ref_path:
-            return "参考图未上传"
-        ext = _file_extension(ref_path)
-        if ext not in config.ALLOWED_IMAGE_EXT:
-            return f"参考图扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_IMAGE_EXT)}）"
-        if _file_size_mb(ref_path) > config.MAX_IMAGE_MB:
-            return f"参考图过大: {_file_size_mb(ref_path):.1f}MB（上限 {config.MAX_IMAGE_MB}MB）"
-    if has_video_input:
-        if not drive_path:
-            return "驱动视频未上传"
-        ext = _file_extension(drive_path)
-        if ext not in config.ALLOWED_VIDEO_EXT:
-            return f"驱动视频扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_VIDEO_EXT)}）"
-        if _file_size_mb(drive_path) > config.MAX_VIDEO_MB:
-            return f"驱动视频过大: {_file_size_mb(drive_path):.1f}MB（上限 {config.MAX_VIDEO_MB}MB）"
-    return None
+# [迁移 2026-07-21] get_video_frames / estimated_segments / _file_extension /
+# _file_size_mb / validate_inputs 已抽到 app.services.form_schema.
+from app.services.form_schema import (
+    get_video_frames,
+    estimated_segments,
+    _file_extension,
+    _file_size_mb,
+    validate_inputs,
+)
 
 
 # --- 表单 schema → Gradio components ---
 
-import re as _re
-
-_SIZE_PAT = _re.compile(r"(\d+)\s*[x×]\s*(\d+)")
-
-
-def parse_sizes(value):
-    """把尺寸输入解析成 (w, h) 或 list[(w,h)...]。
-
-    严格 fullmatch(拒绝包含多余文本或逗号分隔的字符串):
-    - "1024x1024" → (1024, 1024)
-    - ["1024x1024", "1280x720"] → [(1024,1024), (1280,720)]
-    无法解析返回 None(单值)或跳过(list)。
-
-    "1024x1024, 800x600" 这种多 size 字符串以前会"取第一个"返回,UI 里走不到；
-    收紧为 strict 解析后,多 size 走 list 形式(CheckboxGroup 直接给 list)。
-    """
-    if value is None:
-        return None
-    if isinstance(value, (list, tuple)):
-        out = []
-        for v in value:
-            if v is None:
-                continue
-            m = _SIZE_PAT.fullmatch(str(v).strip())
-            if m:
-                out.append((int(m.group(1)), int(m.group(2))))
-        return out
-    m = _SIZE_PAT.fullmatch(str(value).strip())
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    return None
+# [迁移 2026-07-21] parse_sizes + _SIZE_PAT 已抽到 app.services.form_schema.
+from app.services.form_schema import parse_sizes, _SIZE_PAT
 
 
 def _build_input_component(spec):
@@ -346,247 +251,18 @@ def _build_form(preset_cfg):
     return out
 
 
-def example_to_form_values(preset_name):
-    """把 preset 的 example 字典映射回表单值列表（按 user_facing_inputs 顺序）。
-
-    给 UI 的"加载示例"按钮用：点击后一次性填好整个表单。
-    映射规则（按 spec 的 type，不再按 node_id 硬编码）：
-    - file:image → example["reference_image"]（解析成绝对路径，见 _resolve_example_file）
-    - file:video → example["drive_video"]
-    - prompt_pool → example["prompt"]
-    - image_sizes → example["sizes"]
-    - int_random → example["seed"]（拆成 [Checkbox, Number] 两个值）
-    - 其它 → spec 的 example_key 字段（在 params.json 该 spec 上显式声明）
-            找不到时退 spec.default
-
-    数据驱动契约 (review 2026-07-14):
-      text 类 spec 必须在 params.json 上显式写 "example_key": "<example 字典里的 key>",
-      不再靠 node_id 隐式兜底。锁这条契约的是
-      tests/test_preset_must_have_example.py::test_every_basic_text_input_is_explicitly_backed_by_example.
-
-    重要：文件槽位必须返回**绝对路径**。gr.File(type='filepath').postprocess 会对
-    纯文件名调 Path(name).stat()，文件在 COMFY_INPUT_DIR 不在 CWD → FileNotFoundError
-    → 整个表单更新静默失败。所以这里拼成 COMFY_INPUT_DIR 下的绝对路径。
-    运行时 _resolve_upload_name 已能识别 COMFY_INPUT_DIR 的文件跳过上传。
-    """
-    cfg = config.preset_config(preset_name)
-    ex = cfg.get("example", {})
-    values = []
-    for spec in cfg["user_facing_inputs"]:
-        typ = spec.get("type")
-        if typ == "file:image":
-            values.append(_resolve_example_file(ex.get("reference_image")))
-        elif typ == "file:video":
-            values.append(_resolve_example_file(ex.get("drive_video")))
-        elif typ == "prompt_pool":
-            values.append(ex.get("prompt", spec.get("default", "")))
-        elif typ == "image_sizes":
-            values.append(list(ex.get("sizes") or spec.get("default") or []))
-        elif typ == "int_random":
-            # int_random 在 UI 里是 [Checkbox, Number] 两组件,这里也要返回 2 个值:
-            #  - Checkbox state: example 给具体 seed 时不勾(=固定), 否则按 random_default
-            #  - Number value:   example.seed 的具体值或 spec.default
-            ex_seed = ex.get("seed")
-            if ex_seed is not None and ex_seed != 0:
-                values.append(False)        # 不勾 = 固定
-                values.append(ex_seed)
-            else:
-                values.append(bool(spec.get("random_default", True)))
-                values.append(spec.get("default", 0))
-        else:
-            # 显式 example_key 优先, 其次 spec["field"], 再退 spec.default.
-            # 数据驱动: 当 spec.field 名跟 example 里的 key 不一致时 (例如 ltx_23_i2v 的正向 prompt
-            # spec.field="text" 而 example 里叫 "prompt"), 在 params.json 该 spec 上加 example_key 即可。
-            # 这个例外的 fallback 链只走 user-provided example_key + spec.field, 不去猜通用 prompt key,
-            # 防止负向提示词等不相关 spec 被错误填充。
-            example_key = spec.get("example_key", spec.get("field", ""))
-            v = ex.get(example_key)
-            if v is None:
-                v = spec.get("default")
-            values.append(v)
-    return values
 
 
-def _manifest_to_form_values(preset_name, manifest):
-    """把 manifest 数据映射回 user_facing_inputs 顺序的表单值。
-
-    与 example_to_form_values 对称，但数据来源是运行历史而不是 preset.example。
-    - 复用 _resolve_example_file 解析文件字段（example 走 staged path，manifest 走原始 basename）
-    - seed / sizes / ref_prompt / drive_prompt / main_prompt 都是可选的，老 manifest 里没有就回退 spec.default
-    - 调用方需要保证 manifest["preset"] == preset_name（点击 rerun 时已校验）
-    """
-    if not manifest:
-        cfg = config.preset_config(preset_name)
-        return [spec.get("default") for spec in cfg["user_facing_inputs"]]
-    cfg = config.preset_config(preset_name)
-    values = []
-    for spec in cfg["user_facing_inputs"]:
-        typ = spec.get("type")
-        if typ == "file:image":
-            values.append(_resolve_example_file(manifest.get("reference_image", "")))
-        elif typ == "file:video":
-            values.append(_resolve_example_file(manifest.get("drive_video", "")))
-        elif typ == "prompt_pool":
-            values.append(manifest.get("prompt_text", spec.get("default", "")))
-        elif typ == "image_sizes":
-            sizes = manifest.get("sizes")
-            values.append(list(sizes or spec.get("default") or []))
-        elif typ == "int_random":
-            seed = manifest.get("seed")
-            # manifest 只存最终 seed 值, 没有 "是否随机" 状态。回退规则:
-            # 有具体 seed -> 不勾 Checkbox (=固定值)
-            # 没 seed     -> 勾 Checkbox (=随机, 实际跑时随机生成)
-            if seed is not None:
-                values.append(False)
-                values.append(seed)
-            else:
-                values.append(bool(spec.get("random_default", True)))
-                values.append(spec.get("default", 0))
-        else:
-            # 跟 example_to_form_values 对称: 用 spec.example_key 从 manifest 取值,
-            # 找不到退 spec.default. manifest 的 key 名与 example 一致 (history.py
-            # 写入 ref_prompt / drive_prompt / main_prompt / frames_per_segment 等)。
-            # 老 manifest 只存了 prompt_text 折叠版, 没有 main_prompt 时回退它, 再退 default。
-            example_key = spec.get("example_key", spec.get("field", ""))
-            v = manifest.get(example_key)
-            if v is None and example_key in ("main_prompt", "prompt"):
-                v = manifest.get("prompt_text")
-            if v is None:
-                v = spec.get("default")
-            values.append(v)
-    return values
-
-
-def _resolve_example_file(filename):
-    """把 example 里的文件名解析成 gr.File 能接受的路径。
-
-    Gradio 6 安全限制：gr.File 不接受"应用外部"的文件路径（不在 CWD 也不在
-    gradio cache dir），会报 "Cannot move ... to the gradio cache dir"。
-    所以这里把 ComfyUI input 目录的文件**复制到项目内的 .examples_cache/**
-    （在 CWD 下），返回复制后的路径。运行时 _resolve_upload_name 会正常上传它。
-
-    - 文件在 COMFY_INPUT_DIR → 复制到 .examples_cache/ 返回该路径
-    - 文件不存在 → 返回 None（不崩，让用户手动上传）
-    - filename 为空 → None
-    """
-    if not filename:
-        return None
-    # 找源文件：先按绝对路径，再拼 COMFY_INPUT_DIR
-    src = Path(filename)
-    if not src.is_absolute():
-        src = config.COMFY_INPUT_DIR / filename
-    if not src.exists():
-        # 也可能在 CWD 下（已经是 staged 的）
-        src = Path(filename)
-        if not src.exists():
-            return None
-    # 复制到 CWD 下的 .examples_cache/（Gradio 接受 CWD 内的文件）
-    cache_dir = config.REPO_ROOT / ".examples_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    dst = cache_dir / src.name
-    if not dst.exists():
-        import shutil
-        shutil.copy2(src, dst)
-    return str(dst)
-
-
-# --- 主流程 ---
-
-def _is_comfy_input_file(filename):
-    """判断文件名是否已存在于 ComfyUI input 目录（example 加载场景，可跳过上传）。"""
-    if not filename:
-        return False
-    # 纯文件名（无路径分隔符）= 用户直接填的 ComfyUI 端文件名
-    if "/" in filename or "\\" in filename:
-        return False
-    return (config.COMFY_INPUT_DIR / filename).exists()
-
-
-
-def _resolve_upload_name(file_value, kind="image"):
-    """解析上传后的文件名。
-
-    - 若 file_value 是纯文件名且已在 ComfyUI input 目录（example 场景）→ 直接返回，跳过上传
-    - 否则走 scail2_client.upload 上传，返回上传后的 name
-    """
-    if not file_value:
-        return None
-    if _is_comfy_input_file(file_value):
-        return file_value
-    result = scail2_client.upload(file_value, kind=kind)
-    return result["name"]
-
-
-def _extract_status_kind(status_msg):
-    if status_msg.startswith("✅"):
-        return "success", None
-    if status_msg.startswith("❌"):
-        return "failure", status_msg[1:].strip()
-    if status_msg.startswith("⏰"):
-        return "timeout", status_msg[1:].strip()
-    return None, None
-
-
-# 匹配 wait_for_completion yield 的 running 消息里的 "value/max" step 进度
-# (P0 之后格式: "⏳ MM:SS  running…  KSampler 12/20")。
-# 注意: 时间戳是 MM:SS (冒号), 不会误匹配这个斜杠模式。
-_STEP_PROGRESS_RE = _re.compile(r"(\d+)/(\d+)(?!\d)")
-
-
-def _extract_step_progress(status_msg: str) -> tuple[int, int] | None:
-    """从 status_msg 抽 step 进度 (value, max), 无则 None。
-
-    用于 P2: 把 wait_for_completion yield 的 "12/20" 抽出来喂 gr.Progress,
-    让顶部固定进度条跟状态条的真实 step 一致 (不再 _wait_p += 0.02 匀速假进度)。
-
-    取 msg 里最后一个 value/max (max>0); 时间戳 MM:SS 用冒号不会误匹配。
-    max=0 视为异常 (除零风险) -> None。
-    """
-    matches = _STEP_PROGRESS_RE.findall(status_msg)
-    for value_str, max_str in reversed(matches):
-        try:
-            v, mx = int(value_str), int(max_str)
-        except ValueError:
-            continue
-        if mx > 0:
-            return (v, mx)
-    return None
-
-# review 2026-07-21 ��递首区域重构:
-# 把 _yield_run_stream yield 的 status_msg 拆成 (action, phase_text, detail),
-# _run_and_format 用它累积 task_list 喂给 _render_status_html
-# (不再叠 60% 胶囊, 改成 task 清单, gr.Progress 单独管进度条)。
-#
-# 规则:
-#   ⏳ MM:SS  ...    -> live_update (wait_for_completion 长轮询, 只更新当前 task detail)
-#   ⏳ <其它>         -> new_task    (phase_text 是阶段名)
-#   ✅                -> task_done   (当前 task 标 done, run 也成功结束)
-#   ❌                -> task_failed (当前 task 标 failed)
-#   ⏰                -> task_timeout
-_LIVE_RE = _re.compile(rf"^{chr(0x23F3)}\s+\d{{2}}:\d{{2}}\s")
-
-
-def _phase_from_status(status_msg):
-    if not status_msg:
-        return ("idle", "", "")
-    if status_msg.startswith(chr(0x2705)):
-        return ("task_done", "", "")
-    if status_msg.startswith(chr(0x274C)):
-        return ("task_failed", "", "")
-    if status_msg.startswith(chr(0x23F0)):
-        return ("task_timeout", "", "")
-    if status_msg.startswith(chr(0x23F3)):
-        if _LIVE_RE.match(status_msg):
-            detail = status_msg[len(chr(0x23F3)):].strip()
-            if len(detail) > 50:
-                detail = detail[:50] + chr(0x2026)
-            return ("live_update", "", detail)
-        text = status_msg[len(chr(0x23F3)):].strip()
-        if len(text) > 50:
-            text = text[:50] + chr(0x2026)
-        return ("new_task", text, "")
-    return ("idle", "", "")
-
+# [迁移 2026-07-21] example_to_form_values / _manifest_to_form_values /
+# _resolve_example_file / _is_comfy_input_file / _resolve_upload_name 已抽到
+# app.services.form_schema.
+from app.services.form_schema import (
+    example_to_form_values,
+    _manifest_to_form_values,
+    _resolve_example_file,
+    _is_comfy_input_file,
+    _resolve_upload_name,
+)
 
 def run_workflow(preset_name, *component_values):
     """运行指定 preset 的 workflow。preset_name 决定走哪个模板。
@@ -1260,41 +936,22 @@ def _is_image_preset(preset_cfg) -> bool:
 
 
 
-def _format_elapsed(seconds):
-    """把秒数格式化成 mm:ss, 例如 75 -> '01:15'。review P2 让用户感知运行已耗时。"""
-    s = max(0, int(seconds))
-    return f"{s // 60:02d}:{s % 60:02d}"
+# [迁移 2026-07-21] status 解析的 5 个函数 + 2 个模块常量已抽到 app.services.status.
+from app.services.status import (
+    _extract_status_kind,
+    _extract_step_progress,
+    _phase_from_status,
+    _format_elapsed,
+    _failure_hint,
+    _STEP_PROGRESS_RE,
+    _LIVE_RE,
+)
 
 
 def _now_ts():
     """返回当前时间戳 (秒), 给 status_bar 算已耗时。"""
     import time
     return time.monotonic()
-
-
-def _failure_hint(msg):
-    """Phase 5: 失败/超时时给出具体下一步建议, 而不是只把错误翻给用户。
-
-    按 AGENTS.md 的 Failure-investigation priority (用户输入 → ComfyUI 进程 → 资源 → 工作流),
-    根据错误关键词推断最可能的下一步。返回 HTML 行 (空串 = 无匹配建议)。
-    """
-    if not msg:
-        return ''
-    low = msg.lower()
-    # 关键词 → 建议. 顺序按“最常见 → 最不可能”排列。
-    if 'upload' in low or '上传' in msg or 'input dir' in low or 'cannot move' in low:
-        return '下一步: 检查文件路径是否含特殊字符 / ComfyUI 的 input 目录是否可写。'
-    if 'queue' in low or '入队' in msg or 'connection' in low or 'connect' in low or 'refused' in low:
-        return '下一步: 确认 ComfyUI 已启动 (设置 tab 顶部状态灯),端口未被占用。'
-    if 'timeout' in low or '超时' in msg or 'timed out' in low:
-        return '下一步: 通常是显存/磁盘不足或模型加载慢, 可缩小尺经 / 段数后重试。'
-    if 'patch' in low or 'workflow' in low or 'node' in low or 'validator' in low:
-        return '下一步: workflow JSON 与 params.json 不一致, 检查最近是否手动改过 preset 配置。'
-    if 'cuda' in low or 'out of memory' in low or 'vram' in low or 'memory' in low:
-        return '下一步: 显存不足, 缩小输出尺经 / 段数, 或关闭其他占用 GPU 的程序。'
-    if 'file' in low and ('too large' in low or 'size' in low or 'big' in low):
-        return '下一步: 文件过大, 参考图 ≤5MB / 驱动视频 ≤200MB, 压缩后重试。'
-    return ''
 
 
 def _render_status_html(state, msg='', elapsed_str='', task_list=None):
@@ -1376,142 +1033,6 @@ def _render_status_html(state, msg='', elapsed_str='', task_list=None):
         + '</div>'
     )
 
-def _media_ext_from_url(src):
-    """从 URL / 路径里取文件扩展名 (含 query 参数里的 filename).
-    ComfyUI /view URL 结构: /view?filename=NAME&type=output&subfolder=SUBFOLDER
-    直接 endswith 在 src 上不工作 (URL 后面跟 &type=...&subfolder=...), 需解析
-    query 取 filename 的扩展名. 其它 HTTP URL (http://x/clip.mp4) 走 path
-    的扩展名; 本地路径走 Path.suffix.
-    返回小写扩展名, e.g. ".mp4" / ".png" / "" (无法识别).
-    """
-    from urllib.parse import urlparse, parse_qs, unquote
-    from pathlib import PurePosixPath
-    if not src or not isinstance(src, str):
-        return ""
-    # 本地路径: 走 Path.suffix
-    if not src.startswith("http"):
-        from pathlib import Path as _P
-        return _P(src).suffix.lower()
-    # HTTP URL: 优先 path 扩展名; 若是裸端点 (如 /view), 退回 query param 里的 filename
-    try:
-        parsed = urlparse(src)
-    except Exception:
-        return ""
-    path_ext = PurePosixPath(parsed.path).suffix.lower()
-    if path_ext:
-        return path_ext
-    # query 里找 filename-like value, 按常见 key 顺序: filename (ComfyUI), f (测试用), name, file
-    qs = parse_qs(parsed.query, keep_blank_values=False)
-    for key in ("filename", "f", "name", "file"):
-        for v in qs.get(key, []):
-            ext = PurePosixPath(unquote(v)).suffix.lower()
-            if ext:
-                return ext
-    # 兜底: 找 query 里第一个有扩展名的 value
-    for values in qs.values():
-        for v in values:
-            ext = PurePosixPath(unquote(v)).suffix.lower()
-            if ext:
-                return ext
-    return ""
-
-
-def _media_to_html(media, output_kind: str = "image") -> str:
-    """把 run 函数 yield 的 media 转成 HTML。
-
-    output_kind:
-      - "image": image list → <img> 网格; 单 URL → <img>
-      - "video": <video> (mp4/mov/webm/gif) / 兜底 file-fallback
-      - "audio": <audio controls> (mp3/wav/flac) / 兜底 file-fallback
-
-    实际渲染时按 URL / 本地路径的扩展名分桶(image_ext/video_ext/audio_ext),
-    与 output_kind 配合: 例如 audio preset 配 .mp3 URL → 走 audio 分支.
-    跨类型错误 (e.g. image preset 但 URL 是 .mp3) 也仍能渲染, 不死锁.
-
-    未知 URL / 本地文件 (扩展名不在三个白名单) → 出现路径+下载链接 banner,
-    让用户知道文件已生成、可以去下载 — 这是"未知输出类型"的最小可用 fallback.
-
-    直接用 ComfyUI /view URL (浏览器同机可访问), 绕过 gr.Video/gr.Audio 不支持外部 URL 的限制.
-    """
-    if not media:
-        return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
-
-    # image 类特化: list → 网格
-    if output_kind == "image":
-        if isinstance(media, list):
-            if not media:
-                return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
-            imgs = "".join(
-                "<img src=\"" + str(u) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
-                for u in media if u
-            )
-            return "<div style=\"padding:8px\">" + imgs + "</div>"
-        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
-
-    # video / audio: 单 URL, 扩展名分桶
-    src = media[0] if isinstance(media, list) else media
-    if not src or not isinstance(src, str):
-        return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
-
-    ext = _media_ext_from_url(src)
-    video_ext = (".mp4", ".mov", ".webm", ".gif")
-    image_ext = (".png", ".jpg", ".jpeg", ".webp")
-    audio_ext = (".mp3", ".wav", ".flac", ".ogg", ".m4a")
-
-    def _to_url(s):
-        """把 http(s) URL 或本地绝对路径转成 gr.Audio / gr.Video 可吃的 URL."""
-        if s.startswith("http"):
-            return s
-        from pathlib import Path as _P
-        sp = _P(s)
-        if sp.exists():
-            try:
-                rel = sp.relative_to(config.REPO_ROOT)
-                return _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-            except ValueError:
-                return None
-        return None
-
-    # 扩展名优先; output_kind 是 hint, 不是 hard constraint
-    if ext in audio_ext:
-        url = _to_url(src)
-        if url:
-            return ('<div style=\"padding:8px\"><audio controls preload="metadata" style=\"width:100%;max-width:480px\">'
-                    '<source src=\"' + url + '\"/></audio></div>')
-    if ext in video_ext:
-        if src.startswith("http"):
-            return ("<div style=\"padding:8px\"><video controls autoplay preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
-                    "<source src=\"" + src + "\"/></video></div>")
-        from pathlib import Path as _P
-        sp = _P(src)
-        if sp.exists():
-            try:
-                rel = sp.relative_to(config.REPO_ROOT)
-                file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-                return ("<div style=\"padding:8px\"><video controls preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
-                        "<source src=\"" + file_url + "\"/></video></div>")
-            except ValueError:
-                pass
-    if ext in image_ext:
-        url = _to_url(src) or src
-        return "<div style=\"padding:8px\"><img src=\"" + url + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
-
-    # 兜底: 输出 kind 对应的 banner
-    if output_kind == "audio":
-        url = _to_url(src)
-        if url:
-            return ('<div class=\"file-fallback\">🎵 <b>音频</b> 已生成: '
-                    '<a href=\"' + url + '\" download>下载播放</a> '
-                    '<audio controls preload="metadata" style=\"vertical-align:middle;margin-left:8px\">'
-                    '<source src=\"' + url + '\"/></audio></div>')
-    if output_kind == "video":
-        url = _to_url(src)
-        if url:
-            return ('<div class=\"file-fallback\">🎬 <b>视频</b> 已生成: '
-                    '<a href=\"' + url + '\" download>下载</a></div>')
-    return ("<div class=\"file-fallback\">📄 未知输出格式: <code>" + src[:80] + "</code></div>")
-
-
 def _create_one_input(spec):
     """创建单个输入组件 + 紧跟的辅助元素（预览/随机按钮）。
 
@@ -1561,55 +1082,8 @@ def _set_initial_component_value(component, value):
     )
 
 
-def _save_last_run(preset_name, values):
-    """跑成功时把当前表单值写到 app/data/last_run/{preset_name}.json。
-
-    与 app/data/runs/ 的 audit manifest 不重叠:manifest 是完整的运行记录,
-    这里只存"上次成功跑的参数",给 UI 的"加载上次成功参数"按钮用,失败不写。
-    
-    values: gr input 组件的当前值列表(None / str / int / float / bool / list / dict)。
-    gr.File 等非 JSON-native 组件会被序列化成 str(其路径)。
-    """
-    try:
-        safe = []
-        for v in values:
-            if v is None:
-                safe.append(None)
-            elif isinstance(v, (str, int, float, bool)):
-                safe.append(v)
-            elif isinstance(v, (list, tuple, dict)):
-                try:
-                    json.dumps(v)
-                    safe.append(v)
-                except (TypeError, ValueError):
-                    safe.append(str(v))
-            else:
-                # gr.File 等
-                try:
-                    safe.append(str(v))
-                except Exception:
-                    safe.append(None)
-        config.LAST_RUN_DIR.mkdir(parents=True, exist_ok=True)
-        path = config.LAST_RUN_DIR / f"{preset_name}.json"
-        path.write_text(json.dumps(safe, ensure_ascii=False), encoding="utf-8")
-    except Exception as e:
-        _log.warning(f"[last_run] save failed for {preset_name}: {e}")
-
-
-def _load_last_run(preset_name, n_inputs):
-    """读 last_run,没有就返回全 None 列表。读坏也返 None(不崩)。"""
-    path = config.LAST_RUN_DIR / f"{preset_name}.json"
-    if not path.exists():
-        return [None] * n_inputs
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, list):
-            return [None] * n_inputs
-        if len(data) < n_inputs:
-            data = data + [None] * (n_inputs - len(data))
-        return data[:n_inputs]
-    except Exception:
-        return [None] * n_inputs
+# [迁移 2026-07-21] _save_last_run / _load_last_run 已抽到 app.services.persistence.
+from app.services.persistence import _save_last_run, _load_last_run
 
 
 def _open_output_dir_action() -> str:
@@ -1670,11 +1144,14 @@ def _open_comfy_output_dir() -> str:
 _CATEGORY_ICON = {"video": chr(0x1F3AC), "image": chr(0x1F5BC) + chr(0xFE0F),
                   "audio": chr(0x1F50A), "3d": chr(0x1F9CA), "other": chr(0x1F4E6)}
 
-# Gradio 6 文件路由: 所有静态文件通过 /gradio_api/file=<relative path> 提供,
-# 不是 /file=<...>。 相对路径在服务端用 os.path.abspath() 解析 (相对 CWD),
-# start_webui.bat 会 cd 到项目根, 所以分发到任意路径都仍然正确解析。
-# 旧代码用 "/file=" 是错的: Gradio 6 那个路径 404, 浏览器看到的是破图标。
-_FILE_ROUTE_PREFIX = "/gradio_api/file="
+# [迁移 2026-07-21] _FILE_ROUTE_PREFIX / _media_ext_from_url / _media_to_html
+# 已抽到 app.services.media. 保留 _FILE_ROUTE_PREFIX 在本模块的可见性
+# (scail2_app.py 内部的 _versioned_preview_url 等仍引用它).
+from app.services.media import (
+    _FILE_ROUTE_PREFIX,
+    _media_ext_from_url,
+    _media_to_html,
+)
 
 
 def _versioned_preview_url(src: Path) -> str | None:
@@ -2225,160 +1702,25 @@ def _render_workflow_form(preset_name):
 # elem_classes 显式挂载,与原生 .gr-button / .gradio-container 解耦。
 # =====================================================================
 
-_TOKENS_CACHE: str | None = None
-_THEMES_CACHE: list[dict] | None = None
-_DEFAULT_THEME_ID = "coral-orange"  # fallback only —— actual startup value comes from _resolve_initial_theme()
-_THEMES_PATH = config.REPO_ROOT / "app" / "presets" / "themes.json"
-_TOKENS_PATH = config.REPO_ROOT / "app" / "static" / "tokens.css"
-
-
-
-def _load_tokens_css() -> str:
-    """读 app/static/tokens.css,缓存结果。文件不存在返回空串(不崩)。"""
-    global _TOKENS_CACHE
-    if _TOKENS_CACHE is None:
-        try:
-            _TOKENS_CACHE = _TOKENS_PATH.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            _TOKENS_CACHE = ""
-    return _TOKENS_CACHE
-
-
-def _list_themes() -> list[dict]:
-    """读 app/presets/themes.json,返回 [{id, name, desc, tokens}, ...] 列表。"""
-    global _THEMES_CACHE
-    if _THEMES_CACHE is None:
-        try:
-            raw = json.loads(_THEMES_PATH.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            raw = {}
-        out: list[dict] = []
-        for tid, t in raw.items():
-            out.append({
-                "id": tid,
-                "name": t.get("name", tid),
-                "desc": t.get("desc", ""),
-                "tokens": t.get("tokens", {}),
-            })
-        _THEMES_CACHE = out
-    return _THEMES_CACHE
-
-
-def _load_saved_theme() -> str:
-    """启动时读取 config.THEME_SETTINGS_FILE 取上次选的主题。
-
-    文件不存在 / 解析失败 / theme id 不在 themes.json 里 → 回退 _DEFAULT_THEME_ID(coral-orange)。
-    失败永不让 UI 崩,最多回到默认。
-    """
-    try:
-        import json
-        data = json.loads(config.THEME_SETTINGS_FILE.read_text(encoding="utf-8"))
-        tid = data.get("theme_id")
-        if tid and tid in {t["id"] for t in _list_themes()}:
-            return tid
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
-    return _DEFAULT_THEME_ID
-
-
-def _save_theme(theme_id: str) -> None:
-    """用户切换主题时把 theme_id 写到 config.THEME_SETTINGS_FILE 持久化。
-
-    写盘失败(e.g. 权限)只静默 —— UI 已经看到新主题,持久化失败下次启动会回到默认。
-    """
-    try:
-        import json
-        config.THEME_SETTINGS_FILE.write_text(
-            json.dumps({"theme_id": theme_id}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except OSError:
-        pass
-
-def _apply_theme(theme_id: str) -> str:
-    """生成 <style>:root{...}</style> 用于主题注入。
-
-    未知 theme_id 回落到默认主题 (coral-orange),不抛异常。
-    """
-    themes = {t["id"]: t for t in _list_themes()}
-    theme = themes.get(theme_id) or themes.get(_DEFAULT_THEME_ID)
-    if theme is None:
-        # themes.json 都坏了 —— 至少返回一个空的 style 标签,不崩
-        return "<style>:root{}</style>"
-    decls = "\n".join(
-        f"  {k}: {v};" for k, v in theme["tokens"].items()
-    )
-    return f"<style>:root {{\n{decls}\n}}</style>"
-
-
-def _build_launch_css() -> str:
-    """组装 launch(css=...) 的入参。包含 tokens.css 全文 + 默认主题。
-
-    返回**单个 CSS 字符串**(Gradio 6 的 launch(css=...) 签名是 str | None,
-    不是 list)。Gradio 内部会用 CSSStyleSheet.replaceSync 解析这个字符串,
-    再自己包 <style>; 必须是纯 CSS(不带 <style> 标签),且必须是 str 不是 list —
-    早期版本误传 list[str] 导致 replaceSync 收到 object → 前端
-    "e.replace is not a function" → 页面永远卡在"加载中"。
-
-    默认 mode 是 "auto"(由浏览器 media query 决定),所以默认模式下
-    surface override 是空的,不会跟 @media 块冲突。
-    """
-    tokens = _load_tokens_css()
-    default_combined = _apply_theme(_load_saved_theme())
-    # _apply_theme 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
-    default_css = _strip_style_tag(default_combined)
-    # Gradio 6.20.0 workaround: advanced accordion 里的 status-tracker 永远不消失,
-    # 遮住真实组件 (gr.Number / gr.Slider 都有这个 bug)。强制隐藏 .custom-accordion
-    # 里的 status-tracker, 让 Number 输入框 + 最小/最大值显示能看见。运行进度仍
-    # 由 运行日志 文本框显示, 不影响用户感知。
-    accordion_status_tracker_fix = "/* Gradio 6.20.0 workaround: hide stuck status-tracker in accordions */ .custom-accordion [data-testid='status-tracker'] { display: none !important; }"
-    # 合并成单个字符串(Gradio 6 不接受 list)
-    return f"{tokens}\n{default_css}\n{accordion_status_tracker_fix}"
-
-
-def _strip_style_tag(html: str) -> str:
-    """把 "<style>...</style>" 里的 CSS 内容剥出来。无标签时原样返回。"""
-    import re as _re
-    m = _re.match(r"\s*<style[^>]*>(.*)</style>\s*$", html, _re.S)
-    return m.group(1) if m else html
-
-
-def _get_theme_desc(tid: str) -> str:
-    """按 theme_id 返回一行 markdown 描述。设置 tab 用。"""
-    for t in _list_themes():
-        if t["id"] == tid:
-            return f"**{t['name']}** —— {t['desc']}"
-    return ""
-
-
-# Page background. 必须与 tokens.css 的 --bg-app 同步 —— 浏览器 UI (地址栏 /
-# status bar) 的 theme-color 跟页面背景不一致会出现"上下颜色断层". 改背景时两处一起改.
-_PAGE_BG_COLOR = "#0f1115"
-
-
-def _build_launch_head() -> str:
-    """生成注入 <head> 的 <meta> 标签字符串 (对称 _build_launch_css).
-
-    Gradio 6 launch(head=...) 把这段塞进 <head>. 内容:
-
-      1. <meta name="theme-color" content="#0f1115">
-         Web Interface Guidelines §Dark Mode: theme-color 应匹配页面背景.
-         浏览器据此着色移动端地址栏 / status bar / PWA 标题栏.
-
-      2. <meta name="color-scheme" content="dark">
-         HTML 层声明 (CSS 层 tokens.css :root { color-scheme: dark } 之外再加一道),
-         让浏览器在 CSS 加载前就用 dark variant —— 避免 scrollbar / <select>
-         在首屏一闪而过的白底 (FOUC).
-
-    返回 str (Gradio 6 launch(head=...) 签名是 str | list[str] | None).
-    """
-    return (
-        f'<meta name="theme-color" content="{_PAGE_BG_COLOR}">'
-        f'<meta name="color-scheme" content="dark">'
-    )
-
-
-
+# [迁移 2026-07-21] 主题/CSS/head 相关的 7 个函数 + 6 个模块常量已抽到
+# app.services.theme. 这里 import 回来, 保持 scail2_app.py 公开 API 不变.
+from app.services.theme import (
+    _TOKENS_CACHE,
+    _THEMES_CACHE,
+    _DEFAULT_THEME_ID,
+    _THEMES_PATH,
+    _TOKENS_PATH,
+    _PAGE_BG_COLOR,
+    _load_tokens_css,
+    _list_themes,
+    _load_saved_theme,
+    _save_theme,
+    _apply_theme,
+    _build_launch_css,
+    _strip_style_tag,
+    _get_theme_desc,
+    _build_launch_head,
+)
 
 
 CSS = _build_launch_css()
