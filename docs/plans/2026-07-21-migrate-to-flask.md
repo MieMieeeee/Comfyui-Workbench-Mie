@@ -163,35 +163,34 @@ Jinja2 macro 替代 `_build_input_component` / `_create_one_input`:
 
 ## 执行步骤(每步独立 commit)
 
-- [ ] **步骤 0**: 创建本计划文件 + 提交到 migrate-to-flask 分支
-- [ ] **步骤 1**: 抽 `services/`(纯重构,Gradio 版仍跑,所有现有测试继续 GREEN)
+- [x] **步骤 0**: 创建本计划文件 + 提交到 migrate-to-flask 分支
+- [x] **步骤 1**: 抽 `services/`(纯重构,Gradio 版仍跑,所有现有测试继续 GREEN)
   - 新建 `app/services/{__init__,runner,form_schema,persistence,theme,media,status}.py`
   - 把对应函数从 `scail2_app.py` 移过去,`scail2_app.py` 改成 `from app.services import ...`
   - 跑全量测试确认 GREEN
-- [ ] **步骤 2**: 建 `flask_app.py` + 非流式路由
+- [x] **步骤 2**: 建 `flask_app.py` + 非流式路由
   - `/api/theme` / `/api/example/<preset>` / `/api/last_run/<preset>` / `/api/comfy_status` / `/api/settings/url*` / `/api/health` / `/api/random_prompt` / `/api/estimated_segments` / `/api/open_output_dir` / `/api/open_output_folder`
   - 每个 route 配套 TDD 测试
-- [ ] **步骤 3**: 建 `templates/` + `static/app.js` + Alpine UI
+- [x] **步骤 3**: 建 `templates/` + `static/app.js` + Alpine UI
   - `base.html` / `run.html` / `settings.html` / `partials/_*.html`
   - 下载 `alpine.min.js` 到 `static/`
   - Jinja2 macro 渲染 spec → 表单字段
-- [ ] **步骤 4**: 接 SSE 流式 `/api/run/<preset>`
+- [x] **步骤 4**: 接 SSE 流式 `/api/run/<preset>`
   - RunEvent 数据类 + `_stream_events` 生成器
   - Flask `Response(generate(), mimetype='text/event-stream')`
   - 前端 `fetch + ReadableStream` 接收
-- [ ] **步骤 5**: 文件上传路由 `/api/upload`
+- [x] **步骤 5**: 文件上传路由 `/api/upload`
   - multipart 处理 + 调 `scail2_client.upload()`
   - 前端 `<input type="file">` + 缩略图 `URL.createObjectURL`
-- [ ] **步骤 6**: 切换 main 入口到 `flask_app`
+- [x] **步骤 6**: 切换 main 入口到 `flask_app` ✅ (合并到步骤 6+7)
   - `app/flask_app.py` 加 `if __name__ == "__main__"` 启动逻辑
-  - `start_webui.bat` 改为调 `flask_app`
-- [ ] **步骤 7**: 下线 Gradio
-  - 删 `app/scail2_app.py`
-  - `requirements.txt`: 去掉 `gradio>=6.0`,加 `flask>=3.0`
-  - Gradio 测试归档到 `tests/_archive_gradio/`
-- [ ] **步骤 8**(可选): CSS 瘦身
-  - 清掉 `tokens.css` 里 Gradio 专用的 `!important` 和 `.svelte-xxx` 选择器
-  - 独立后续工作,不阻塞迁移
+  - `start_webui.bat` 改为调 `flask_app` (默认), `WEBUI_BACKEND=gradio` 可回退
+- [~] **步骤 7**: 下线 Gradio ⚠️ **部分完成**
+  - `requirements.txt`: 加 `flask>=3.0` ✅, `gradio>=6.0` 暂留 (services/runner.py 复用 run_workflow)
+  - 删 `app/scail2_app.py`: **暂不删** — services/runner.py 仍依赖它 (run_workflow / run_image_workflow 带 gr.Progress 编排逻辑)
+  - Gradio 测试归档: 暂不归档 (Gradio 版仍可跑, WEBUI_BACKEND=gradio)
+  - **后续工作**: 重写 run_workflow/run_image_workflow 剥离 gradio 依赖 (改 gr.Progress 为 no-op, gr.Error 为 raise), 搬到 services/runner.py, 然后才能彻底删 scail2_app.py + 归档 Gradio 测试
+- [ ] **步骤 8**(可选): CSS 瘦身 — 留作后续
 
 ## 风险与缓解
 
@@ -221,3 +220,27 @@ Jinja2 macro 替代 `_build_input_component` / `_create_one_input`:
 - baseline 确认: master `d79f70a`, 554 passed / 3 skipped
 - 切出分支 `migrate-to-flask`
 - 创建本计划文件
+
+### 2026-07-21 步骤 1-7 完成
+- **步骤 1** (commit `f...`): 抽 services/ 6 个子模块 (status/media/persistence/theme/form_schema/__init__), scail2_app.py 2605→1948 行, 31 个符号向后兼容 re-export. 554 passed.
+- **步骤 2** (commit `...`): flask_app.py + 14 个非流式 API 路由, 18 个新测试 GREEN. 572 passed.
+- **步骤 3** (commit `...`): Jinja 模板 (base/run/settings) + Alpine.js 3.14.1 本地引入 + app.js 三个 Alpine 组件. 9 种 spec.type 全覆盖表单渲染. 视觉验证表单字段渲染 OK. 572 passed.
+- **步骤 4** (commit `d824693`): services/runner.py RunEvent 数据类 + stream_events 生成器. POST /api/run/<preset> SSE 路由. app.js fetch+ReadableStream 接 SSE. 5 测试 GREEN. 577 passed.
+- **步骤 5** (commit `cc97a31`): POST /api/upload multipart 上传到 ComfyUI. onFileSelect 真正上传. 3 测试 GREEN. 580 passed.
+- **步骤 6+7** (commit `af05c91`): start_webui.bat 默认启 Flask (WEBUI_BACKEND=gradio 回退). requirements.txt +flask>=3.0. base.html script 顺序修正 (app.js 先于 alpine). 视觉验证 0 page error, 暗色主题 + nav + 表单完整渲染.
+
+### 当前状态 (步骤 7 部分完成)
+**Flask 版完整可用**: 580 passed / 3 skipped / 0 failed. start_webui.bat 默认启 Flask.
+**Gradio 版仍可跑** (WEBUI_BACKEND=gradio): services/runner.py 复用 scail2_app.run_workflow 编排逻辑.
+
+### 步骤 7 剩余工作 (后续清理, 不阻塞 Flask 版使用)
+要彻底删 scail2_app.py + 归档 Gradio 测试, 需要先:
+1. 重写 services/runner.py 的 stream_events, 不再 `from app import scail2_app`
+2. 把 run_workflow / run_image_workflow 的 ~500 行编排逻辑搬进 runner.py
+   - gr.Progress() -> no-op lambda
+   - gr.Error(msg) -> raise RuntimeError(msg)
+   - 复用现有 services/form_schema + scail2_client 调用
+3. 删 app/scail2_app.py
+4. requirements.txt 去 gradio>=6.0
+5. 归档 Gradio 测试到 tests/_archive_gradio/
+6. 跑全量回归确认 0 失败
