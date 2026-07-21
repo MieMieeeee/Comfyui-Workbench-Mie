@@ -1,8 +1,6 @@
-# [migrate-to-flask 2026-07-21] Flask 是新的主前端框架.
-# gradio 暂时保留 (services/runner.py 仍依赖 scail2_app.run_workflow 的编排逻辑),
-# 步骤 7 末尾 (run_workflow 剥离 gradio 后) 会移除.
+# [migrate-to-flask 2026-07-21] Flask 是主前端框架.
+# gradio 已彻底下线 (app/scail2_app.py 删除, services/runner.py 自包含编排逻辑).
 flask>=3.0
-gradio>=6.0
 requests>=2.31
 websockets>=12.0
 pytest>=8.0
