@@ -231,10 +231,102 @@ function runTab(workflows, presetCfgs) {
     },
 
     async runWorkflow(presetName) {
-      // [步骤 4] 接 SSE 流. 步骤 3 占位 — 直接显示 running 状态.
+      // 步骤 4: 接 SSE 流 (POST + fetch streaming, 因为 EventSource 只支持 GET)
+      const panel = document.querySelector(`[data-preset="${presetName}"]`);
+      if (!panel) return;
+      const formValues = this.collectFormValues(panel);
+      const cfg = panel.__x.$data.presetCfg;
+      const outputKind = cfg?.output_kind || 'video';
+
       this.runState[presetName] = 'running';
-      this.statusMsg[presetName] = '步骤 3 占位: SSE 在步骤 4 接通';
-      console.log('runWorkflow (步骤 4 接 SSE):', presetName);
+      this.statusMsg[presetName] = '';
+      this.errorHtml[presetName] = '';
+      this.runLogs[presetName] = '';
+
+      const startTime = Date.now();
+      const updateElapsed = () => {
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        this.elapsedStr[presetName] = `${m}:${s}`;
+      };
+      const elapsedTimer = setInterval(updateElapsed, 1000);
+
+      try {
+        const resp = await fetch(`/api/run/${presetName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ form_values: formValues }),
+        });
+        if (!resp.ok) {
+          throw new Error(`${resp.status} ${resp.statusText}`);
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // SSE 事件以 \n\n 分隔
+          let idx;
+          while ((idx = buffer.indexOf('\n\n')) >= 0) {
+            const block = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+            this.handleSSEEvent(presetName, block);
+          }
+        }
+      } catch (e) {
+        this.runState[presetName] = 'failure';
+        this.statusMsg[presetName] = '运行失败: ' + e.message;
+      } finally {
+        clearInterval(elapsedTimer);
+        updateElapsed();
+        // running 状态没被 SSE 改成 success/failure 的话, 兜底设 failure
+        if (this.runState[presetName] === 'running') {
+          this.runState[presetName] = 'failure';
+        }
+      }
+    },
+
+    handleSSEEvent(presetName, block) {
+      // block 形如 "data: {...}"
+      for (const line of block.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6);
+        if (payload === '[DONE]') continue;
+        let ev;
+        try { ev = JSON.parse(payload); } catch { continue; }
+
+        if (ev.log) this.runLogs[presetName] = ev.log;
+        if (ev.status_msg) this.statusMsg[presetName] = ev.status_msg;
+        if (ev.media_html) this.resultHtml[presetName] = ev.media_html;
+        if (ev.error_html) this.errorHtml[presetName] = ev.error_html;
+        if (ev.state && ev.state !== 'running') {
+          this.runState[presetName] = ev.state;
+        }
+      }
+    },
+
+    collectFormValues(panel) {
+      // 从 panel.__x.$data.formValues 收集成扁平 list (按 spec 顺序)
+      const cfg = panel.__x.$data.presetCfg;
+      const fv = panel.__x.$data.formValues;
+      if (!cfg) return [];
+      const out = [];
+      let flatIdx = 0;
+      for (const spec of cfg.user_facing_inputs) {
+        if (spec.type === 'int_random') {
+          out.push(fv[flatIdx + '_random'] ?? true);
+          out.push(fv[flatIdx] ?? spec.default);
+          flatIdx += 2;
+        } else {
+          out.push(fv[flatIdx] ?? spec.default);
+          flatIdx += 1;
+        }
+      }
+      return out;
     },
 
     async openOutputFolder() {

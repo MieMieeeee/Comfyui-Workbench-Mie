@@ -25,8 +25,63 @@ def client():
 
 
 # ============================================================
-# 基础页面路由
+# SSE 流式运行 (步骤 4)
 # ============================================================
+
+def test_run_unknown_preset_returns_404(client):
+    """POST /api/run/<不存在的 preset> 返回 404."""
+    r = client.post("/api/run/__nonexistent__", json={"form_values": []})
+    assert r.status_code == 404
+
+
+def test_run_invalid_body_returns_400(client):
+    """POST /api/run/<preset> form_values 不是 list 返回 400."""
+    from app import config
+    preset = config.list_workflows()[0]["name"]
+    r = client.post(f"/api/run/{preset}", json={"form_values": "not a list"})
+    assert r.status_code == 400
+
+
+def test_run_returns_event_stream(client):
+    """POST /api/run/<preset> 返回 text/event-stream mimetype."""
+    from app import config
+    preset = config.list_workflows()[0]["name"]
+    # 不实际跑 ComfyUI (会失败但 SSE 应该 still 返回 stream)
+    r = client.post(f"/api/run/{preset}", json={"form_values": []})
+    assert r.status_code == 200
+    assert "text/event-stream" in r.content_type
+    # 内容应该是 SSE 格式 (data: ... 开头)
+    body = r.data.decode("utf-8")
+    assert "data:" in body
+    # 末尾应该有 [DONE]
+    assert "[DONE]" in body
+
+
+def test_run_event_has_json_payload(client):
+    """SSE data 行能解析成 JSON, 含 type 字段."""
+    from app import config
+    import json as _json
+    preset = config.list_workflows()[0]["name"]
+    r = client.post(f"/api/run/{preset}", json={"form_values": []})
+    body = r.data.decode("utf-8")
+    # 找第一个 data: 行 (排除 [DONE])
+    for line in body.split("\n"):
+        if line.startswith("data: ") and "[DONE]" not in line:
+            payload = _json.loads(line[len("data: "):])
+            assert "type" in payload
+            assert payload["type"] in ("log", "media", "error", "done")
+            break
+    else:
+        pytest.fail("没找到 data: 事件行")
+
+
+def test_run_to_sse_serializes_tuple_progress():
+    """RunEvent.to_sse 把 progress tuple 转成 list (JSON 不支持 tuple)."""
+    from app.services.runner import RunEvent
+    ev = RunEvent(type="log", progress=(5, 20))
+    sse = ev.to_sse()
+    assert '"progress": [5, 20]' in sse  # list 不是 tuple
+    assert "[DONE]" not in sse
 
 def test_index_returns_html(client):
     """GET / 返回运行页 HTML (200)."""

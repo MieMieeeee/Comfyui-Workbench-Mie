@@ -26,6 +26,7 @@ from app import scail2_client
 from app import prompts as prompts_mod
 from app.services import theme
 from app.services import form_schema
+from app.services import runner
 from app.services.persistence import _save_last_run, _load_last_run
 
 
@@ -341,6 +342,53 @@ def workflows():
             ),
         })
     return jsonify(out)
+
+
+# ============================================================
+# API 路由 — SSE 流式运行 (步骤 4)
+# ============================================================
+
+@app.route("/api/run/<preset_name>", methods=["POST"])
+def run_preset(preset_name):
+    """流式运行 preset. POST body: {"form_values": [...]}.
+    返回 text/event-stream, 每个 RunEvent 一个 'data:' 行, 末尾 [DONE].
+    """
+    valid = {w["name"] for w in config.list_workflows()}
+    if preset_name not in valid:
+        return jsonify({"error": f"unknown preset: {preset_name}"}), 404
+
+    data = request.get_json(silent=True) or {}
+    form_values = data.get("form_values", [])
+    if not isinstance(form_values, list):
+        return jsonify({"error": "form_values must be a list"}), 400
+
+    # 成功时持久化 last_run
+    def on_success(name, vals):
+        _save_last_run(name, vals)
+
+    def event_stream():
+        try:
+            for ev in runner.stream_events(preset_name, form_values, on_success=on_success):
+                yield ev.to_sse()
+        except Exception as e:
+            # 兜底: 生成器内部异常, 发一个 error event
+            import json as _json
+            err_data = {
+                "type": "error",
+                "error_html": f"<div class='error-banner-inner'><b>服务器异常</b><br>{e}</div>",
+                "state": "failure",
+            }
+            yield f"data: {_json.dumps(err_data, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(
+        event_stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # nginx 不缓冲
+        },
+    )
 
 
 @app.route("/api/preset_cfg/<preset_name>")
