@@ -21,6 +21,11 @@
  */
 
 :root {
+  /* Web Interface Guidelines §Dark Mode: color-scheme: dark 让浏览器原生控件
+   * (scrollbar / <select> dropdown / date picker / 表单默认背景) 走暗色 variant,
+   * 不再闪白. 项目按暗色设计 (light mode 已下线, 见 AGENTS.md), 这里固定 dark. */
+  color-scheme: dark;
+
   /* ============================================================
    * Theme variables —— 默认 coral-orange,运行时可被 _apply_theme 覆盖
    * ============================================================ */
@@ -126,6 +131,11 @@
 /* review P3-7: 强制 body 背景 = --bg-app,Gradio 6 inline style 会超越 :root.dark 设置 */
 body {
   background: var(--bg-app) !important;
+  /* Web Interface Guidelines §Touch & Interaction:
+   *   - touch-action: manipulation 消除移动端 300ms 双击延迟
+   *   - -webkit-tap-highlight-color: transparent 去掉 Android 默认蓝色 tap 高亮 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ============================================================
@@ -136,8 +146,17 @@ body {
   background: var(--bg-app) !important;
   /* review 2026-07-17 排版审计组6: 整体水平边距。
    * 原 container 无 padding, 内容直接贴浏览器窗口/外缘, "贴边"感总根源。
-   * 加 var(--space-4) 水平 padding, 左右各 16px 呼吸 (max-width 锁定不能动)。 */
-  padding: var(--space-4) var(--space-5) !important;
+   * 加 var(--space-4) 水平 padding, 左右各 16px 呼吸 (max-width 锁定不能动)。
+   *
+   * Web Interface Guidelines §Safe Areas & Layout: 叠加 env(safe-area-inset-*)
+   * 让 iPhone notch / Dynamic Island / Android punch-hole 不遮内容. 必须加在最外层
+   * .gradio-container (不能加内层卡片, 否则双重缩进). 旧浏览器 env() 求值为空, calc()
+   * 自动退化为原 padding, 零破坏. */
+  padding:
+    calc(var(--space-4) + env(safe-area-inset-top))
+    calc(var(--space-5) + env(safe-area-inset-right))
+    calc(var(--space-4) + env(safe-area-inset-bottom))
+    calc(var(--space-5) + env(safe-area-inset-left)) !important;
 }
 
 /* block-label 兜底软杀——`:root.dark{}` 块的 `--block-label-background-fill` 已设为 transparent,
@@ -262,7 +281,11 @@ body.dark {
   border: 1px solid var(--border-default) !important;
   border-radius: var(--radius-button) !important;
   cursor: pointer;
-  transition: all var(--duration-base) var(--ease-out);
+  /* Web Interface Guidelines: Never `transition: all` — 列具体属性.
+   * :hover 只改 background / border-color / color. */
+  transition: background var(--duration-base) var(--ease-out),
+              border-color var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out);
 }
 .btn-secondary-override:hover {
   background: var(--bg-card-hover) !important;
@@ -541,7 +564,10 @@ body.dark {
   font-size: var(--text-sm) !important;
   color: var(--text-secondary) !important;
   cursor: pointer !important;
-  transition: all var(--duration-fast) var(--ease-out) !important;
+  /* Web Interface Guidelines: Never `transition: all` — 列具体属性. */
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out) !important;
 }
 .history-filter-status label:hover {
   background: var(--bg-card-hover) !important;
@@ -1092,7 +1118,12 @@ body.dark {
   font-family: var(--font-sans) !important;
   font-size: var(--text-sm) !important;
   cursor: pointer;
-  transition: all var(--duration-base) var(--ease-out);
+  /* Web Interface Guidelines: Never `transition: all` — 列具体属性.
+   * :hover 改 background / border-color / border-left-color / color. */
+  transition: background var(--duration-base) var(--ease-out),
+              border-color var(--duration-base) var(--ease-out),
+              border-left-color var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out);
 }
 .custom-radio label:hover {
   background: var(--bg-card-hover) !important;
@@ -1162,8 +1193,10 @@ body.dark {
   transition: border-color var(--duration-base) var(--ease-out),
               box-shadow var(--duration-base) var(--ease-out);
 }
-.gradio-container input[type="text"]:focus,
-.gradio-container textarea:focus {
+/* Web Interface Guidelines §Focus States: 用 :focus-visible 而不是 :focus ——
+ * 鼠标点击不留 ring, 键盘 tab 才显示. outline: none 由 box-shadow ring 替代. */
+.gradio-container input[type="text"]:focus-visible,
+.gradio-container textarea:focus-visible {
   outline: none !important;
   border-color: var(--theme-accent-500) !important;
   box-shadow: 0 0 0 3px var(--theme-accent-glow) !important;
@@ -1186,7 +1219,12 @@ body.dark {
   font-family: var(--font-sans) !important;
   font-size: var(--text-sm) !important;
   padding: var(--space-6) !important;
-  transition: all var(--duration-base) var(--ease-out) !important;
+  /* Web Interface Guidelines: Never `transition: all` — 列具体属性.
+   * :hover / :focus-within / .is-dragover 改 background / border-color / color / box-shadow. */
+  transition: background var(--duration-base) var(--ease-out),
+              border-color var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out),
+              box-shadow var(--duration-base) var(--ease-out) !important;
 }
 .file-dropzone:hover,
 .file-dropzone:focus-within,

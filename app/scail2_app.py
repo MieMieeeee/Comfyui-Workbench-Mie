@@ -598,8 +598,8 @@ def run_workflow(preset_name, *component_values):
     progress = gr.Progress()
     _log.info(f"[run_workflow] ENTRY preset={preset_name}, {len(component_values)} values")
     try:
-        progress(0.02, desc="准备中...")
-        yield "[READY] preparing...", None
+        progress(0.02, desc="准备中…")
+        yield "[READY] preparing…", None
     except Exception as e:
         _log.error("[run_workflow] early yield exception: " + repr(e), exc_info=True)
         yield "[ERROR] early yield: " + repr(e), None
@@ -653,8 +653,8 @@ def run_workflow(preset_name, *component_values):
     has_video_input = any(s.get("type") == "file:video" for s in inputs_spec)
 
     if has_image_input:
-        progress(0.10, desc="上传参考图...")
-        yield "⏳ [1/5] uploading reference image...", None
+        progress(0.10, desc="上传参考图…")
+        yield "⏳ [1/5] uploading reference image…", None
         try:
             ref_name = _resolve_upload_name(ref_path, kind="image")
         except (ComfyUIError, FileNotFoundError) as e:
@@ -663,8 +663,8 @@ def run_workflow(preset_name, *component_values):
             yield f"❌ upload ref: {e}", None
             return
     if has_video_input:
-        progress(0.20, desc="上传驱动视频...")
-        yield "⏳ [2/5] uploading drive video...", None
+        progress(0.20, desc="上传驱动视频…")
+        yield "⏳ [2/5] uploading drive video…", None
         try:
             drive_name = _resolve_upload_name(drive_path, kind="file")
         except (ComfyUIError, FileNotFoundError) as e:
@@ -673,8 +673,8 @@ def run_workflow(preset_name, *component_values):
             yield f"❌ upload drive: {e}", None
             return
 
-    progress(0.30, desc="组装 workflow...")
-    yield "⏳ [3/5] loading + patching workflow...", None
+    progress(0.30, desc="组装 workflow…")
+    yield "⏳ [3/5] loading + patching workflow…", None
     try:
         wf = scail2_client.load_workflow_template(preset_name)
         replacements: dict[str, dict[str, Any]] = {}
@@ -747,8 +747,8 @@ def run_workflow(preset_name, *component_values):
         yield f"❌ patch: {e}", None
         return
 
-    progress(0.40, desc="入队 ComfyUI...")
-    yield "⏳ [4/5] queuing prompt to ComfyUI...", None
+    progress(0.40, desc="入队 ComfyUI…")
+    yield "⏳ [4/5] queuing prompt to ComfyUI…", None
     try:
         prompt_id, client_id = scail2_client.queue_prompt(patched)
     except (ComfyUIError, ProtocolError_) as e:
@@ -760,8 +760,8 @@ def run_workflow(preset_name, *component_values):
     yield f"⏳ [4/5] queued: {prompt_id[:8]}…", None
 
     video_url = None
-    progress(0.45, desc="等待 ComfyUI 执行...")
-    yield "⏳ [5/5] waiting for ComfyUI execution...", None
+    progress(0.45, desc="等待 ComfyUI 执行…")
+    yield "⏳ [5/5] waiting for ComfyUI execution…", None
     _wait_p = 0.45
     # P1: build node_id -> title map from patched workflow so status_bar shows
     # "KSampler" / "Load Image" instead of leaking "node 367" (AGENTS.md rule).
@@ -782,7 +782,7 @@ def run_workflow(preset_name, *component_values):
             else:
                 # 进度按轮询渐进推进（0.45 → 0.92），留 0.08 给最终完成
                 _wait_p = min(0.92, _wait_p + 0.02)
-            progress(_wait_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40] or "执行中...")
+            progress(_wait_p, desc=status_msg.lstrip("⏳✅❌⏰ ").strip()[:40] or "执行中…")
             if status_msg.startswith("✅"):
                 try:
                     hist = scail2_client.get_history(prompt_id)
@@ -880,7 +880,7 @@ def run_image_workflow(preset_name, *component_values):
     from app import prompts as prompts_mod
     progress = gr.Progress()
     _log.info(f"[run_image] ENTRY preset={preset_name}, {len(component_values)} values")
-    yield "[READY] preparing image gen...", None
+    yield "[READY] preparing image gen…", None
 
     preset_cfg = config.preset_config(preset_name)
     inputs_spec = preset_cfg["user_facing_inputs"]
@@ -950,10 +950,10 @@ def run_image_workflow(preset_name, *component_values):
     # P1: node_id -> title map, 在尺寸循环外建一次 (workflow 模板不变, title 通用)
     _title_map = scail2_client.build_node_title_map(wf_base)
 
-    yield f"⏳ 准备生成 {len(sizes)} 张图...", None
+    yield f"⏳ 准备生成 {len(sizes)} 张图…", None
 
-    progress(0.05, desc=f"准备生成 {len(sizes)} 张图...")
-    yield f"⏳ 准备生成 {len(sizes)} 张图...", None
+    progress(0.05, desc=f"准备生成 {len(sizes)} 张图…")
+    yield f"⏳ 准备生成 {len(sizes)} 张图…", None
 
     for idx, (w, h) in enumerate(sizes, 1):
         # seed=0 → 每尺寸独立随机；>0 → 固定
@@ -970,8 +970,8 @@ def run_image_workflow(preset_name, *component_values):
         # 该尺寸占的进度区间：[(idx-1)/n, idx/n]
         seg_start = (idx - 1) / len(sizes)
         seg_end = idx / len(sizes)
-        progress(seg_start + 0.02, desc=f"[{idx}/{len(sizes)}] {w}x{h} 生成中...")
-        yield f"⏳ [{idx}/{len(sizes)}] {w}x{h} seed={actual_seed}...", None
+        progress(seg_start + 0.02, desc=f"[{idx}/{len(sizes)}] {w}x{h} 生成中…")
+        yield f"⏳ [{idx}/{len(sizes)}] {w}x{h} seed={actual_seed}…", None
         try:
             patched = scail2_client.patch_workflow(
                 wf_base, replacements, preset_config=preset_cfg, validate_after=False,
@@ -1135,6 +1135,10 @@ def _build_settings_tab(theme_injector: gr.HTML | None = None):
             value=scail2_client.get_base_url(),
             placeholder="http://127.0.0.1:8188",
             scale=3,
+            # Web Interface Guidelines §Forms: autocomplete="off" 阻止浏览器把这个
+            # URL 输入框误识别为登录字段 (触发密码管理器弹窗). Gradio 6 通过 html_attributes
+            # 透传原生 HTML 属性, 渲染成 <input autocomplete="off">.
+            html_attributes={"autocomplete": "off"},
         )
         save_btn = gr.Button("保存并测试", variant="primary", scale=1)
 
@@ -1438,11 +1442,11 @@ def _media_to_html(media, output_kind: str = "image") -> str:
             if not media:
                 return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
             imgs = "".join(
-                "<img src=\"" + str(u) + "\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
+                "<img src=\"" + str(u) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
                 for u in media if u
             )
             return "<div style=\"padding:8px\">" + imgs + "</div>"
-        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
+        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # video / audio: 单 URL, 扩展名分桶
     src = media[0] if isinstance(media, list) else media
@@ -1476,7 +1480,7 @@ def _media_to_html(media, output_kind: str = "image") -> str:
                     '<source src=\"' + url + '\"/></audio></div>')
     if ext in video_ext:
         if src.startswith("http"):
-            return ("<div style=\"padding:8px\"><video controls autoplay style=\"max-width:100%;border-radius:var(--radius-md)\">"
+            return ("<div style=\"padding:8px\"><video controls autoplay preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
                     "<source src=\"" + src + "\"/></video></div>")
         from pathlib import Path as _P
         sp = _P(src)
@@ -1484,13 +1488,13 @@ def _media_to_html(media, output_kind: str = "image") -> str:
             try:
                 rel = sp.relative_to(config.REPO_ROOT)
                 file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-                return ("<div style=\"padding:8px\"><video controls style=\"max-width:100%;border-radius:var(--radius-md)\">"
+                return ("<div style=\"padding:8px\"><video controls preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
                         "<source src=\"" + file_url + "\"/></video></div>")
             except ValueError:
                 pass
     if ext in image_ext:
         url = _to_url(src) or src
-        return "<div style=\"padding:8px\"><img src=\"" + url + "\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
+        return "<div style=\"padding:8px\"><img src=\"" + url + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # 兜底: 输出 kind 对应的 banner
     if output_kind == "audio":
@@ -2347,10 +2351,38 @@ def _get_theme_desc(tid: str) -> str:
     return ""
 
 
+# Page background. 必须与 tokens.css 的 --bg-app 同步 —— 浏览器 UI (地址栏 /
+# status bar) 的 theme-color 跟页面背景不一致会出现"上下颜色断层". 改背景时两处一起改.
+_PAGE_BG_COLOR = "#0f1115"
+
+
+def _build_launch_head() -> str:
+    """生成注入 <head> 的 <meta> 标签字符串 (对称 _build_launch_css).
+
+    Gradio 6 launch(head=...) 把这段塞进 <head>. 内容:
+
+      1. <meta name="theme-color" content="#0f1115">
+         Web Interface Guidelines §Dark Mode: theme-color 应匹配页面背景.
+         浏览器据此着色移动端地址栏 / status bar / PWA 标题栏.
+
+      2. <meta name="color-scheme" content="dark">
+         HTML 层声明 (CSS 层 tokens.css :root { color-scheme: dark } 之外再加一道),
+         让浏览器在 CSS 加载前就用 dark variant —— 避免 scrollbar / <select>
+         在首屏一闪而过的白底 (FOUC).
+
+    返回 str (Gradio 6 launch(head=...) 签名是 str | list[str] | None).
+    """
+    return (
+        f'<meta name="theme-color" content="{_PAGE_BG_COLOR}">'
+        f'<meta name="color-scheme" content="dark">'
+    )
+
+
 
 
 
 CSS = _build_launch_css()
+HEAD = _build_launch_head()
 
 
 THEME = gr.themes.Soft(primary_hue="orange", neutral_hue="slate").set(
@@ -2563,6 +2595,7 @@ def main():
         show_error=True,
         theme=THEME,
         css=CSS,
+        head=HEAD,
         footer_links=[],
         enable_monitoring=False,
         allowed_paths=[config.REPO_ROOT / "app" / "static" / "examples"],
