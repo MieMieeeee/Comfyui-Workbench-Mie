@@ -7,6 +7,10 @@ __pycache__/
 # 运行时产物
 app/data/gradio_run.log
 app/data/runs/
+# theme 持久化 (用户本机选的主题, 每台机器不同; AGENTS.md 说明)
+app/data/theme_settings.json
+# probe 截图子目录 (per-dev 调试 e2e/new_presets/wc_repro 等, 不入库)
+app/data/probe_*/
 .examples_cache/
 .output_cache/
 smoke_output.mp4
@@ -42,6 +46,9 @@ app/static/examples/*_run.*
 # spurious diff churn.
 webui.out.log
 webui.err.log
+
+# 启动脚本 / 调试重定向 的日志目录 (0 字节 placeholder 也别入库)
+logs/
 
 # Local debug/probe scripts (not committed)
 _probe*.py
