@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}系统设置 — ComfyUI 工作流运行器{% endblock %}
+
+{% block content %}
+<div class="settings-page" x-data="settingsTab()" x-init="init()">
+  <section class="settings-section">
+    <h2>⚙️ 系统设置</h2>
+    <p>ComfyUI 地址运行时可改。默认 <code>{{ default_url }}</code>,可改成局域网/远程实例。</p>
+
+    <div class="url-row">
+      <input type="text"
+             x-model="url"
+             placeholder="http://127.0.0.1:8188"
+             autocomplete="off"
+             class="url-input">
+      <button type="button" class="btn-run-primary"
+              @click="saveUrl()">保存并测试</button>
+    </div>
+
+    <div class="url-actions">
+      <button type="button" class="btn-secondary" @click="resetUrl()">恢复默认</button>
+      <button type="button" class="btn-secondary" @click="retestUrl()">重新测试</button>
+      <button type="button" class="btn-secondary" @click="fullCheck()">🔍 完整健康检查</button>
+    </div>
+
+    <p class="status-text" x-show="statusMsg" x-text="statusMsg"></p>
+  </section>
+
+  <hr>
+
+  <section class="settings-section">
+    <h3>🔍 完整健康检查报告</h3>
+    <div class="health-report" x-html="healthReport"></div>
+  </section>
+
+  <hr>
+
+  <section class="settings-section">
+    <h2>🎨 主题</h2>
+    <p>切换后即时生效 (毫秒级)。新增主题编辑 <code>app/presets/themes.json</code>。</p>
+
+    <fieldset class="theme-options">
+      <template x-for="t in themes" :key="t.id">
+        <label :class="{ selected: t.id === currentThemeId }">
+          <input type="radio" name="theme" :value="t.id" x-model="currentThemeId"
+                 @change="changeTheme(t.id)">
+          <span x-text="t.name"></span>
+          <em class="theme-desc" x-text="t.desc"></em>
+        </label>
+      </template>
+    </fieldset>
+    <p class="theme-current-desc" x-show="themeDesc" x-html="themeDesc"></p>
+  </section>
+</div>
+{% endblock %}

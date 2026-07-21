@@ -19,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, render_template
 
 from app import config
 from app import scail2_client
@@ -133,30 +133,64 @@ def _category_icon(cat: str) -> str:
 # 页面路由
 # ============================================================
 
+def _workflows_for_nav():
+    """返回前端 nav 用的工作流元信息列表 (跟 /api/workflows 一致)."""
+    out = []
+    for w in config.list_workflows():
+        cfg = config.preset_config(w["name"])
+        cat = cfg.get("category", "other")
+        out.append({
+            "name": w["name"],
+            "display_name": cfg.get("display_name", w["name"]),
+            "description": cfg.get("description", ""),
+            "category": cat,
+            "icon": _category_icon(cat),
+            "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
+            "output_kind": cfg.get("output_kind") or (
+                "image" if cat == "image" else "audio" if cat == "audio" else "video"
+            ),
+        })
+    return out
+
+
 @app.route("/")
 def index():
-    """运行页 (步骤 3 完整模板)."""
-    # 暂时返回最简占位 HTML, 步骤 3 替换成 Jinja 模板
-    return Response(
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<title>ComfyUI 工作流运行器</title></head>"
-        "<body><h1>🎬 ComfyUI 工作流运行器</h1>"
-        "<p>Flask 版本 (步骤 2 占位, 模板在步骤 3 完成)</p>"
-        "</body></html>",
-        mimetype="text/html",
+    """运行页."""
+    tid = theme._load_saved_theme()
+    # 每个 preset 的 cfg 也在服务端预渲染, 前端不用 fetch /api/preset_cfg/<name>
+    preset_cfgs = {}
+    for w in config.list_workflows():
+        cfg = config.preset_config(w["name"])
+        preset_cfgs[w["name"]] = {
+            "name": w["name"],
+            "display_name": cfg.get("display_name", w["name"]),
+            "description": cfg.get("description", ""),
+            "category": cfg.get("category", "other"),
+            "output_kind": cfg.get("output_kind") or (
+                "image" if cfg.get("category") == "image"
+                else "audio" if cfg.get("category") == "audio" else "video"
+            ),
+            "user_facing_inputs": cfg.get("user_facing_inputs", []),
+        }
+    return render_template(
+        "run.html",
+        workflows=_workflows_for_nav(),
+        preset_cfgs=preset_cfgs,
+        theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
+        page_bg_color=theme._PAGE_BG_COLOR,
     )
 
 
 @app.route("/settings")
 def settings_page():
-    """设置页 (步骤 3 完整模板)."""
-    return Response(
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<title>系统设置</title></head>"
-        "<body><h1>⚙️ 系统设置</h1>"
-        "<p>Flask 版本 (步骤 2 占位, 模板在步骤 3 完成)</p>"
-        "</body></html>",
-        mimetype="text/html",
+    """设置页."""
+    tid = theme._load_saved_theme()
+    return render_template(
+        "settings.html",
+        default_url=config.COMFY_BASE_URL,
+        current_url=scail2_client.get_base_url(),
+        theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
+        page_bg_color=theme._PAGE_BG_COLOR,
     )
 
 
@@ -307,6 +341,27 @@ def workflows():
             ),
         })
     return jsonify(out)
+
+
+@app.route("/api/preset_cfg/<preset_name>")
+def preset_cfg(preset_name):
+    """返回 preset 的 user_facing_inputs spec 列表, 供前端动态渲染表单字段."""
+    valid = {w["name"] for w in config.list_workflows()}
+    if preset_name not in valid:
+        return jsonify({"error": f"unknown preset: {preset_name}"}), 404
+    cfg = config.preset_config(preset_name)
+    # 只返回前端需要的字段 (不泄露 fixed_patches / do_not_modify_warnings 等)
+    return jsonify({
+        "name": preset_name,
+        "display_name": cfg.get("display_name", preset_name),
+        "description": cfg.get("description", ""),
+        "category": cfg.get("category", "other"),
+        "output_kind": cfg.get("output_kind") or (
+            "image" if cfg.get("category") == "image"
+            else "audio" if cfg.get("category") == "audio" else "video"
+        ),
+        "user_facing_inputs": cfg.get("user_facing_inputs", []),
+    })
 
 
 # ============================================================

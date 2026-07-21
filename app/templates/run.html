@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}运行 — ComfyUI 工作流运行器{% endblock %}
+
+{% block content %}
+{#- workflows + preset_cfgs JSON 通过 script 标签注入, 避免 tojson 双引号冲突 x-data 属性 -#}
+<script>
+  window.__WORKFLOWS__ = {{ workflows | tojson }};
+  window.__PRESET_CFGS__ = {{ preset_cfgs | tojson }};
+</script>
+<div class="workflow-workbench" x-data="runTab(window.__WORKFLOWS__, window.__PRESET_CFGS__)" x-init="init()">
+
+  <!-- 左侧导航栏 -->
+  <aside class="workflow-nav-rail">
+    <div class="nav-group">
+      <p class="nav-section-title">导航</p>
+      <input type="text" class="nav-search"
+             placeholder="🔍 按名称筛选…"
+             x-model="searchQuery"
+             autocomplete="off">
+      <ul class="workflow-list">
+        <template x-for="w in filteredWorkflows" :key="w.name">
+          <li>
+            <label :class="{ selected: w.name === currentPreset }"
+                   @click="selectPreset(w.name)">
+              <input type="radio" name="preset"
+                     :value="w.name"
+                     x-model="currentPreset">
+              <span x-text="w.nav_label"></span>
+            </label>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    <div class="nav-group nav-group-system">
+      <p class="nav-section-title">系统</p>
+      <button class="btn-secondary" @click="refreshStatus()" type="button">🔄 刷新状态</button>
+      <p class="nav-system-status" x-html="statusHtml"></p>
+      <button class="btn-secondary" @click="openOutputFolder()" type="button">📂 输出目录</button>
+      <p class="nav-system-status" x-show="openDirMsg" x-text="openDirMsg"></p>
+    </div>
+  </aside>
+
+  <!-- 右侧工作区 (动态切换 preset) -->
+  <section class="workflow-main-stage">
+    <template x-for="w in workflows" :key="w.name">
+      <div class="preset-panel" x-show="w.name === currentPreset"
+           x-data="{ presetCfg: getPresetCfg(w.name), formValues: {} }"
+           :data-preset="w.name">
+
+        <!-- preset 标题 + 描述 (加载 preset cfg 后填充) -->
+        <header class="preset-header">
+          <h2 x-text="w.display_name"></h2>
+          <p class="preset-description" x-text="w.description"></p>
+        </header>
+
+        <!-- 加载示例 / 加载上次参数 -->
+        <div class="preset-actions">
+          <button class="btn-secondary" type="button"
+                  @click="loadExample(w.name)">📥 加载示例素材</button>
+          <button class="btn-secondary" type="button"
+                  @click="loadLastRun(w.name)"
+                  x-show="hasLastRun[w.name]">📂 加载上次成功参数</button>
+        </div>
+
+        <!-- 表单 (加载 preset cfg 后渲染 spec 字段) -->
+        <div class="preset-form">
+          <template x-if="presetCfg === null">
+            <p class="loading-placeholder">加载中…</p>
+          </template>
+          <template x-if="presetCfg !== null">
+            <div>
+              <!-- 遍历 user_facing_inputs, 每个 spec 渲染成对应表单字段 -->
+              <template x-for="(spec, idx) in presetCfg.user_facing_inputs" :key="idx">
+                <div class="form-field" :data-tier="spec.tier || 'basic'">
+                  <label class="field-label" x-text="spec.label"></label>
+
+                  <!-- file:image -->
+                  <template x-if="spec.type === 'file:image'">
+                    <input type="file"
+                           :accept="imageExts"
+                           @change="onFileSelect($event, w.name, idx, 'image')">
+                  </template>
+
+                  <!-- file:video -->
+                  <template x-if="spec.type === 'file:video'">
+                    <input type="file"
+                           :accept="videoExts"
+                           @change="onFileSelect($event, w.name, idx, 'video')">
+                  </template>
+
+                  <!-- text / prompt_pool -->
+                  <template x-if="['text', 'prompt_pool'].includes(spec.type)">
+                    <div>
+                      <textarea x-model="formValues[idx]"
+                                :placeholder="spec.help || ''"
+                                rows="4"></textarea>
+                      <template x-if="spec.type === 'prompt_pool'">
+                        <div class="prompt-actions">
+                          <button type="button" class="btn-secondary"
+                                  @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
+                          <button type="button" class="btn-secondary"
+                                  @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- image_sizes (多 checkbox) -->
+                  <template x-if="spec.type === 'image_sizes'">
+                    <fieldset class="sizes-fieldset">
+                      <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
+                        <label class="size-option">
+                          <input type="checkbox"
+                                 :value="sizeValue(opt)"
+                                 @change="onSizeToggle($event, w.name, idx)">
+                          <span x-text="sizeLabel(opt)"></span>
+                        </label>
+                      </template>
+                    </fieldset>
+                  </template>
+
+                  <!-- bool -->
+                  <template x-if="spec.type === 'bool'">
+                    <label class="bool-field">
+                      <input type="checkbox" x-model="formValues[idx]">
+                      <span x-text="spec.help || ''"></span>
+                    </label>
+                  </template>
+
+                  <!-- select -->
+                  <template x-if="spec.type === 'select'">
+                    <select x-model="formValues[idx]">
+                      <template x-for="c in (spec.choices || [])" :key="typeof c === 'object' ? c.value : c">
+                        <option :value="typeof c === 'object' ? c.value : c"
+                                x-text="typeof c === 'object' ? c.label : c"></option>
+                      </template>
+                    </select>
+                  </template>
+
+                  <!-- int_random (checkbox + number) -->
+                  <template x-if="spec.type === 'int_random'">
+                    <div class="int-random-field">
+                      <label>
+                        <input type="checkbox" x-model="formValues[idx + '_random']">
+                        随机
+                      </label>
+                      <input type="number"
+                             x-model="formValues[idx]"
+                             :disabled="formValues[idx + '_random']"
+                             :min="spec.min || 0">
+                    </div>
+                  </template>
+
+                  <!-- int -->
+                  <template x-if="spec.type === 'int'">
+                    <input type="number"
+                           x-model="formValues[idx]"
+                           :min="spec.min" :max="spec.max" :step="spec.step || 1">
+                  </template>
+
+                  <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <!-- 运行按钮 + 状态条 + 结果区 -->
+        <div class="run-section">
+          <div class="run-status-bar" :class="'status-' + (runState[w.name] || 'idle')"
+               x-show="runState[w.name] && runState[w.name] !== 'idle'">
+            <span class="status-icon" x-html="statusIcon(w.name)"></span>
+            <span class="status-label" x-text="statusLabel(w.name)"></span>
+            <span class="status-msg" x-text="statusMsg[w.name]"></span>
+            <span class="status-elapsed" x-text="elapsedStr[w.name]"></span>
+          </div>
+
+          <button class="btn-run-primary"
+                  type="button"
+                  @click="runWorkflow(w.name)"
+                  :disabled="isRunning(w.name)">
+            🚀 开始运行
+          </button>
+
+          <!-- 运行日志 (折叠) -->
+          <details class="run-log" x-show="runLogs[w.name]">
+            <summary>📜 运行日志</summary>
+            <pre x-text="runLogs[w.name]"></pre>
+          </details>
+
+          <!-- 错误条 -->
+          <div class="error-banner" x-show="errorHtml[w.name]"
+               x-html="errorHtml[w.name]"></div>
+
+          <!-- 结果区 -->
+          <div class="result-area">
+            <p class="result-placeholder" x-show="!resultHtml[w.name]">等待结果…</p>
+            <div x-show="resultHtml[w.name]" x-html="resultHtml[w.name]"></div>
+          </div>
+
+          <!-- 再来一次 / 打开输出目录 -->
+          <div class="result-actions" x-show="runState[w.name] === 'success'">
+            <button type="button" class="btn-run-secondary"
+                    @click="runWorkflow(w.name)">🔁 用相同参数再运行</button>
+            <button type="button" class="btn-secondary"
+                    @click="openOutputFolder()">📂 打开 ComfyUI 输出目录</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
+</div>
+{% endblock %}
