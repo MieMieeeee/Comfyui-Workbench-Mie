@@ -8,9 +8,10 @@
   <meta name="color-scheme" content="dark">
   <title>{% block title %}ComfyUI 工作流运行器{% endblock %}</title>
 
-  <!-- 主题 CSS: tokens.css + 当前主题变量 (_apply_theme 产出) -->
+  <!-- 主题 CSS: tokens.css (:root 变量 + 共享组件) + app-flask.css (Flask 布局) -->
   <style id="theme-injector">{{ theme_css_content | safe }}</style>
   <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app-flask.css') }}">
 
   <!-- app.js 必须先加载, 再加载 Alpine (Alpine 启动时需要 appShell/runTab/settingsTab 已定义) -->
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
