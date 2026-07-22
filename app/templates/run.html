@@ -45,7 +45,8 @@
   <section class="workflow-main-stage">
     <template x-for="w in workflows" :key="w.name">
       <div class="preset-panel" x-show="w.name === currentPreset"
-           x-data="{ presetCfg: getPresetCfg(w.name), formValues: {} }"
+           x-data="{ presetCfg: getPresetCfg(w.name), formValues: {}, defaultResultHtml: '' }"
+           x-init="initPanelScope(w.name, $data)"
            :data-preset="w.name">
 
         <!-- preset 标题 + 描述 (加载 preset cfg 后填充) -->
@@ -195,7 +196,8 @@
 
           <!-- 结果区 -->
           <div class="result-area">
-            <p class="result-placeholder" x-show="!resultHtml[w.name]">等待结果…</p>
+            <p class="result-placeholder" x-show="!resultHtml[w.name] && !defaultResultHtml">等待结果…</p>
+            <div x-show="defaultResultHtml && !resultHtml[w.name]" x-html="defaultResultHtml"></div>
             <div x-show="resultHtml[w.name]" x-html="resultHtml[w.name]"></div>
           </div>
 

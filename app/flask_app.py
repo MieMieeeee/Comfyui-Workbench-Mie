@@ -19,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from flask import Flask, jsonify, request, Response, render_template
+from flask import Flask, jsonify, request, Response, render_template, url_for
 
 from app import config
 from app import scail2_client
@@ -162,6 +162,21 @@ def index():
     preset_cfgs = {}
     for w in config.list_workflows():
         cfg = config.preset_config(w["name"])
+        ex = cfg.get("example", {}) or {}
+        # example 里的 preview_image / preview_video / preview_audio 是相对仓库路径
+        # (e.g. "app/static/examples/xxx.png"). Flask 端转成 /static/examples/xxx.png URL.
+        preview_url = None
+        for k in ("preview_video", "preview_image", "preview_audio"):
+            raw = ex.get(k)
+            if raw:
+                # 形如 "app/static/examples/x.png" -> 剥前缀, 用 url_for
+                rel = str(raw).replace("\\", "/")
+                for prefix in ("app/static/", "static/"):
+                    if rel.startswith(prefix):
+                        rel = rel[len(prefix):]
+                        break
+                preview_url = url_for("static", filename=rel)
+                break
         preset_cfgs[w["name"]] = {
             "name": w["name"],
             "display_name": cfg.get("display_name", w["name"]),
@@ -172,6 +187,11 @@ def index():
                 else "audio" if cfg.get("category") == "audio" else "video"
             ),
             "user_facing_inputs": cfg.get("user_facing_inputs", []),
+            "preview_url": preview_url,
+            "preview_kind": (
+                "video" if ex.get("preview_video") else
+                "audio" if ex.get("preview_audio") else "image"
+            ) if preview_url else None,
         }
     return render_template(
         "run.html",

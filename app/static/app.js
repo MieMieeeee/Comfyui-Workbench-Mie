@@ -92,18 +92,64 @@ function runTab(workflows, presetCfgs) {
 
     async init() {
       this.refreshStatus();
-      // 预加载所有 preset 的 example 值 (填充默认表单)
-      for (const w of this.workflows) {
-        try {
-          const cfg = this.presetCfgs[w.name];
-          if (!cfg) continue;
-          const exampleVals = await fetchJSON(`/api/example/${w.name}`);
-          // 等 Alpine 把 panel 渲染出来再填
-          this.$nextTick(() => this.fillPresetPanel(w.name, cfg, exampleVals));
-        } catch (e) {
-          console.error('init preset', w.name, e);
+    },
+
+    async initPanelScope(name, scope) {
+      // panel x-init 调用. scope 是 panel 的 $data (Alpine 响应式对象).
+      // 拉 example 填默认表单 + 渲染 preview 到结果区.
+      const cfg = this.presetCfgs[name];
+      if (!cfg) return;
+      // 1. 拉 example 填表单
+      try {
+        const values = await fetchJSON(`/api/example/${name}`);
+        const fv = {};
+        let fi = 0;
+        for (const spec of cfg.user_facing_inputs) {
+          if (spec.type === 'int_random') {
+            fv[fi + '_random'] = values[fi];
+            fv[fi] = values[fi + 1];
+            fi += 2;
+          } else {
+            fv[fi] = values[fi];
+            fi += 1;
+          }
+        }
+        scope.formValues = fv;
+      } catch (e) {
+        console.error('initPanelScope example', name, e);
+      }
+      // 2. 渲染 preview 作为默认结果
+      if (cfg.preview_url) {
+        const k = cfg.preview_kind || 'image';
+        const caption = '<p class="result-placeholder" style="margin-top:8px">📸 示例效果 (默认参数对应的结果)</p>';
+        if (k === 'video') {
+          scope.defaultResultHtml = `<div style="padding:8px"><video controls preload="metadata" width="100%" height="auto" style="max-width:100%;border-radius:var(--radius-md);max-height:70vh"><source src="${cfg.preview_url}"/></video></div>${caption}`;
+        } else if (k === 'audio') {
+          scope.defaultResultHtml = `<div style="padding:8px"><audio controls preload="metadata" style="width:100%;max-width:480px"><source src="${cfg.preview_url}"/></audio></div>${caption}`;
+        } else {
+          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" width="100%" height="auto" loading="lazy" style="max-width:100%;border-radius:var(--radius-md);max-height:70vh"/></div>${caption}`;
         }
       }
+    },
+
+    _applyFormValues(panelEl, cfg, values) {
+      // loadExample / loadLastRun 用: 把 values 填进 panel formValues.
+      // Alpine 3 通过 Alpine.$data(el) 拿响应式 scope.
+      const data = (window.Alpine && Alpine.$data) ? Alpine.$data(panelEl) : (panelEl.__x ? panelEl.__x.$data : null);
+      if (!data) return;
+      const formValues = {};
+      let flatIdx = 0;
+      for (const spec of cfg.user_facing_inputs) {
+        if (spec.type === 'int_random') {
+          formValues[flatIdx + '_random'] = values[flatIdx];
+          formValues[flatIdx] = values[flatIdx + 1];
+          flatIdx += 2;
+        } else {
+          formValues[flatIdx] = values[flatIdx];
+          flatIdx += 1;
+        }
+      }
+      data.formValues = formValues;
     },
 
     get filteredWorkflows() {
@@ -124,38 +170,10 @@ function runTab(workflows, presetCfgs) {
     },
 
     fillPresetPanel(name, cfg, values) {
+      // 兼容旧调用 (loadExample / loadLastRun 用)
       const panel = document.querySelector(`[data-preset="${name}"]`);
       if (!panel || !panel.__x) return;
-      panel.__x.$data.presetCfg = cfg;
-      const formValues = {};
-      let flatIdx = 0;
-      for (const spec of cfg.user_facing_inputs) {
-        if (spec.type === 'int_random') {
-          formValues[flatIdx + '_random'] = values[flatIdx];
-          formValues[flatIdx] = values[flatIdx + 1];
-          flatIdx += 2;
-        } else {
-          formValues[flatIdx] = values[flatIdx];
-          flatIdx += 1;
-        }
-      }
-      panel.__x.$data.formValues = formValues;
-    },
-
-    fillForm(panel, cfg, values) {
-      const formValues = {};
-      let flatIdx = 0;
-      for (const spec of cfg.user_facing_inputs) {
-        if (spec.type === 'int_random') {
-          formValues[flatIdx + '_random'] = values[flatIdx];
-          formValues[flatIdx] = values[flatIdx + 1];
-          flatIdx += 2;
-        } else {
-          formValues[flatIdx] = values[flatIdx];
-          flatIdx += 1;
-        }
-      }
-      panel.__x.$data.formValues = formValues;
+      this._applyFormValues(panel, cfg, values);
     },
 
     sizeValue(opt) { return typeof opt === 'object' ? opt.value : opt; },
@@ -222,7 +240,7 @@ function runTab(workflows, presetCfgs) {
       const cfg = panel.__x.$data.presetCfg;
       if (!cfg) return;
       const values = await fetchJSON(`/api/example/${presetName}`);
-      this.fillForm(panel, cfg, values);
+      this._applyFormValues(panel, cfg, values);
     },
 
     async loadLastRun(presetName) {
@@ -231,7 +249,7 @@ function runTab(workflows, presetCfgs) {
       const cfg = panel.__x.$data.presetCfg;
       if (!cfg) return;
       const values = await fetchJSON(`/api/last_run/${presetName}`);
-      this.fillForm(panel, cfg, values);
+      this._applyFormValues(panel, cfg, values);
     },
 
     isRunning(presetName) {
