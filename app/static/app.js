@@ -123,11 +123,11 @@ function runTab(workflows, presetCfgs) {
         const k = cfg.preview_kind || 'image';
         const caption = '<p class="result-placeholder" style="margin-top:8px">📸 示例效果 (默认参数对应的结果)</p>';
         if (k === 'video') {
-          scope.defaultResultHtml = `<div style="padding:8px"><video controls preload="metadata" width="100%" height="auto" style="max-width:100%;border-radius:var(--radius-md);max-height:70vh"><source src="${cfg.preview_url}"/></video></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><video controls preload="metadata" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto""><source src="${cfg.preview_url}"/></video></div>${caption}`;
         } else if (k === 'audio') {
           scope.defaultResultHtml = `<div style="padding:8px"><audio controls preload="metadata" style="width:100%;max-width:480px"><source src="${cfg.preview_url}"/></audio></div>${caption}`;
         } else {
-          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" width="100%" height="auto" loading="lazy" style="max-width:100%;border-radius:var(--radius-md);max-height:70vh"/></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto""/></div>${caption}`;
         }
       }
     },
@@ -178,6 +178,24 @@ function runTab(workflows, presetCfgs) {
 
     sizeValue(opt) { return typeof opt === 'object' ? opt.value : opt; },
     sizeLabel(opt) { return typeof opt === 'object' ? opt.label : opt; },
+
+    getExampleThumbUrl(presetName, specIdx) {
+      // 从 panel 的 formValues[specIdx] (可能是绝对路径 / 文件名) 提取缩略图 URL.
+      // 路径形如 'F:\\...\\.examples_cache\\halfbody.png' -> '/example_cache/halfbody.png'
+      // 或纯文件名 'halfbody.png' -> '/comfy_input/halfbody.png'
+      const panel = document.querySelector(`[data-preset="${presetName}"]`);
+      if (!panel) return '';
+      const data = Alpine.$data(panel);
+      const v = data.formValues[specIdx];
+      if (!v) return '';
+      const basename = v.replace(/\\/g, '/').split('/').pop();
+      if (!basename) return '';
+      // 如果原路径含 .examples_cache, 走 /example_cache; 否则 /comfy_input
+      if (v.includes('.examples_cache') || v.includes('examples_cache')) {
+        return '/example_cache/' + encodeURIComponent(basename);
+      }
+      return '/comfy_input/' + encodeURIComponent(basename);
+    },
 
     async onFileSelect(event, presetName, specIdx, kind) {
       // 步骤 5: 真正上传到 ComfyUI, 把返回的 name 存进 formValues.

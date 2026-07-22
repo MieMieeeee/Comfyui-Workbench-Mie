@@ -174,6 +174,45 @@ code {
 .preset-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 /* ============================================================
+ * preset 主体两栏布局: 左控制 / 右结果
+ * ============================================================ */
+.preset-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .preset-body { grid-template-columns: 1fr; }
+}
+.preset-controls { display: flex; flex-direction: column; gap: var(--space-3); }
+.preset-result { display: flex; flex-direction: column; gap: var(--space-3); position: sticky; top: var(--space-4); }
+.run-controls { padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+
+/* file 字段: 上传按钮 + 当前文件名 + 缩略图 */
+.file-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.file-current { font-size: var(--text-xs); color: var(--text-faint); margin: 0; }
+.file-thumb {
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-1);
+}
+
+/* 结果区图片/视频: object-fit: contain 不扭曲 */
+.result-area img,
+.result-area video {
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  display: block;
+  margin: 0 auto;
+}
+
+/* ============================================================
  * 表单
  * ============================================================ */
 .preset-form { display: flex; flex-direction: column; gap: var(--space-3); }

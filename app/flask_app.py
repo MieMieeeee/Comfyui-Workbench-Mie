@@ -19,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from flask import Flask, jsonify, request, Response, render_template, url_for
+from flask import Flask, jsonify, request, Response, render_template, url_for, send_from_directory
 
 from app import config
 from app import scail2_client
@@ -152,6 +152,47 @@ def _workflows_for_nav():
             ),
         })
     return out
+
+
+# ============================================================
+# 静态资源: ComfyUI input 目录文件 (example 文件在这里)
+# ============================================================
+
+@app.route("/comfy_input/<path:filename>")
+def comfy_input(filename):
+    """提供 ComfyUI input 目录下的文件 (example 图片/视频).
+
+    用于前端显示 example 的参考图/参考视频缩略图.
+    ComfyUI 自己的 /view 也可以, 但那需要 ComfyUI 在跑; 这里直接读本地文件.
+    """
+    input_dir = config.COMFY_INPUT_DIR
+    if not input_dir.exists():
+        return jsonify({"error": "ComfyUI input dir not found"}), 404
+    try:
+        return send_from_directory(str(input_dir), filename)
+    except FileNotFoundError:
+        return jsonify({"error": f"file not found: {filename}"}), 404
+
+
+@app.route("/example_cache/<path:filename>")
+def example_cache(filename):
+    """提供 .examples_cache 目录下的文件 (Gradio 安全 workaround 复制的 example).
+
+    example_to_form_values 把 ComfyUI input 目录的 example 文件复制到
+    .examples_cache/ (Gradio 6 安全要求). Flask 版前端通过这个路由
+    显示参考图/参考视频缩略图.
+
+    [TODO 步骤 7 后续] Flask 版不需要 .examples_cache workaround,
+    可以直接用 /comfy_input/<filename>. 但现在 example_to_form_values
+    仍走 _resolve_example_file, 先兼容.
+    """
+    cache_dir = config.REPO_ROOT / ".examples_cache"
+    if not cache_dir.exists():
+        return jsonify({"error": "examples_cache not found"}), 404
+    try:
+        return send_from_directory(str(cache_dir), filename)
+    except FileNotFoundError:
+        return jsonify({"error": f"file not found: {filename}"}), 404
 
 
 @app.route("/")
