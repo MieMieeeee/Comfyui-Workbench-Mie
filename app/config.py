@@ -72,10 +72,15 @@ DEFAULT_TIMEOUT_SEC: int = 30 * 60   # 30 分钟
 POLL_INTERVAL_SEC: int = 2
 
 
-# --- Gradio ---
+# --- WebUI 服务 (Flask, migrate-to-flask 2026-07-21) ---
+# GRADIO_HOST/PORT 保留为别名向后兼容 (老脚本/老 import 仍能读).
+# 新代码应该用 FLASK_HOST/PORT 或 WEBUI_HOST/PORT.
 
-GRADIO_HOST: str = os.environ.get("GRADIO_HOST", "0.0.0.0")
-GRADIO_PORT: int = int(os.environ.get("GRADIO_PORT", "8199"))
+FLASK_HOST: str = os.environ.get("FLASK_HOST", os.environ.get("WEBUI_HOST", "0.0.0.0"))
+FLASK_PORT: int = int(os.environ.get("FLASK_PORT", os.environ.get("WEBUI_PORT", "8199")))
+# 向后兼容别名
+GRADIO_HOST = FLASK_HOST
+GRADIO_PORT = FLASK_PORT
 
 
 # --- 辅助函数 ---
@@ -139,4 +144,4 @@ if __name__ == "__main__":
     print(f"COMFY_OUTPUT    = {COMFY_OUTPUT_DIR}")
     print(f"PRESETS_DIR     = {PRESETS_DIR}")
     print(f"RUNS_DIR        = {RUNS_DIR}")
-    print(f"GRADIO          = {GRADIO_HOST}:{GRADIO_PORT}")
+    print(f"WEBUI           = {FLASK_HOST}:{FLASK_PORT}")
