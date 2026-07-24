@@ -40,6 +40,10 @@ COMFY_CACHE_DIR: Path = COMFY_INSTALL_DIR / "mie_nodes_cache"
 
 PRESETS_DIR: Path = REPO_ROOT / "app" / "presets"
 PARAMS_FILE: Path = PRESETS_DIR / "params.json"
+# 每个 preset 一个独立 definition.json (workflow-decouple 2026-07-24).
+# preset_config 先读这里, 找不到回退 PARAMS_FILE (迁移期 + 老测试兼容).
+# 引导向导 save_definition() 写到这里, 新增工作流不碰 params.json.
+DEFINITIONS_DIR: Path = PRESETS_DIR / "definitions"
 
 # 每次运行的 sidecar manifest 落盘位置（Phase 3 用）
 RUNS_DIR: Path = REPO_ROOT / "app" / "data" / "runs"
@@ -101,8 +105,18 @@ def workflow_path(preset_name: str) -> Path:
 
 
 def preset_config(preset_name: str) -> dict:
-    """从 params.json 取单个 preset 的配置。"""
+    """取单个 preset 的配置.
+
+    双源 (workflow-decouple 2026-07-24):
+      1. 优先读 DEFINITIONS_DIR / f"{preset_name}.json" (新, 每个 preset 独立文件)
+      2. 回退读 PARAMS_FILE["presets"][preset_name] (旧, 迁移期 + 老测试兼容)
+    都没有 -> KeyError.
+    """
     import json
+    def_path = DEFINITIONS_DIR / f"{preset_name}.json"
+    if def_path.exists():
+        with def_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
     with PARAMS_FILE.open("r", encoding="utf-8") as f:
         all_presets = json.load(f)["presets"]
     if preset_name not in all_presets:
@@ -115,12 +129,24 @@ def list_workflows() -> list[dict]:
 
     每项含：name / display_name / category / description / order。
     缺失字段用默认值兜底，保证调用方拿到统一 schema。
+
+    双源: 合并 DEFINITIONS_DIR/*.json + PARAMS_FILE.presets, 同名 definition 优先
+    (迁移期允许两边都有同名 preset, definition 覆盖 params.json).
     """
     import json
+    merged: dict[str, dict] = {}
+    # 1. 先读旧源 (params.json), 作为底
     with PARAMS_FILE.open("r", encoding="utf-8") as f:
-        all_presets = json.load(f)["presets"]
+        for name, cfg in json.load(f)["presets"].items():
+            merged[name] = cfg
+    # 2. definition 文件覆盖 (新源优先)
+    if DEFINITIONS_DIR.is_dir():
+        for def_path in sorted(DEFINITIONS_DIR.glob("*.json")):
+            name = def_path.stem
+            with def_path.open("r", encoding="utf-8") as f:
+                merged[name] = json.load(f)
     rows = []
-    for name, cfg in all_presets.items():
+    for name, cfg in merged.items():
         rows.append({
             "name": name,
             "display_name": cfg.get("display_name", name),
@@ -130,6 +156,20 @@ def list_workflows() -> list[dict]:
         })
     rows.sort(key=lambda r: r["order"])
     return rows
+
+
+def save_definition(preset_name: str, cfg: dict) -> Path:
+    """把 preset 配置写到 DEFINITIONS_DIR / f"{preset_name}.json".
+
+    引导向导 (wizard) 用: 用户在向导里定义完输入/输出/示例后, 调这个落盘,
+    新工作流立即可在运行页使用 (list_workflows 会扫描 definitions/ 目录).
+    """
+    import json
+    DEFINITIONS_DIR.mkdir(parents=True, exist_ok=True)
+    out = DEFINITIONS_DIR / f"{preset_name}.json"
+    with out.open("w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    return out
 
 
 # --- 启动期自检（仅在直接跑这个文件时打印，不在 import 时副作用） ---

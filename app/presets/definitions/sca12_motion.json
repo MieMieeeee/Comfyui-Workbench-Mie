@@ -1,0 +1,146 @@
+{
+  "workflow_file": "scail2_motion_transfer_final.json",
+  "display_name": "动作迁移 (SCAIL2)",
+  "category": "video",
+  "order": 100,
+  "output_kind": "video",
+  "description": "把驱动视频的动作迁移到参考图角色上。",
+  "fixed_patches": {
+    "353": {
+      "value": false
+    }
+  },
+  "user_facing_inputs": [
+    {
+      "node_id": "30",
+      "field": "image",
+      "label": "参考图",
+      "type": "file:image",
+      "tier": "basic"
+    },
+    {
+      "node_id": "362",
+      "field": "text",
+      "label": "参考图抠图提示词",
+      "type": "text",
+      "max_chars": 100,
+      "default": "human",
+      "help": "告诉系统从参考图里抠出什么主体。常用：human / person / animal。",
+      "tier": "basic",
+      "example_key": "ref_prompt",
+      "mirror_to": [
+        {
+          "node_id": "541",
+          "field": "text"
+        }
+      ]
+    },
+    {
+      "node_id": "348",
+      "field": "text",
+      "label": "驱动视频抠图提示词",
+      "type": "text",
+      "max_chars": 100,
+      "default": "human",
+      "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
+      "tier": "basic",
+      "example_key": "drive_prompt",
+      "mirror_to": [
+        {
+          "node_id": "540",
+          "field": "text"
+        }
+      ]
+    },
+    {
+      "node_id": "360",
+      "field": "text",
+      "label": "正向提示词",
+      "type": "text",
+      "max_chars": 500,
+      "default": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
+      "placeholder": "描述最终视频的主运动 / 表情 / 氛围, ≤500 字符。",
+      "help": "模型用的正向提示词。",
+      "tier": "basic",
+      "example_key": "main_prompt"
+    },
+    {
+      "node_id": "469",
+      "field": "video",
+      "label": "驱动视频",
+      "type": "file:video",
+      "tier": "basic",
+      "also_patch": [
+        {
+          "node_id": "543",
+          "field": "video"
+        }
+      ]
+    },
+    {
+      "node_id": "469",
+      "field": "frame_load_cap",
+      "label": "最高帧数",
+      "type": "int",
+      "min": 0,
+      "max": 5000,
+      "default": 0,
+      "step": 1,
+      "help": "限制驱动视频加载的最大帧数。0 = 加载全部视频(按 81 帧/段 自动切片); >0 = 只加载前 N 帧。",
+      "tier": "basic"
+    },
+    {
+      "node_id": "367",
+      "field": "value",
+      "label": "段长度 (latent 帧)",
+      "type": "int",
+      "min": 20,
+      "max": 200,
+      "default": 81,
+      "step": 1,
+      "help": "每段 latent 帧数（段内生成长度）。改大→段更少更长，改小→段更多更短。高级参数。",
+      "tier": "advanced",
+      "example_key": "frames_per_segment"
+    },
+    {
+      "node_id": "464",
+      "field": "value",
+      "label": "段间长度 (pre-drop)",
+      "type": "int",
+      "min": 0,
+      "max": 30,
+      "default": 5,
+      "step": 1,
+      "help": "每段开头跳过的帧数，避免段头黑屏。高级参数。",
+      "tier": "advanced",
+      "example_key": "pre_drop_frames"
+    }
+  ],
+  "example": {
+    "reference_image": "halfbody.png",
+    "drive_video": "scail2_drive_00038.mp4",
+    "ref_prompt": "human",
+    "drive_prompt": "human",
+    "main_prompt": "The woman raises both hands beside her face, then brings them together at chest level to form a heart gesture, smiling softly at the camera.",
+    "frame_load_cap": 0,
+    "segments": 0,
+    "preview_image": "app/static/examples/sca12_motion_3seg.png",
+    "preview_video": "app/static/examples/sca12_motion_3seg.mp4",
+    "contract_sha256": "bfd01eb6e4f2e550667ebb512219fd4b3dcc9c0bc9b1d38a59ea02aac28bf487"
+  },
+  "segments_formula": "1 + ceil(max(0, video_frames - frames_per_segment) / max(1, frames_per_segment - pre_drop))",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "503",
+      "reason": "段间色阶校色（ColorTransfer），调错会段间闪"
+    },
+    {
+      "node_id": "504",
+      "reason": "循环首段特殊处理（MieLoopIfIsFirst）"
+    },
+    {
+      "node_id": "505",
+      "reason": "pre-drop 帧数（与 node 464 联动）"
+    }
+  ]
+}

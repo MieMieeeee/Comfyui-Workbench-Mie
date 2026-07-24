@@ -1,0 +1,98 @@
+{
+  "workflow_file": "ltx_23_i2v.json",
+  "display_name": "图生视频 (LTX-2.3)",
+  "category": "video",
+  "order": 130,
+  "description": "LTX-2.3 图生视频，分辨率跟随上传图。",
+  "user_facing_inputs": [
+    {
+      "node_id": "180",
+      "field": "image",
+      "label": "起始图片",
+      "type": "file:image",
+      "tier": "basic",
+      "help": "上传起始图。视频分辨率 = 输入分辨率。"
+    },
+    {
+      "node_id": "121",
+      "field": "text",
+      "example_key": "prompt",
+      "label": "正向提示词",
+      "type": "text",
+      "max_chars": 1000,
+      "default": "Subtle camera drift around the subject, soft daylight, gentle wind moving hair and fabric, preserve the subject identity and pose",
+      "help": "LTX-2.3 图生视频提示词。描述镜头运动 + 氛围 + 想保留的特征。",
+      "tier": "basic"
+    },
+    {
+      "node_id": "110",
+      "field": "text",
+      "label": "负向提示词",
+      "type": "text",
+      "max_chars": 500,
+      "default": "blurry, low quality, jittery, distorted faces, watermark, text overlay",
+      "help": "LTX-2.3 负向提示词。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "112",
+      "field": "value",
+      "label": "视频长度 (latent 帧)",
+      "type": "int",
+      "min": 17,
+      "max": 257,
+      "default": 97,
+      "step": 8,
+      "help": "latent 帧数。97 帧 @24fps ≈ 4 秒。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "130",
+      "field": "value",
+      "label": "帧率 (fps)",
+      "type": "int",
+      "min": 12,
+      "max": 60,
+      "default": 24,
+      "step": 1,
+      "help": "输出帧率。",
+      "tier": "advanced"
+    }
+  ],
+  "example": {
+    "prompt": "The young woman in a cozy striped sweater and chunky knit scarf stands by a tranquil misty lake at golden hour, facing the camera. She holds the same quiet position throughout, while a complex apologetic expression slowly reveals itself across her face: her gaze drops from meeting the lens toward the lower right corner of the frame, her eyelids lower halfway, her lips press together for a beat and then part slightly as if starting to apologise, the inner corners of her brows lift by a fraction forming a faint crease above the bridge of her nose, then her chin tucks in a touch and she swallows once. None of these motions are large; only her face moves. Her body, shoulders and the surrounding dusk lake with distant misty mountains stay essentially still — the only other motion in the frame is a few loose strands of her short dark hair drifting slowly across her cheek in a still breeze. The camera does not move. The shot is a held close-up to mid of her face and upper body, soft warm golden-hour lighting, photorealistic, shallow depth of field, 24fps.",
+    "length": 97,
+    "frame_rate": 24,
+    "preview_image": "app/static/examples/ltx_23_i2v.png",
+    "preview_video": "app/static/examples/ltx_23_i2v.mp4",
+    "reference_image": "app/static/examples/person.png",
+    "contract_sha256": "313b542d2ee02e03c61d40d893667f642f48d0a7209d4503fef6bb1e086f445a"
+  },
+  "output_kind": "video",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "111",
+      "reason": "EmptyImage: i2v workflow 走 GetImageSize 链读上传图分辨率, 不要手动改 111.width/height,否则视频大小与上传图不一致。"
+    },
+    {
+      "node_id": "159",
+      "reason": "CheckpointLoaderSimple: LTX-2.3 distilled checkpoint 文件名"
+    },
+    {
+      "node_id": "160",
+      "reason": "LTXV Audio VAE Loader: 音频 VAE"
+    },
+    {
+      "node_id": "161",
+      "reason": "LTXV Audio Text Encoder Loader: 文本编码器"
+    },
+    {
+      "node_id": "132",
+      "reason": "LoraLoaderModelOnly: LTX distilled LoRA (段一)"
+    },
+    {
+      "node_id": "208",
+      "reason": "LoraLoaderModelOnly: 链上第二段 LoRA (段二升频)"
+    }
+  ]
+}

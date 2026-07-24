@@ -1,0 +1,103 @@
+{
+  "workflow_file": "qwen3_tts.json",
+  "display_name": "语音合成 (Qwen3-TTS VoiceDesign)",
+  "category": "audio",
+  "order": 200,
+  "description": "Qwen3-TTS 语音合成，文本加风格指令出 MP3。",
+  "user_facing_inputs": [
+    {
+      "node_id": "38",
+      "field": "text",
+      "label": "朗读文本",
+      "type": "text",
+      "max_chars": 2000,
+      "default": "你再盯着我看……我可就要收点利息了哦～……",
+      "help": "要朗读的内容。中文 / 英文 / 数字皆可。",
+      "tier": "basic",
+      "example_key": "speech_text"
+    },
+    {
+      "node_id": "38",
+      "field": "instruct",
+      "label": "声音风格指令",
+      "type": "text",
+      "max_chars": 1000,
+      "default": "模拟成熟女性的低沉略哑烟嗓,气息感很重,声音像刚睡醒又喝了红酒的性感女性,语速缓慢而松弛,语调带着漫不经心的慵懒。",
+      "help": "VoiceDesign 必备:描述音色 / 风格 / 情感。留空 = 默认女声。",
+      "tier": "basic",
+      "example_key": "instruct"
+    },
+    {
+      "node_id": "38",
+      "field": "language",
+      "label": "语言",
+      "type": "select",
+      "choices": [
+        "Auto",
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "French",
+        "German",
+        "Spanish",
+        "Portuguese",
+        "Russian",
+        "Italian"
+      ],
+      "default": "Chinese",
+      "help": "TTS 语言模型。Auto 让模型自动判别。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "38",
+      "field": "model_choice",
+      "label": "模型规模",
+      "type": "select",
+      "choices": [
+        {
+          "label": "0.6B (轻量 / 较快)",
+          "value": "0.6B"
+        },
+        {
+          "label": "1.7B (默认 / 较高质量)",
+          "value": "1.7B"
+        }
+      ],
+      "default": "1.7B",
+      "help": "0.6B 占显存小、生成快; 1.7B 音质更稳。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "38",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 845203391849865,
+      "help": "相同 prompt + seed 复现同一段语音; 想换声音改 seed。",
+      "tier": "advanced"
+    }
+  ],
+  "example": {
+    "speech_text": "你再盯着我看……我可就要收点利息了哦～……",
+    "instruct": "模拟成熟女性的低沉略哑烟嗓,气息感很重,声音像刚睡醒又喝了红酒的性感女性,语速缓慢而松弛,语调带着漫不经心的慵懒,每句话都像在耳边轻轻吐息,尾音常常往下沉并带一点沙哑的笑意,传递出我随时可以把你吃掉但现在还不想动的危险女性魅力。",
+    "language": "Chinese",
+    "model_choice": "1.7B",
+    "seed": 845203391849865,
+    "preview_audio": "app/static/examples/qwen3_tts.mp3",
+    "contract_sha256": "0eefdf896a620c25f71d560790ee14bd6ced47a68c80adb46f1be00e1ec278de"
+  },
+  "output_kind": "audio",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "38",
+      "reason": "FB_Qwen3TTSVoiceDesign 节点;model_choice/language 等通过该节点下的字段控制。模型首次调用时自动下载到 ComfyUI/models 下。"
+    },
+    {
+      "node_id": "47",
+      "reason": "SaveAudioMP3 输出节点;filename_prefix + quality 影响最终 MP3 路径和码率。"
+    }
+  ]
+}

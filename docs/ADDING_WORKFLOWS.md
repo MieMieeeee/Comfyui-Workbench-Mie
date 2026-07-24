@@ -7,19 +7,35 @@
 
 ## TL;DR
 
-加一个 workflow 的完整流程 = **用户提供 4 样东西** + **作者填 3 个数据文件** + **跑一次生成 preview**：
+加一个 workflow 的完整流程 = **用户提供 workflow JSON** + **用向导 UI 生成配置**：
+
+### 方式 A：引导向导（推荐，2026-07-24 起）
+
+WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JSON：
+
+| 步骤 | 做什么 | 自动产出 |
+|---|---|---|
+| A | 上传 ComfyUI API 格式 workflow JSON | 系统解析所有 node + 推断每个字段的输入类型 |
+| B | 用默认参数跑一次 → 看所有输出 node 的产物 → 点选"最终结果" | 确定 output_kind + output_node |
+| C | 点"保存" | 自动生成 `definitions/<name>.json` + 存 example + 复制 preview 资产 |
+
+向导覆盖了下面方式 B 的步骤 2-5，不需要手动查 node_id、手填 params.json、手动复制 preview。
+
+### 方式 B：手工编辑（向导不够用时的回退）
 
 | 阶段 | 谁 | 做什么 | 输出 |
 |---|---|---|---|
 | 1 | 用户 | 在 ComfyUI 跑通 → 导出 API 格式 → 告诉作者节点分类 | `xxx.json` + 一段节点说明 |
 | 2 | 作者 | 把 workflow JSON 复制到 `app/presets/xxx.json` | 项目里的 workflow 文件 |
-| 3 | 作者 | 在 `app/presets/params.json` 加 preset 字段 (含 example 用的文件路径) | preset 配置 |
+| 3 | 作者 | 在 `app/presets/definitions/xxx.json` 加 preset 字段 (含 example 用的文件路径) | preset 配置 |
 | 4 | 作者 (程序辅助) | 用 example 参数跑一次 → ComfyUI 出图 → 复制到 `app/static/examples/xxx_xxx.png` | preview 资产 |
-| 5 | 作者 | 把 preview 路径写进 params.json example.preview_image / preview_video | example 配齐 |
+| 5 | 作者 | 把 preview 路径写进 `definitions/xxx.json` example.preview_image / preview_video | example 配齐 |
 | 6 | 作者 (可选) | 引入新模型 / 节点 → 追加 `app/presets/health_requirements.json` | 健康检查配置 |
 | 7 | 作者 | `python -m pytest tests/ -q` 全绿 + 手动打开 WebUI 看一眼 | 验证 |
 
-**不动代码**。 加新 type 时才动 `_build_input_component`，但 99% 的工作流复用现有 type 即可。
+**不动代码**。 加新 type 时才动 `run.html` 的 spec 渲染分支，但 99% 的工作流复用现有 type 即可。
+
+> **文件结构变更 (2026-07-24)**：preset 配置从单一的 `params.json` 拆成了每个 preset 一个独立文件 `app/presets/definitions/<name>.json`。`config.preset_config` 优先读 definition 文件，找不到回退 `params.json`（迁移期兼容）。`params.json` 仍保留作为旧源/索引，新工作流一律走 `definitions/`。
 
 ---
 

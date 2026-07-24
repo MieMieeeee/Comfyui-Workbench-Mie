@@ -1,0 +1,47 @@
+{
+  "workflow_file": "liveportrait.json",
+  "display_name": "表情迁移 (LivePortrait)",
+  "category": "video",
+  "order": 140,
+  "description": "把驱动视频的动作迁移到参考脸表情。",
+  "user_facing_inputs": [
+    {
+      "node_id": "196",
+      "field": "image",
+      "label": "参考脸图",
+      "type": "file:image",
+      "tier": "basic",
+      "help": "一张正脸图, 会被裁剪出人脸区域作为动画驱动目标。"
+    },
+    {
+      "node_id": "202",
+      "field": "video",
+      "label": "驱动视频",
+      "type": "file:video",
+      "tier": "basic",
+      "help": "提供动作 / 表情源;LivePortrait 提取其中的人脸动作, 迁移到参考脸图上。"
+    }
+  ],
+  "example": {
+    "reference_image": "app/static/examples/portrait_model.png",
+    "drive_video": "app/static/examples/liveportrait_drive.mp4",
+    "preview_image": "app/static/examples/liveportrait_0001.png",
+    "preview_video": "app/static/examples/liveportrait_0001.mp4",
+    "contract_sha256": "132942161b555246efd14d476802d2e139b096ed2e36246ac1857ceca97c3e2b"
+  },
+  "output_kind": "video",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "1",
+      "reason": "LivePortrait 模型下载入口 (DownloadAndLoadLivePortraitModels), 走 models/liveportrait/"
+    },
+    {
+      "node_id": "129",
+      "reason": "InsightFace cropper (onnx_device=CUDA), 用 buffalo_l 模型;CPU 用户需要改 onnx_device='CPU' 并装 buffalo_l"
+    },
+    {
+      "node_id": "206",
+      "reason": "VHS_VideoCombine 输出 video/h264-mp4 + pix_fmt=yuv420p, 浏览器可直播"
+    }
+  ]
+}

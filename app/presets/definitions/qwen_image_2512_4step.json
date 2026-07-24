@@ -1,0 +1,100 @@
+{
+  "workflow_file": "qwen_image_2512_4step.json",
+  "display_name": "文生图 (Qwen Image 2512)",
+  "category": "image",
+  "order": 20,
+  "description": "Qwen Image 2512 文生图，擅中文海报与带字图。",
+  "user_facing_inputs": [
+    {
+      "node_id": "6",
+      "field": "text",
+      "label": "正向提示词",
+      "type": "prompt_pool",
+      "max_chars": 2000,
+      "default": "卡通3D风格海报，欢乐明亮。背景是春日蓝天白云下的户外踏青场景。",
+      "help": "文生图正向提示词。Qwen Image 对中文海报 / 标题渲染极强, 适合带字的图片。"
+    },
+    {
+      "node_id": "7",
+      "field": "text",
+      "label": "负向提示词",
+      "type": "text",
+      "max_chars": 500,
+      "default": "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感。构图混乱。文字模糊，扭曲",
+      "help": "Qwen Image 负向提示词。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "58",
+      "field": "sizes",
+      "label": "输出尺寸",
+      "type": "image_sizes",
+      "default": [
+        "704x1280"
+      ],
+      "presets": [
+        {
+          "label": "🪧 512×768 ｜ 2:3 (海报 / 宣传图默认)",
+          "value": "512x768"
+        },
+        {
+          "label": "📱 704×1280 ｜ 9:16 (高清竖版海报)",
+          "value": "704x1280"
+        },
+        {
+          "label": "🎬 1280×704 ｜ 16:9 (横版封面 / banner)",
+          "value": "1280x704"
+        },
+        {
+          "label": "🖼 1024×1024 ｜ 1:1 (方图)",
+          "value": "1024x1024"
+        }
+      ],
+      "help": "勾选要生成的尺寸(每个尺寸出一张图)。Qwen Image 适合 512-1280 范围。"
+    },
+    {
+      "node_id": "3",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int_random",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 0,
+      "random_default": true,
+      "step": 1,
+      "help": "勾上「随机」则忽略数值, 每个尺寸独立随机; 不勾则用下方具体数值 (固定种子)。"
+    }
+  ],
+  "example": {
+    "prompt": "卡通3D风格海报，欢乐明亮。背景是春日蓝天白云下的户外踏青场景：绿色草地上点缀着五彩鲜花和飞舞的蝴蝶，远处有风筝在天空飘扬，草地上摆放着野餐毯和彩色遮阳伞，伞下挂着小彩灯，营造温馨春游氛围。前景是一位卡通小朋友手持风筝线，旁边一只可爱的小兔子蹦跳跟随，画面Q萌治愈。\n\n文字排版：\n上方大标题（粗体活泼中文，带花朵和风筝装饰）：『春日踏青 欢乐出游』\n副标题（英文点缀）：『SPRING OUTING』\n中部彩色圆角框内标语：『一起拥抱春天的快乐』\n活动亮点介绍（白色小字，居中两行）：\n『风筝大赛 · 野餐派对 · 花海拍照』\n『亲子游戏 · 自然探秘 · 春游市集』\n底部日期与地点（现代中文字体，居中两行）：\n『活动时间：2025年4月12日 活动地点：阳光花海公园』",
+    "sizes": [
+      "704x1280"
+    ],
+    "seed": 900259427766747,
+    "preview_image": "app/static/examples/qwen_image_2512_4step.png",
+    "contract_sha256": "1281e045097e09a0b5224ceb4041abba312169b773d04f395c2c57d60e061cd2"
+  },
+  "output_kind": "image",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "90",
+      "reason": "UnetLoaderGGUF: Qwen Image 2512 GGUF 模型文件名"
+    },
+    {
+      "node_id": "93",
+      "reason": "LoraLoaderModelOnly: 4 步蒸馏 LoRA (Lightning-4steps V1.0)"
+    },
+    {
+      "node_id": "38",
+      "reason": "CLIPLoader: Qwen2.5-VL 7B fp8, type=qwen_image"
+    },
+    {
+      "node_id": "39",
+      "reason": "VAELoader: Qwen Image VAE"
+    },
+    {
+      "node_id": "66",
+      "reason": "ModelSamplingAuraFlow shift=3.1, 与 Qwen Image 推荐配置绑定"
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "workflow_file": "ace_step_15_music.json",
+  "display_name": "音乐生成 (Ace Step 1.5)",
+  "category": "audio",
+  "order": 210,
+  "description": "Ace Step 文生音乐，tags 加歌词出 MP3。",
+  "user_facing_inputs": [
+    {
+      "node_id": "94",
+      "field": "tags",
+      "label": "音乐 tags",
+      "type": "text",
+      "max_chars": 2000,
+      "default": "A cinematic and epic orchestral track that builds intense momentum for a grand narrative. The piece opens with deep, thunderous percussion and rhythmic taiko drums, layering in staccato strings and a powerful brass section that conveys a sense of heroic duty.",
+      "help": "音乐风格 / 情绪 / 乐器 / 节奏描述。留空 = 用默认值 (史诗管弦乐)。",
+      "tier": "basic",
+      "example_key": "tags"
+    },
+    {
+      "node_id": "94",
+      "field": "lyrics",
+      "label": "歌词",
+      "type": "text",
+      "max_chars": 4000,
+      "default": "[en]\n[Verse 1]\nThrough the ashes of the fallen sky\nWe march beneath the banners held on high",
+      "help": "可选。带歌词就生成歌曲 (人声),留空就纯器乐。",
+      "tier": "basic",
+      "example_key": "lyrics"
+    },
+    {
+      "node_id": "94",
+      "field": "bpm",
+      "label": "BPM",
+      "type": "int",
+      "min": 60,
+      "max": 200,
+      "default": 105,
+      "step": 1,
+      "help": "每分钟节拍数。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "94",
+      "field": "duration",
+      "label": "时长 (秒)",
+      "type": "int",
+      "min": 30,
+      "max": 240,
+      "default": 120,
+      "step": 10,
+      "help": "生成音频长度。120s ≈ 2 分钟。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "94",
+      "field": "language",
+      "label": "歌词语言",
+      "type": "select",
+      "choices": [
+        "en",
+        "zh",
+        "ja",
+        "es",
+        "fr",
+        "de",
+        "pt",
+        "ru",
+        "it",
+        "ko"
+      ],
+      "default": "en",
+      "help": "歌词语言代码。en / zh 最稳。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "94",
+      "field": "keyscale",
+      "label": "调性",
+      "type": "select",
+      "choices": [
+        "C major",
+        "C minor",
+        "D major",
+        "D minor",
+        "E major",
+        "E minor",
+        "F major",
+        "F minor",
+        "G major",
+        "G minor",
+        "A major",
+        "A minor",
+        "B major",
+        "B minor"
+      ],
+      "default": "D minor",
+      "help": "调性 (key + scale)。D minor 史诗 / 忧郁常用。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "94",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 31,
+      "help": "相同 tags + seed 复现同一首;想换曲风改 seed。",
+      "tier": "advanced"
+    }
+  ],
+  "example": {
+    "tags": "A cinematic and epic orchestral track that builds intense momentum for a grand narrative. The piece opens with deep, thunderous percussion and rhythmic taiko drums, layering in staccato strings and a powerful brass section that conveys a sense of heroic duty. As the arrangement swells, soaring choral chants and sweeping violins create a feeling of sacrifice and ultimate glory. The production is vast and atmospheric, featuring high dynamic range and a driving, march-like energy perfect for a high-stakes battle or a dramatic trailer climax, evoking a mood of solemnity and triumphant resilience.",
+    "lyrics": "[en]\n[Intro]\n(Low brass hum, distant drums pounding)\nThe shadows rise across the ancient land.\n\n[Verse 1]\nThrough the ashes of the fallen sky\nWe march beneath the banners held on high",
+    "bpm": 105,
+    "duration": 120,
+    "language": "en",
+    "keyscale": "D minor",
+    "seed": 31,
+    "preview_audio": "app/static/examples/ace_step_15_music.mp3",
+    "contract_sha256": "16f0afa749ce655bf45d88d20d3efb354465e4e1ad6808e101fee752d809c2fc"
+  },
+  "output_kind": "audio",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "97",
+      "reason": "CheckpointLoaderSimple: Ace_Step_1.5/ace_step_1.5_turbo_aio.safetensors (大模型,首次加载需几分钟)"
+    },
+    {
+      "node_id": "94",
+      "reason": "TextEncodeAceStepAudio1.5: bpm/duration/language/keyscale 是音乐生成核心参数,调错会破坏输出节奏。cfg_scale/temperature/top_p 等用 workflow 硬编码值 (advanced 玩家才需要调)。"
+    },
+    {
+      "node_id": "104",
+      "reason": "SaveAudioMP3: quality 默认 128k,可改 V0 (高质量)。"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "workflow_file": "zimage.json",
+  "display_name": "文生图 (Z-Image-Turbo)",
+  "category": "image",
+  "order": 10,
+  "description": "Z-Image-Turbo 文生图，正向提示词加多尺寸输出。",
+  "user_facing_inputs": [
+    {
+      "node_id": "6",
+      "field": "text",
+      "label": "正向提示词",
+      "type": "prompt_pool",
+      "max_chars": 2000,
+      "default": "Photorealistic, ultra-detailed portrait.",
+      "help": "文生图正向提示词。点'随机提示词'从内置池抽一条，或直接手填。"
+    },
+    {
+      "node_id": "13",
+      "field": "sizes",
+      "label": "输出尺寸",
+      "type": "image_sizes",
+      "default": [
+        "1024x1024",
+        "1280x720",
+        "720x1280"
+      ],
+      "presets": [
+        {
+          "label": "🖼 1024×1024 ｜ 1:1 (正方形通用)",
+          "value": "1024x1024"
+        },
+        {
+          "label": "🎬 1280×720 ｜ 16:9 (横版封面/视频帧)",
+          "value": "1280x720"
+        },
+        {
+          "label": "📱 720×1280 ｜ 9:16 (竖版手机壁纸)",
+          "value": "720x1280"
+        },
+        {
+          "label": "📕 1024×1280 ｜ 4:5 (竖版海报/社媒)",
+          "value": "1024x1280"
+        },
+        {
+          "label": "🖥 1280×1024 ｜ 5:4 (横版桌面/展示)",
+          "value": "1280x1024"
+        }
+      ],
+      "help": "勾选要生成的尺寸(每个尺寸出一张图)。多 size 走预设多选,不开自由文本输入。"
+    },
+    {
+      "node_id": "3",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int_random",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 0,
+      "random_default": true,
+      "step": 1,
+      "help": "勾上「随机」则忽略数值, 每个尺寸独立随机; 不勾则用下方具体数值 (固定种子)。"
+    }
+  ],
+  "example": {
+    "prompt": "Photorealistic, ultra-detailed portrait of a young woman with long dark hair and bangs, wearing a bright yellow and white off-the-shoulder dress with ruffled sleeves and a flowing skirt featuring a circular geometric pattern, standing slightly turned in a lush green forest with dappled sunlight filtering through the trees, soft natural lighting, warm golden hour glow, shallow depth of field with blurred foliage background, gentle expression and slightly open mouth, hand resting on her hip, detailed fabric texture and natural skin tones, vibrant outdoor atmosphere, 85mm lens feel, soft focus on background, serene and dreamy mood.",
+    "sizes": [
+      "720x1280"
+    ],
+    "seed": 900259427766747,
+    "preview_image": "app/static/examples/zimage_720x1280_0001.png",
+    "contract_sha256": "ebedee594e27b8719663834234d80cc90c1b9116f25ea9022545bc9b3721bed7"
+  },
+  "output_kind": "image",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "7",
+      "reason": "负向提示词，hardcoded 'blurry ugly bad'"
+    },
+    {
+      "node_id": "16",
+      "reason": "UNET loader: Z-Image-Turbo 模型文件名"
+    },
+    {
+      "node_id": "17",
+      "reason": "VAE loader: Flux ae.sft"
+    },
+    {
+      "node_id": "18",
+      "reason": "CLIP loader: Qwen3-4B, type=lumina2"
+    }
+  ]
+}

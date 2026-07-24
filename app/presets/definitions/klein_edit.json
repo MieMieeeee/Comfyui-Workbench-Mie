@@ -1,0 +1,74 @@
+{
+  "workflow_file": "klein_edit.json",
+  "display_name": "图生图编辑 (Flux2 Klein Edit)",
+  "category": "image",
+  "order": 30,
+  "description": "Flux2-Klein 图生图编辑，保留原图姿态改局部。",
+  "user_facing_inputs": [
+    {
+      "node_id": "76",
+      "field": "image",
+      "label": "参考图",
+      "type": "file:image",
+      "tier": "basic",
+      "help": "上传要编辑的图片。输出分辨率 = 输入分辨率 (workflow-managed)。"
+    },
+    {
+      "node_id": "108",
+      "field": "text",
+      "label": "编辑提示词",
+      "type": "prompt_pool",
+      "max_chars": 2000,
+      "default": "Change only the clothing and shoes of the woman to a sleek shiny silver metallic futuristic sci-fi armor suit with high collar, segmented shoulder and arm armor plates, rounded metallic breastplate with strong curves, highly reflective chrome-like surface with bright star-like highlights and realistic reflections, tight bodycon fit, paired with matching silver metallic boots, keep the exact same pose, body position, hairstyle, facial expression, actions, lighting, and background completely unchanged, highly detailed metallic texture and glossy reflections",
+      "help": "告诉模型要改什么。明确写出保留 (pose / face / background) 和要改 (clothing / style),效果最稳。"
+    },
+    {
+      "node_id": "109",
+      "field": "text",
+      "label": "负向提示词",
+      "type": "text",
+      "max_chars": 500,
+      "default": "",
+      "help": "通常留空。Flux2-Klein 对负向不敏感。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "146",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int_random",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 0,
+      "random_default": true,
+      "step": 1,
+      "help": "勾上「随机」则忽略数值; 不勾则用下方具体数值 (固定种子)。"
+    }
+  ],
+  "example": {
+    "prompt": "Replace her cozy striped cardigan sweater and thick knit scarf with a sleek tailored silver-grey futuristic jacket: high-collared matte metallic finish, subtle engineered panel lines on the shoulders, soft brushed-metal texture, paired with a matching silver-grey wool scarf draped loosely over her shoulders. Keep her delicate facial features, gentle calm expression, head tilted slightly upward, dark short bob hair with a few loose strands, the misty lake and mountains in the background, dusk golden-hour lighting, and the soft film-grain atmosphere completely unchanged. Photorealistic, 85mm lens feel, shallow depth of field with blurred foliage behind, highly detailed fabric and metal textures.",
+    "seed": 900259427766747,
+    "preview_image": "app/static/examples/klein_edit.png",
+    "reference_image": "app/static/examples/person.png",
+    "contract_sha256": "7158f1ee53efa443262b893f3de3e7f8a8b41cf7a42158aee8c3d00c54910930"
+  },
+  "output_kind": "image",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "163",
+      "reason": "UnetLoaderGGUF: Flux2-Klein-9B GGUF 模型文件名"
+    },
+    {
+      "node_id": "107",
+      "reason": "CLIPLoader: Qwen3-8B fp8 mixed, type=flux2"
+    },
+    {
+      "node_id": "110",
+      "reason": "VAELoader: Flux2 VAE"
+    },
+    {
+      "node_id": "166",
+      "reason": "VHS_LoadVideo 旁路,只用于 PreviewImage 预览上传视频,主路径用 LoadImage (76)。"
+    }
+  ]
+}
