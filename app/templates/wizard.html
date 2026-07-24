@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}工作流向导 — ComfyUI 工作流运行器{% endblock %}
+
+{% block content %}
+<style>
+  /* 向导页局部样式 (复用 tokens.css 变量) */
+  .wizard-page { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  .wizard-header h2 { margin-bottom: 4px; }
+  .wizard-hint { color: var(--text-muted, #888); font-size: 0.9em; margin: 8px 0 16px; }
+  .wizard-steps { display: flex; gap: 12px; margin: 16px 0; padding: 12px; background: var(--surface-1, #1a1d23); border-radius: var(--radius-md, 8px); }
+  .wizard-steps span { color: var(--text-faint, #666); font-size: 0.9em; }
+  .wizard-steps span.active { color: var(--text-strong, #fff); font-weight: 600; }
+  .wizard-steps span.done { color: var(--success, #4ade80); }
+  .wizard-step { background: var(--surface-1, #1a1d23); padding: 20px; border-radius: var(--radius-md, 8px); margin-bottom: 16px; }
+  .wizard-step h3 { margin-top: 0; }
+  .wizard-upload { margin: 16px 0; }
+  .wizard-upload input[type=file] { padding: 8px; }
+  .wizard-loading { color: var(--text-muted, #888); padding: 12px; }
+  .wizard-error { color: var(--danger, #ef4444); padding: 8px 0; }
+  .wizard-success { color: var(--success, #4ade80); padding: 8px 0; }
+  .wizard-parse-result { margin-top: 16px; }
+  .wizard-fields-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.85em; }
+  .wizard-fields-table th { text-align: left; padding: 8px 6px; color: var(--text-muted, #888); border-bottom: 1px solid var(--border, #333); font-weight: 500; }
+  .wizard-fields-table td { padding: 6px; border-bottom: 1px solid var(--border, #2a2d33); }
+  .wizard-fields-table tr.disabled { opacity: 0.4; }
+  .wizard-fields-table select, .wizard-fields-table input[type=text] { background: var(--surface-2, #222); border: 1px solid var(--border, #333); color: var(--text-strong, #fff); padding: 4px 6px; border-radius: 4px; font-size: 0.9em; }
+  .wizard-label-input { width: 140px; }
+  .wizard-step-actions { display: flex; gap: 12px; justify-content: space-between; margin-top: 16px; }
+  .wizard-output-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+  .wizard-output-card { border: 2px solid var(--border, #333); border-radius: var(--radius-md, 8px); padding: 8px; cursor: pointer; transition: border-color 0.15s; }
+  .wizard-output-card:hover { border-color: var(--text-muted, #666); }
+  .wizard-output-card.selected { border-color: var(--theme-accent-400, #f59e0b); background: rgba(245,158,11,0.08); }
+  .wizard-output-card.temp { opacity: 0.7; }
+  .wizard-output-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.8em; }
+  .wizard-output-title { color: var(--text-muted, #aaa); }
+  .wizard-output-tag { font-size: 0.75em; padding: 2px 6px; border-radius: 4px; background: var(--surface-2, #333); }
+  .wizard-save-form { margin-top: 20px; padding: 16px; background: var(--surface-2, #222); border-radius: var(--radius-md, 8px); }
+  .wizard-save-form label { display: block; margin: 8px 0; }
+  .wizard-save-form input, .wizard-save-form select { display: block; width: 100%; max-width: 360px; margin-top: 4px; padding: 6px 8px; background: var(--surface-1, #1a1d23); border: 1px solid var(--border, #333); color: var(--text-strong, #fff); border-radius: 4px; }
+</style>
+<div class="wizard-page" x-data="wizardTab()" x-init="init()">
+  <section class="wizard-header">
+    <h2>🪄 工作流向导</h2>
+    <p>把一个 ComfyUI workflow 变成 WebUI 可用的预设，全程不碰代码、不手编 JSON。</p>
+  </section>
+
+  <!-- 步骤指示器 -->
+  <nav class="wizard-steps">
+    <span :class="{ active: step === 1, done: step > 1 }">① 上传 workflow</span>
+    <span :class="{ active: step === 2, done: step > 2 }">② 确认输入项</span>
+    <span :class="{ active: step === 3 }">③ 跑一次 · 选输出</span>
+  </nav>
+
+  <!-- 步骤 1: 上传 workflow JSON -->
+  <section class="wizard-step" x-show="step === 1">
+    <h3>上传 ComfyUI workflow (API 格式)</h3>
+    <p class="wizard-hint">在 ComfyUI 里跑通后，用 <b>保存 (API 格式)</b> 导出 JSON，然后上传。不要导出含图像的 PNG 版本。</p>
+
+    <div class="wizard-upload">
+      <input type="file" accept=".json" @change="onUpload($event)">
+      <p x-show="uploadError" class="wizard-error" x-text="uploadError"></p>
+    </div>
+
+    <div x-show="parsing" class="wizard-loading">解析中…</div>
+
+    <div x-show="fields.length > 0" class="wizard-parse-result">
+      <p class="wizard-success">✅ 解析成功：识别出 <b x-text="nodeCount"></b> 个节点，<b x-text="fields.length"></b> 个候选输入字段。</p>
+      <button type="button" class="btn-run-primary" @click="goStep(2)">下一步：确认输入项 →</button>
+    </div>
+  </section>
+
+  <!-- 步骤 2: 确认输入项 (可编辑) -->
+  <section class="wizard-step" x-show="step === 2">
+    <h3>确认输入项</h3>
+    <p class="wizard-hint">系统已自动推断每个字段的类型。勾选要暴露给用户的字段，调整标签和层级。</p>
+
+    <table class="wizard-fields-table">
+      <thead>
+        <tr><th>启用</th><th>节点</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
+      </thead>
+      <tbody>
+        <template x-for="(f, idx) in fields" :key="idx">
+          <tr :class="{ disabled: !f.enabled }">
+            <td><input type="checkbox" x-model="f.enabled"></td>
+            <td><code x-text="f.node_id"></code></td>
+            <td><code x-text="f.field"></code></td>
+            <td>
+              <select x-model="f.type">
+                <option value="text">文本 (text)</option>
+                <option value="prompt_pool">提示词池 (prompt_pool)</option>
+                <option value="int">整数 (int)</option>
+                <option value="int_random">随机整数 (int_random)</option>
+                <option value="file:image">图片上传 (file:image)</option>
+                <option value="file:video">视频上传 (file:video)</option>
+                <option value="image_sizes">尺寸多选 (image_sizes)</option>
+                <option value="bool">开关 (bool)</option>
+                <option value="select">下拉 (select)</option>
+              </select>
+            </td>
+            <td><input type="text" x-model="f.label" class="wizard-label-input"></td>
+            <td>
+              <select x-model="f.tier">
+                <option value="basic">基本</option>
+                <option value="advanced">高级</option>
+              </select>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+
+    <div class="wizard-step-actions">
+      <button type="button" class="btn-secondary" @click="goStep(1)">← 上一步</button>
+      <button type="button" class="btn-run-primary" @click="goRun()">跑一次 →</button>
+    </div>
+  </section>
+
+  <!-- 步骤 3: 跑一次 + 选输出 -->
+  <section class="wizard-step" x-show="step === 3">
+    <h3>跑一次 · 选择最终输出</h3>
+    <p class="wizard-hint">用当前参数跑一次，系统会列出所有输出节点的产物。点选哪个是"最终结果"。</p>
+
+    <div x-show="running" class="wizard-loading">运行中，请等待 ComfyUI 完成…</div>
+    <p x-show="runError" class="wizard-error" x-text="runError"></p>
+
+    <div x-show="outputs.length > 0 && !running" class="wizard-outputs">
+      <p class="wizard-success">✅ 运行完成，找到 <b x-text="outputs.length"></b> 个产物。点选最终输出：</p>
+      <div class="wizard-output-grid">
+        <template x-for="(o, idx) in outputs" :key="idx">
+          <div class="wizard-output-card"
+               :class="{ selected: selectedOutput === idx, temp: o.type === 'temp' }"
+               @click="selectedOutput = idx">
+            <div class="wizard-output-media" x-html="renderOutput(o)"></div>
+            <div class="wizard-output-meta">
+              <span class="wizard-output-title" x-text="o.title"></span>
+              <span class="wizard-output-tag" x-text="o.type === 'output' ? '✓ 成品' : '中间产物'"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 保存表单 -->
+      <div x-show="selectedOutput !== null" class="wizard-save-form">
+        <h4>保存工作流</h4>
+        <label>名称 (英文/数字/下划线)
+          <input type="text" x-model="saveName" placeholder="my_workflow">
+        </label>
+        <label>显示名称
+          <input type="text" x-model="saveDisplayName" placeholder="我的工作流">
+        </label>
+        <label>分类
+          <select x-model="saveCategory">
+            <option value="image">图片</option>
+            <option value="video">视频</option>
+            <option value="audio">音频</option>
+            <option value="other">其他</option>
+          </select>
+        </label>
+        <button type="button" class="btn-run-primary" @click="doSave()"
+                :disabled="saving || !saveName.trim()">
+          <span x-show="!saving">💾 保存工作流</span>
+          <span x-show="saving">保存中…</span>
+        </button>
+        <p x-show="saveMsg" class="wizard-success" x-text="saveMsg"></p>
+        <p x-show="saveError" class="wizard-error" x-text="saveError"></p>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

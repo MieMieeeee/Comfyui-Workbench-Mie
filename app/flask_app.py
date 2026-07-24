@@ -234,6 +234,17 @@ def settings_page():
     )
 
 
+@app.route("/wizard")
+def wizard_page():
+    """工作流向导页."""
+    tid = theme._load_saved_theme()
+    return render_template(
+        "wizard.html",
+        theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
+        page_bg_color=theme._PAGE_BG_COLOR,
+    )
+
+
 # ============================================================
 # API 路由 — 主题
 # ============================================================

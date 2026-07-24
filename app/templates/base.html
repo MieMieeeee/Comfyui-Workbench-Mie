@@ -27,6 +27,8 @@
   <nav class="main-tabs">
     <a href="{{ url_for('index') }}"
        :class="{ active: currentTab === 'run' }">▶ 运行</a>
+    <a href="{{ url_for('wizard_page') }}"
+       :class="{ active: currentTab === 'wizard' }">🪄 添加工作流</a>
     <a href="{{ url_for('settings_page') }}"
        :class="{ active: currentTab === 'settings' }">⚙️ 系统设置</a>
     <span class="nav-status" x-show="comfyStatusHtml" x-html="comfyStatusHtml"></span>

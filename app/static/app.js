@@ -32,7 +32,9 @@ async function fetchJSON(url, options = {}) {
 
 function appShell() {
   return {
-    currentTab: window.location.pathname.startsWith('/settings') ? 'settings' : 'run',
+    currentTab: window.location.pathname.startsWith('/settings') ? 'settings'
+             : window.location.pathname.startsWith('/wizard') ? 'wizard'
+             : 'run',
     comfyStatusHtml: '',
     pending: false,
 
@@ -489,6 +491,145 @@ function settingsTab() {
       } catch (e) {
         this.statusMsg = '主题切换失败: ' + e.message;
       }
+    },
+  };
+}
+
+
+// ============================================================
+// wizardTab — 工作流向导 (wizard.html)
+// 3 步: 上传 workflow → 确认输入项 → 跑一次选输出 → 保存
+// ============================================================
+
+function wizardTab() {
+  return {
+    step: 1,
+    token: '',
+    fields: [],
+    nodeCount: 0,
+    parsing: false,
+    uploadError: '',
+
+    // 步骤 3: 运行 + 输出选择
+    running: false,
+    runError: '',
+    outputs: [],
+    selectedOutput: null,
+
+    // 保存表单
+    saveName: '',
+    saveDisplayName: '',
+    saveCategory: 'image',
+    saving: false,
+    saveMsg: '',
+    saveError: '',
+
+    init() {},
+
+    // --- 步骤 1: 上传 ---
+    async onUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      this.uploadError = '';
+      this.parsing = true;
+      this.fields = [];
+      try {
+        const text = await file.text();
+        const data = await fetchJSON('/api/wizard/parse', {
+          method: 'POST',
+          body: JSON.stringify({ workflow_json: text }),
+        });
+        this.token = data.token;
+        this.nodeCount = data.node_count;
+        // 给每个字段加 enabled/tier (前端编辑用), 默认全启用 + basic
+        this.fields = data.fields.map(f => ({
+          ...f,
+          enabled: true,
+          tier: f.tier || 'basic',
+        }));
+      } catch (e) {
+        this.uploadError = '解析失败: ' + e.message;
+      } finally {
+        this.parsing = false;
+      }
+    },
+
+    goStep(n) { this.step = n; },
+
+    // --- 步骤 2 → 3: 跑一次 ---
+    async goRun() {
+      this.step = 3;
+      this.running = true;
+      this.runError = '';
+      this.outputs = [];
+      this.selectedOutput = null;
+      try {
+        const enabled = this.fields.filter(f => f.enabled);
+        // values: 用每个字段的 default 填 (用户没在向导里改值, 跑一次只是看输出)
+        const values = {};
+        for (const f of enabled) {
+          values[f.field] = f.default;
+        }
+        const data = await fetchJSON('/api/wizard/run', {
+          method: 'POST',
+          body: JSON.stringify({ token: this.token, fields: enabled, values }),
+        });
+        this.outputs = data.outputs;
+      } catch (e) {
+        this.runError = '运行失败: ' + e.message;
+      } finally {
+        this.running = false;
+      }
+    },
+
+    // 把一个输出产物渲染成 <img>/<video>/<audio> (按扩展名分桶)
+    renderOutput(o) {
+      const url = o.url;
+      const ext = (o.filename.split('.').pop() || '').toLowerCase();
+      if (['mp4', 'mov', 'webm', 'gif'].includes(ext)) {
+        return `<video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:var(--radius-md)"><source src="${url}"/></video>`;
+      }
+      if (['mp3', 'wav', 'flac', 'ogg', 'm4a'].includes(ext)) {
+        return `<audio controls preload="metadata" style="width:100%"><source src="${url}"/></audio>`;
+      }
+      // 图片 / 未知 → img
+      return `<img src="${url}" loading="lazy" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:var(--radius-md)">`;
+    },
+
+    // --- 步骤 3: 保存 ---
+    async doSave() {
+      this.saving = true;
+      this.saveMsg = '';
+      this.saveError = '';
+      try {
+        const enabled = this.fields.filter(f => f.enabled);
+        const sel = this.outputs[this.selectedOutput];
+        const data = await fetchJSON('/api/wizard/save', {
+          method: 'POST',
+          body: JSON.stringify({
+            token: this.token,
+            name: this.saveName.trim(),
+            display_name: this.saveDisplayName.trim() || this.saveName.trim(),
+            category: this.saveCategory,
+            fields: enabled,
+            output_node_id: sel ? sel.node_id : null,
+            output_kind: sel ? this._kindFromMediaKey(sel.media_key, sel.filename) : 'video',
+            example: {},
+          }),
+        });
+        this.saveMsg = `✅ 已保存为 ${data.name}！刷新"运行"页即可在左侧看到这个工作流。`;
+      } catch (e) {
+        this.saveError = '保存失败: ' + e.message;
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    _kindFromMediaKey(mediaKey, filename) {
+      if (mediaKey === 'images') return 'image';
+      if (mediaKey === 'audio') return 'audio';
+      if (mediaKey === 'videos' || mediaKey === 'gifs') return 'video';
+      return 'video';
     },
   };
 }
