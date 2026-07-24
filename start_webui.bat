@@ -109,7 +109,7 @@ set "FLASK_HOST=0.0.0.0"
 "%PYCMD%" -m app.flask_app
 if errorlevel 1 (
     echo.
-    echo [错误] Flask 启动失败。查看上方 preflight 输出或 app\data\gradio_run.log。
+    echo [错误] Flask 启动失败。查看上方控制台输出 (app.flask_app 直接打印到 stdout/stderr)。
     pause
 )
 

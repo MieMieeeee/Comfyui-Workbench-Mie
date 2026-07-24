@@ -30,7 +30,9 @@ COMFY_INSTALL_DIR: Path = Path(os.environ.get(
     r"E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI",
 ))
 COMFY_INPUT_DIR: Path = COMFY_INSTALL_DIR / "input"
-COMFY_OUTPUT_DIR: Path = COMFY_INSTALL_DIR / "output" / "SCAIL-2"
+# ComfyUI 输出根目录 (不写死 SCAIL-2 子目录 — 不同 preset 输出到不同 subfolder,
+# e.g. SCAIL-2 / zzzz / audio / 根目录. "打开输出目录" 开根目录, 用户自己进子目录).
+COMFY_OUTPUT_DIR: Path = COMFY_INSTALL_DIR / "output"
 COMFY_CACHE_DIR: Path = COMFY_INSTALL_DIR / "mie_nodes_cache"
 
 
@@ -73,14 +75,10 @@ POLL_INTERVAL_SEC: int = 2
 
 
 # --- WebUI 服务 (Flask, migrate-to-flask 2026-07-21) ---
-# GRADIO_HOST/PORT 保留为别名向后兼容 (老脚本/老 import 仍能读).
-# 新代码应该用 FLASK_HOST/PORT 或 WEBUI_HOST/PORT.
+# Gradio 下线后只剩 Flask 入口. 环境变量优先级: FLASK_* > WEBUI_* (老脚本兼容) > 默认值.
 
 FLASK_HOST: str = os.environ.get("FLASK_HOST", os.environ.get("WEBUI_HOST", "0.0.0.0"))
 FLASK_PORT: int = int(os.environ.get("FLASK_PORT", os.environ.get("WEBUI_PORT", "8199")))
-# 向后兼容别名
-GRADIO_HOST = FLASK_HOST
-GRADIO_PORT = FLASK_PORT
 
 
 # --- 辅助函数 ---

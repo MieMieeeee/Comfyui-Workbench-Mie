@@ -1,11 +1,6 @@
-"""表单状态持久化 — 从 scail2_app.py 抽出的纯函数 (无 Gradio 依赖).
+"""表单状态持久化 — last_run 的保存/加载.
 
-迁移自 scail2_app.py:
-  - _save_last_run   (L1342)
-  - _load_last_run   (L1377)
-
-依赖:
-  - app.config.LAST_RUN_DIR
+依赖: app.config.LAST_RUN_DIR
 
 注: theme 持久化 (_save_theme / _load_saved_theme) 放在 theme.py,
 因为 _load_saved_theme 调用 _list_themes, 逻辑上属于主题管理.
@@ -17,7 +12,7 @@ import logging
 
 from app import config
 
-_log = logging.getLogger("scail2_app.persistence")
+_log = logging.getLogger("app.services.persistence")
 
 
 def _save_last_run(preset_name, values):

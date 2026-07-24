@@ -180,9 +180,10 @@ function runTab(workflows, presetCfgs) {
     sizeLabel(opt) { return typeof opt === 'object' ? opt.label : opt; },
 
     getExampleThumbUrl(presetName, specIdx) {
-      // 从 panel 的 formValues[specIdx] (可能是绝对路径 / 文件名) 提取缩略图 URL.
-      // 路径形如 'F:\\...\\.examples_cache\\halfbody.png' -> '/example_cache/halfbody.png'
-      // 或纯文件名 'halfbody.png' -> '/comfy_input/halfbody.png'
+      // 从 panel 的 formValues[specIdx] 提取缩略图 URL.
+      // form_schema.example_to_form_values 返回 ComfyUI input 目录下的纯文件名
+      // (e.g. 'halfbody.png'), 前端通过 /comfy_input/<name> 路由读取本地文件展示.
+      // 历史侧车 (manifest.json) 里可能存的是绝对路径, 也取 basename 兼容.
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return '';
       const data = Alpine.$data(panel);
@@ -190,10 +191,6 @@ function runTab(workflows, presetCfgs) {
       if (!v) return '';
       const basename = v.replace(/\\/g, '/').split('/').pop();
       if (!basename) return '';
-      // 如果原路径含 .examples_cache, 走 /example_cache; 否则 /comfy_input
-      if (v.includes('.examples_cache') || v.includes('examples_cache')) {
-        return '/example_cache/' + encodeURIComponent(basename);
-      }
       return '/comfy_input/' + encodeURIComponent(basename);
     },
 

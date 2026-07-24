@@ -1,10 +1,4 @@
-"""workflow runner — 完整编排逻辑, 无 Gradio 依赖.
-
-迁移自 scail2_app.py 的 run_workflow (L267) / run_image_workflow (L547) /
-_output_kind (L915). 把:
-  - gr.Progress()      -> _NoProgress (no-op)
-  - gr.Error(msg)      -> raise _RunError(msg)
-  - import gradio      -> 删除
+"""workflow runner — 完整编排逻辑, 无 web 框架依赖.
 
 stream_events(preset, form_values, on_success) 把 (status_msg, media) yield 流
 包成 RunEvent, 供 Flask /api/run/<preset> 转 SSE.
@@ -36,7 +30,7 @@ from app.services import status as status_svc
 from app.services import form_schema
 from app.services.media import _media_to_html
 
-_log = logging.getLogger("scail2_app.runner")
+_log = logging.getLogger("app.services.runner")
 
 
 # ============================================================
@@ -81,7 +75,7 @@ class RunEvent:
 
 
 # ============================================================
-# 辅助函数 (从 scail2_app 搬过来)
+# 辅助函数
 # ============================================================
 
 def _output_kind(preset_cfg) -> str:
@@ -105,7 +99,7 @@ def _output_kind(preset_cfg) -> str:
 # ============================================================
 
 def run_workflow(preset_name, *component_values):
-    """运行指定 preset 的 workflow. (从 scail2_app.py L267 搬迁, 去 gradio 依赖)
+    """运行指定 preset 的 workflow (video / audio 类).
 
     生成器 yield (status_msg, output_url) 流.
     """
@@ -340,7 +334,7 @@ def run_workflow(preset_name, *component_values):
 # ============================================================
 
 def run_image_workflow(preset_name, *component_values):
-    """文生图 workflow (从 scail2_app.py L547 搬迁, 去 gradio 依赖)."""
+    """文生图 workflow (zimage 等纯图像 preset)."""
     progress = _NoProgress()
     _log.info(f"[run_image] ENTRY preset={preset_name}, {len(component_values)} values")
     yield "[READY] preparing image gen…", None

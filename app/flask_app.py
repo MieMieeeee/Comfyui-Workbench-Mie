@@ -1,20 +1,18 @@
-"""Flask app — ComfyUI Web Workflow Runner 的 Flask 版本.
+"""Flask app — ComfyUI Web Workflow Runner 的 web 入口.
 
-步骤 2 (本次): 非流式路由. SSE 流式 /api/run/<preset> 在步骤 4.
-文件上传 /api/upload 在步骤 5.
+业务逻辑全部走 app.services.* + app.scail2_client / history / health_check.
+路由分两类: 页面 (HTML 渲染) + API (JSON / SSE).
 
-业务逻辑全部走 app.services.* + app.scail2_client / history / health_check,
-跟 Gradio 版共享同一套纯函数.
-
-启动: python -m app.flask_app  (端口 8199, 同 Gradio 版)
+启动: python -m app.flask_app  (端口 8199)
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
 
-# bootstrap (跟 scail2_app.py 一致): 让 `python -m app.flask_app` 能跑
+# bootstrap: 让 `python -m app.flask_app` 能跑 (不在仓库根时也 OK)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -42,13 +40,16 @@ app = Flask(
 )
 app.config["JSON_AS_ASCII"] = False  # 中文响应不转义
 
+_log = logging.getLogger("app.flask_app")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 
 # ============================================================
-# 业务逻辑 helper (从 scail2_app.py 复制/改编, 不依赖 Gradio)
+# 业务逻辑 helper
 # ============================================================
 
 def _save_url_action(url: str) -> str:
-    """保存 URL + 测试连通性, 返回状态消息. 复用 scail2_app.save_and_test_url 逻辑."""
+    """保存 URL + 测试连通性, 返回状态消息."""
     cleaned = scail2_client.set_base_url(url)
     if not cleaned:
         return "⚠️ URL 为空，请填写 ComfyUI 地址"
@@ -65,7 +66,7 @@ def _reset_url_action():
 
 
 def _comfy_status_dict() -> dict:
-    """连接状态 {ok, url, dot}. 复用 scail2_app._comfy_status_text 逻辑."""
+    """连接状态 {ok, url, dot}."""
     try:
         ok, _msg = scail2_client.check_connection(timeout=2)
     except Exception:
@@ -83,7 +84,7 @@ def _full_health_markdown() -> str:
 
 
 def _update_est_markdown(drive_path, per_seg=81, pre_drop=5, max_segments=0) -> str:
-    """复用 scail2_app._update_est 逻辑."""
+    """根据驱动视频帧数预估段数, 返回 markdown 字符串."""
     if not drive_path:
         return "**预估段数**: 上传驱动视频后显示"
     frames = form_schema.get_video_frames(drive_path)
@@ -170,27 +171,6 @@ def comfy_input(filename):
         return jsonify({"error": "ComfyUI input dir not found"}), 404
     try:
         return send_from_directory(str(input_dir), filename)
-    except FileNotFoundError:
-        return jsonify({"error": f"file not found: {filename}"}), 404
-
-
-@app.route("/example_cache/<path:filename>")
-def example_cache(filename):
-    """提供 .examples_cache 目录下的文件 (Gradio 安全 workaround 复制的 example).
-
-    example_to_form_values 把 ComfyUI input 目录的 example 文件复制到
-    .examples_cache/ (Gradio 6 安全要求). Flask 版前端通过这个路由
-    显示参考图/参考视频缩略图.
-
-    [TODO 步骤 7 后续] Flask 版不需要 .examples_cache workaround,
-    可以直接用 /comfy_input/<filename>. 但现在 example_to_form_values
-    仍走 _resolve_example_file, 先兼容.
-    """
-    cache_dir = config.REPO_ROOT / ".examples_cache"
-    if not cache_dir.exists():
-        return jsonify({"error": "examples_cache not found"}), 404
-    try:
-        return send_from_directory(str(cache_dir), filename)
     except FileNotFoundError:
         return jsonify({"error": f"file not found: {filename}"}), 404
 
@@ -378,6 +358,15 @@ def estimated_segments_route():
 
 @app.route("/api/open_output_dir", methods=["POST"])
 def open_output_dir():
+    # 临时诊断日志: 用户报告"没操作就自动打开 output\SCAIL-2", 记录每次调用来源
+    # (排查完会移除). 看是谁在发 POST — Referer / User-Agent / 调用栈.
+    import traceback
+    _log.info(
+        "open_output_dir CALLED referer=%s ua=%s stack=%s",
+        request.headers.get("Referer", "(none)"),
+        request.headers.get("User-Agent", "(none)")[:60],
+        "".join(traceback.format_stack()[-4:]).replace("\n", " | "),
+    )
     return jsonify({"message": _open_output_dir()})
 
 

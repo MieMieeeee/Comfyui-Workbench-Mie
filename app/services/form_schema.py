@@ -1,18 +1,13 @@
-"""表单 schema + 校验 + 文件解析 — 从 scail2_app.py 抽出的纯函数.
+"""表单 schema + 校验 + 文件解析 — preset spec ↔ 表单值映射.
 
-迁移自 scail2_app.py:
-  - get_video_frames         (L118)
-  - estimated_segments       (L135)
-  - _file_extension          (L150, validate_inputs 的辅助)
-  - _file_size_mb            (L156, validate_inputs 的辅助)
-  - validate_inputs          (L165)
-  - _SIZE_PAT + import re    (L195/197, parse_sizes 的依赖)
-  - parse_sizes              (L200)
-  - example_to_form_values   (L349)
-  - _manifest_to_form_values (L410)
-  - _resolve_example_file    (L460, Gradio 6 安全 workaround, 步骤 7 删)
-  - _is_comfy_input_file     (L495)
-  - _resolve_upload_name     (L506)
+公开符号:
+  - get_video_frames / estimated_segments   段数预估
+  - validate_inputs                         文件大小/扩展名校验
+  - parse_sizes                             "720x1280" → (w, h)
+  - example_to_form_values                  preset.example → 表单值列表
+  - _manifest_to_form_values                历史 manifest → 表单值列表
+  - _resolve_example_file                   example 文件名 → ComfyUI input 纯文件名
+  - _resolve_upload_name / _is_comfy_input_file  上传去重
 
 依赖:
   - app.config (COMFY_INPUT_DIR / REPO_ROOT / ALLOWED_*_EXT / MAX_*_MB)
@@ -151,13 +146,9 @@ def example_to_form_values(preset_name):
       text 类 spec 必须在 params.json 上显式写 "example_key": "<example 字典里的 key>",
       不再靠 node_id 隐式兜底。
 
-    重要：文件槽位必须返回**绝对路径**。Gradio gr.File(type='filepath').postprocess
-    会对纯文件名调 Path(name).stat()，文件在 COMFY_INPUT_DIR 不在 CWD →
-    FileNotFoundError → 整个表单更新静默失败。所以这里拼成 COMFY_INPUT_DIR 下的
-    绝对路径。运行时 _resolve_upload_name 已能识别 COMFY_INPUT_DIR 的文件跳过上传。
-
-    [迁移 TODO 步骤 7] Flask 版不需要 _resolve_example_file (没有 gr.File 安全限制),
-    example_to_form_values 直接返回 ComfyUI input 目录的文件名即可.
+    文件槽位返回 ComfyUI input 目录下的**纯文件名** (basename). 前端通过
+    /comfy_input/<name> 路由展示缩略图; 运行时 _resolve_upload_name 识别它在
+    COMFY_INPUT_DIR 跳过重复上传. 找不到文件时返 None (前端显示空缩略图, 用户手动上传).
     """
     cfg = config.preset_config(preset_name)
     ex = cfg.get("example", {})
@@ -241,39 +232,31 @@ def _manifest_to_form_values(preset_name, manifest):
 
 
 def _resolve_example_file(filename):
-    """把 example 里的文件名解析成 gr.File 能接受的路径。
+    """把 example 里的文件名解析成前端能展示、runner 能上传的值。
 
-    Gradio 6 安全限制：gr.File 不接受"应用外部"的文件路径（不在 CWD 也不在
-    gradio cache dir），会报 "Cannot move ... to the gradio cache dir"。
-    所以这里把 ComfyUI input 目录的文件**复制到项目内的 .examples_cache/**
-    （在 CWD 下），返回复制后的路径。运行时 _resolve_upload_name 会正常上传它。
+    Flask 版: 直接返回 ComfyUI input 目录下的文件**纯文件名** (basename).
+    - 前端通过 /comfy_input/<filename> 路由展示缩略图 (flask_app.comfy_input)
+    - runner 上传时 _resolve_upload_name 识别它在 ComfyUI input 目录, 跳过重复上传
 
-    - 文件在 COMFY_INPUT_DIR → 复制到 .examples_cache/ 返回该路径
-    - 文件不存在 → 返回 None（不崩，让用户手动上传）
-    - filename 为空 → None
+    返回 None 的情况 (让前端显示空缩略图, 用户自己上传):
+      - filename 为空
+      - 文件在 COMFY_INPUT_DIR 找不到 (也没在绝对路径找到)
 
-    [迁移 TODO 步骤 7] Flask 版不需要这个 workaround, 直接返回 ComfyUI input 目录
-    的文件名, 前端通过 /comfy_input/<filename> 路由访问.
+    历史 (Gradio 6 时代): 曾把文件复制到 .examples_cache/ 绕过 gr.File 的安全限制,
+    Gradio 下线后这个 workaround 不需要了 (migrate-to-flask 清理 2026-07-24).
     """
     if not filename:
         return None
-    # 找源文件：先按绝对路径，再拼 COMFY_INPUT_DIR
+    # 找源文件: 先按绝对路径, 再拼 COMFY_INPUT_DIR
     src = Path(filename)
     if not src.is_absolute():
         src = config.COMFY_INPUT_DIR / filename
     if not src.exists():
-        # 也可能在 CWD 下（已经是 staged 的）
+        # 也可能在 CWD 下 (历史 staged 路径)
         src = Path(filename)
         if not src.exists():
             return None
-    # 复制到 CWD 下的 .examples_cache/（Gradio 接受 CWD 内的文件）
-    cache_dir = config.REPO_ROOT / ".examples_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    dst = cache_dir / src.name
-    if not dst.exists():
-        import shutil
-        shutil.copy2(src, dst)
-    return str(dst)
+    return src.name
 
 
 def _is_comfy_input_file(filename):

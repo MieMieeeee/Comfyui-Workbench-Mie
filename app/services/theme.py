@@ -1,23 +1,16 @@
-"""主题 + launch CSS/head 注入 — 从 scail2_app.py 抽出的纯函数 (无 Gradio 依赖).
+"""主题 + launch CSS 注入 (Flask 版).
 
-迁移自 scail2_app.py 的:
-  - 模块常量 _TOKENS_CACHE / _THEMES_CACHE / _DEFAULT_THEME_ID /
-    _THEMES_PATH / _TOKENS_PATH / _PAGE_BG_COLOR   (L1962-1966, L2090)
-  - _load_tokens_css       (L1970)
-  - _list_themes           (L1981)
-  - _load_saved_theme      (L2001)
-  - _save_theme            (L2018)
-  - _apply_theme           (L2032)
-  - _build_launch_css      (L2048)
-  - _strip_style_tag       (L2073)
-  - _get_theme_desc        (L2080)
-  - _build_launch_head     (L2093)
+职责: 加载 tokens.css + 主题 JSON, 给 Flask 模板提供 CSS 字符串.
+持久化: 用户选的主题写到 THEME_SETTINGS_FILE, 下次启动沿用 (coral-orange 兜底).
 
-依赖:
-  - app.config.REPO_ROOT / THEME_SETTINGS_FILE
+公开 API (flask_app.py 用):
+  - _load_saved_theme() / _save_theme(tid)
+  - _apply_theme(tid) -> "<style>:root{...}</style>"
+  - _strip_style_tag(html)  剥 <style> 标签, 让 CSS 能直接 inject
+  - _list_themes() / _get_theme_desc(tid)
+  - _PAGE_BG_COLOR  模板 <meta name="theme-color"> 用
 
-注: _build_launch_css 里有一段 Gradio 6.20.0 的 status-tracker workaround,
-步骤 7 (下线 Gradio) 时这段可以删.
+依赖: app.config.REPO_ROOT / THEME_SETTINGS_FILE
 """
 from __future__ import annotations
 
@@ -120,49 +113,9 @@ def _strip_style_tag(html: str) -> str:
     return m.group(1) if m else html
 
 
-def _build_launch_css() -> str:
-    """组装 launch(css=...) 的入参。包含 tokens.css 全文 + 默认主题。
-
-    返回**单个 CSS 字符串**(launch(css=...) 签名是 str | None, 不是 list).
-    必须是纯 CSS (不带 <style> 标签), 且必须是 str 不是 list.
-
-    [迁移 TODO 步骤 7] 下线 Gradio 后, 中间的 status-tracker workaround 段可以删.
-    """
-    tokens = _load_tokens_css()
-    default_combined = _apply_theme(_load_saved_theme())
-    # _apply_theme 返回 "<style>:root{...}</style>",剥掉 <style></style> 标签
-    default_css = _strip_style_tag(default_combined)
-    # Gradio 6.20.0 workaround: advanced accordion 里的 status-tracker 永远不消失,
-    # 遮住真实组件 (gr.Number / gr.Slider 都有这个 bug)。强制隐藏 .custom-accordion
-    # 里的 status-tracker, 让 Number 输入框 + 最小/最大值显示能看见。运行进度仍
-    # 由 运行日志 文本框显示, 不影响用户感知。
-    accordion_status_tracker_fix = "/* Gradio 6.20.0 workaround: hide stuck status-tracker in accordions */ .custom-accordion [data-testid='status-tracker'] { display: none !important; }"
-    # 合并成单个字符串
-    return f"{tokens}\n{default_css}\n{accordion_status_tracker_fix}"
-
-
 def _get_theme_desc(tid: str) -> str:
     """按 theme_id 返回一行 markdown 描述。设置 tab 用。"""
     for t in _list_themes():
         if t["id"] == tid:
             return f"**{t['name']}** —— {t['desc']}"
     return ""
-
-
-def _build_launch_head() -> str:
-    """生成注入 <head> 的 <meta> 标签字符串 (对称 _build_launch_css).
-
-    内容:
-      1. <meta name="theme-color" content="#0f1115">
-         Web Interface Guidelines §Dark Mode: theme-color 应匹配页面背景.
-         浏览器据此着色移动端地址栏 / status bar / PWA 标题栏.
-
-      2. <meta name="color-scheme" content="dark">
-         HTML 层声明 (CSS 层 tokens.css :root { color-scheme: dark } 之外再加一道),
-         让浏览器在 CSS 加载前就用 dark variant —— 避免 scrollbar / <select>
-         在首屏一闪而过的白底 (FOUC).
-    """
-    return (
-        f'<meta name="theme-color" content="{_PAGE_BG_COLOR}">'
-        f'<meta name="color-scheme" content="dark">'
-    )

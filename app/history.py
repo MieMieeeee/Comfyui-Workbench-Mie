@@ -99,7 +99,7 @@ def write_manifest(manifest: dict[str, Any]) -> Path:
     return out
 
 
-# --- 辅助：构造 manifest（在 scail2_app.run_workflow 里用） ---
+# --- 辅助：构造 manifest（services.runner.run_workflow 里用） ---
 
 def build_manifest(
     *,

@@ -301,7 +301,7 @@ def extract_primary_video_output(history: dict[str, Any]) -> dict[str, str] | No
     兼容 video/gif (VHS_VideoCombine, SaveVideo) + audio (SaveAudioMP3, SaveAudio)。
     判定方法: history.outputs[node_id] 里出现 videos/gifs/files/audio 任一 key,
     按 node_id 顺序取第一项。具体是图是视频还是音频由 caller 端 (output_kind) 决定
-    该把这个 URL 喂给 gr.Video / gr.Audio / gr.Image 还是 _media_to_html。
+    该把这个 URL 喂给 _media_to_html 渲染成 <img>/<video>/<audio>。
     """
     if not history:
         return None
@@ -358,7 +358,7 @@ def extract_all_image_outputs(history: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def get_output_url(filename: str, subfolder: str = "", kind: str = "output") -> str:
-    """拼 /view URL。gr.Video 直接吃这个 URL。"""
+    """拼 /view URL。浏览器 <img>/<video> 直接吃这个 URL (同机可访问)."""
     from urllib.parse import quote
     qs = f"filename={quote(filename)}&type={kind}&subfolder={quote(subfolder)}"
     return f"{get_base_url()}/view?{qs}"
@@ -476,7 +476,7 @@ def wait_for_completion(
 ) -> Iterator[str]:
     """轮询 /history/{id} 直到 completed 或 timeout, 可选叠加 ws step 进度。
 
-    yield 状态字符串给 Gradio 流式更新。
+    yield 状态字符串给上层 (Flask SSE / runner) 流式更新。
     - title_map (P1): 传了把 executing node_id 翻译成 _meta.title
     - progress_queue (P0): 传了 (start_progress_listener 的返回值) drain ws 事件,
       拿到 KSampler/SamplerCustom 的 value/max 拼 "12/20" 进 running 消息。

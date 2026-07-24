@@ -1,14 +1,11 @@
-"""状态字符串解析 — 从 scail2_app.py 抽出的纯函数 (无 Gradio 依赖).
+"""状态字符串解析 — wait_for_completion yield 的状态文本分类/解析.
 
-迁移自 scail2_app.py 的以下符号 (原行号):
-  - _extract_status_kind       (L520)
-  - _extract_step_progress     (L536) + 模块常量 _STEP_PROGRESS_RE (L533)
-  - _phase_from_status         (L569) + 模块常量 _LIVE_RE (L566)
-  - _format_elapsed            (L1263)
-  - _failure_hint              (L1275)
-
-scail2_app.py 通过 `from app.services.status import *` re-export 保持兼容.
-Flask 版直接 import 用.
+公开符号:
+  - _extract_status_kind(msg)    状态类别 (running / error / done / ...)
+  - _extract_step_progress(msg)  "KSampler 12/20" 的步数
+  - _phase_from_status(msg)      阶段标签 (生成 / LivePortrait / 上采样 / ...)
+  - _format_elapsed(secs)        "MM:SS" / "H:MM:SS"
+  - _failure_hint(msg)           失败时给用户的可操作建议
 """
 from __future__ import annotations
 
@@ -22,7 +19,7 @@ _STEP_PROGRESS_RE = re.compile(r"(\d+)/(\d+)(?!\d)")
 # review 2026-07-21 首递首区域重构:
 # 把 _yield_run_stream yield 的 status_msg 拆成 (action, phase_text, detail),
 # _run_and_format 用它累积 task_list 喂给 _render_status_html
-# (不再叠 60% 胶囊, 改成 task 清单, gr.Progress 单独管进度条)。
+# (不再叠 60% 胶囊, 改成 task 清单, 进度由 SSE event 的 progress 字段单独管)。
 #
 # 规则:
 #   ⏳ MM:SS  ...    -> live_update (wait_for_completion 长轮询, 只更新当前 task detail)

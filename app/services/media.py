@@ -1,28 +1,24 @@
-"""media → HTML 渲染 — 从 scail2_app.py 抽出的纯函数 (无 Gradio 依赖).
-
-迁移自 scail2_app.py:
-  - _media_ext_from_url   (L1293)
-  - _media_to_html        (L1333)
-  - _FILE_ROUTE_PREFIX    (L1591, 模块级常量)
+"""media → HTML 渲染 (Flask 版, 无 Gradio 依赖).
 
 依赖:
   - app.config.REPO_ROOT (用于把本地绝对路径转成相对 URL)
-
-注意: _FILE_ROUTE_PREFIX 现在是 "/gradio_api/file=" (Gradio 6 路由).
-步骤 7 (下线 Gradio) 时改成 Flask 的 "/static/" 或自定义路由.
-现在保持 Gradio 行为, 让 scail2_app.py re-export 后行为不变.
+  - app.config.COMFY_INPUT_DIR (ComfyUI input 目录, 由 /comfy_input/<name> 路由服务)
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from app import config
 
-# Gradio 6 静态文件路由前缀 (Gradio 把所有 API + 静态文件挂在 /gradio_api 下).
-# [迁移 TODO 步骤 7] Flask 版改成 "/static/" 或 url_for('static', filename=...)
-_FILE_ROUTE_PREFIX = "/gradio_api/file="
+# Flask 静态文件路由前缀. ComfyUI input 目录的文件由 /comfy_input/<name> 提供
+# (flask_app.py 的 comfy_input 路由); 项目内文件由 /static/<rel> 提供.
+# 旧的 "/gradio_api/file=" 路由在 Flask 版不存在 (Gradio 下线后已删).
+_FILE_ROUTE_PREFIX = "/comfy_input/"
 
 
 def _media_ext_from_url(src):
     """从 URL / 路径里取文件扩展名 (含 query 参数里的 filename).
+
     ComfyUI /view URL 结构: /view?filename=NAME&type=output&subfolder=SUBFOLDER
     直接 endswith 在 src 上不工作 (URL 后面跟 &type=...&subfolder=...), 需解析
     query 取 filename 的扩展名. 其它 HTTP URL (http://x/clip.mp4) 走 path
@@ -35,8 +31,7 @@ def _media_ext_from_url(src):
         return ""
     # 本地路径: 走 Path.suffix
     if not src.startswith("http"):
-        from pathlib import Path as _P
-        return _P(src).suffix.lower()
+        return Path(src).suffix.lower()
     # HTTP URL: 优先 path 扩展名; 若是裸端点 (如 /view), 退回 query param 里的 filename
     try:
         parsed = urlparse(src)
@@ -61,6 +56,39 @@ def _media_ext_from_url(src):
     return ""
 
 
+def _local_to_url(s):
+    """把 http(s) URL 或本地绝对路径转成浏览器可吃的 URL.
+
+    Flask 路由只有两条能服务本地文件:
+      - /comfy_input/<name>   -> COMFY_INPUT_DIR 下的文件
+      - /static/<rel>         -> app/static/ 下的文件
+    其它路径 (e.g. ComfyUI output 目录) 没有对应路由, 返回 None.
+    实际 runner 走 ComfyUI get_output_url 返回的 /view HTTP URL, 这个函数只是兜底.
+    """
+    if not s or not isinstance(s, str):
+        return None
+    if s.startswith("http"):
+        return s
+    sp = Path(s)
+    if not sp.exists():
+        return None
+    try:
+        rel_root = sp.relative_to(config.REPO_ROOT)
+    except ValueError:
+        return None
+    rel_str = str(rel_root).replace("\\", "/")
+    # ComfyUI input 目录的文件 -> /comfy_input/<basename>
+    try:
+        sp.relative_to(config.COMFY_INPUT_DIR)
+        return _FILE_ROUTE_PREFIX + rel_root.name
+    except ValueError:
+        pass
+    # app/static/ 下的文件 -> /static/<rel>
+    if rel_str.startswith("app/static/"):
+        return "/static/" + rel_str[len("app/static/"):].lstrip("/")
+    return None
+
+
 def _media_to_html(media, output_kind: str = "image") -> str:
     """把 run 函数 yield 的 media 转成 HTML。
 
@@ -81,17 +109,17 @@ def _media_to_html(media, output_kind: str = "image") -> str:
     if not media:
         return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
 
-    # image 类特化: list → 网格
+    # image 类特化: list → 网格; 单值 → <img>. 本地路径转 Flask 路由, http URL 原样.
     if output_kind == "image":
         if isinstance(media, list):
             if not media:
                 return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
             imgs = "".join(
-                "<img src=\"" + str(u) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
+                "<img src=\"" + (_local_to_url(str(u)) or str(u)) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
                 for u in media if u
             )
             return "<div style=\"padding:8px\">" + imgs + "</div>"
-        return "<div style=\"padding:8px\"><img src=\"" + str(media) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
+        return "<div style=\"padding:8px\"><img src=\"" + (_local_to_url(str(media)) or str(media)) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # video / audio: 单 URL, 扩展名分桶
     src = media[0] if isinstance(media, list) else media
@@ -103,23 +131,9 @@ def _media_to_html(media, output_kind: str = "image") -> str:
     image_ext = (".png", ".jpg", ".jpeg", ".webp")
     audio_ext = (".mp3", ".wav", ".flac", ".ogg", ".m4a")
 
-    def _to_url(s):
-        """把 http(s) URL 或本地绝对路径转成浏览器可吃的 URL."""
-        if s.startswith("http"):
-            return s
-        from pathlib import Path as _P
-        sp = _P(s)
-        if sp.exists():
-            try:
-                rel = sp.relative_to(config.REPO_ROOT)
-                return _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-            except ValueError:
-                return None
-        return None
-
     # 扩展名优先; output_kind 是 hint, 不是 hard constraint
     if ext in audio_ext:
-        url = _to_url(src)
+        url = _local_to_url(src)
         if url:
             return ('<div style=\"padding:8px\"><audio controls preload="metadata" style=\"width:100%;max-width:480px\">'
                     '<source src=\"' + url + '\"/></audio></div>')
@@ -127,30 +141,25 @@ def _media_to_html(media, output_kind: str = "image") -> str:
         if src.startswith("http"):
             return ("<div style=\"padding:8px\"><video controls autoplay preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
                     "<source src=\"" + src + "\"/></video></div>")
-        from pathlib import Path as _P
-        sp = _P(src)
-        if sp.exists():
-            try:
-                rel = sp.relative_to(config.REPO_ROOT)
-                file_url = _FILE_ROUTE_PREFIX + str(rel).replace(chr(92), "/")
-                return ("<div style=\"padding:8px\"><video controls preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
-                        "<source src=\"" + file_url + "\"/></video></div>")
-            except ValueError:
-                pass
+        # 本地视频: _local_to_url 判断它在哪个 Flask 路由能服务
+        file_url = _local_to_url(src)
+        if file_url:
+            return ("<div style=\"padding:8px\"><video controls preload=\"metadata\" width=\"100%\" height=\"auto\" style=\"max-width:100%;border-radius:var(--radius-md)\">"
+                    "<source src=\"" + file_url + "\"/></video></div>")
     if ext in image_ext:
-        url = _to_url(src) or src
+        url = _local_to_url(src) or src
         return "<div style=\"padding:8px\"><img src=\"" + url + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
 
     # 兜底: 输出 kind 对应的 banner
     if output_kind == "audio":
-        url = _to_url(src)
+        url = _local_to_url(src)
         if url:
             return ('<div class=\"file-fallback\">🎵 <b>音频</b> 已生成: '
                     '<a href=\"' + url + '\" download>下载播放</a> '
                     '<audio controls preload="metadata" style=\"vertical-align:middle;margin-left:8px\">'
                     '<source src=\"' + url + '\"/></audio></div>')
     if output_kind == "video":
-        url = _to_url(src)
+        url = _local_to_url(src)
         if url:
             return ('<div class=\"file-fallback\">🎬 <b>视频</b> 已生成: '
                     '<a href=\"' + url + '\" download>下载</a></div>')
