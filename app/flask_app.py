@@ -7,7 +7,6 @@
 """
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from pathlib import Path
@@ -39,9 +38,6 @@ app = Flask(
     static_url_path="/static",
 )
 app.config["JSON_AS_ASCII"] = False  # 中文响应不转义
-
-_log = logging.getLogger("app.flask_app")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 # ============================================================
@@ -358,15 +354,6 @@ def estimated_segments_route():
 
 @app.route("/api/open_output_dir", methods=["POST"])
 def open_output_dir():
-    # 临时诊断日志: 用户报告"没操作就自动打开 output\SCAIL-2", 记录每次调用来源
-    # (排查完会移除). 看是谁在发 POST — Referer / User-Agent / 调用栈.
-    import traceback
-    _log.info(
-        "open_output_dir CALLED referer=%s ua=%s stack=%s",
-        request.headers.get("Referer", "(none)"),
-        request.headers.get("User-Agent", "(none)")[:60],
-        "".join(traceback.format_stack()[-4:]).replace("\n", " | "),
-    )
     return jsonify({"message": _open_output_dir()})
 
 

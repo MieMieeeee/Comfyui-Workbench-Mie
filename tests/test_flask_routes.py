@@ -313,12 +313,24 @@ def test_estimated_segments_no_video(client):
 # 打开输出目录
 # ============================================================
 
-def test_open_output_dir(client):
-    """POST /api/open_output_dir 触发打开, 返回状态文本."""
+def test_open_output_dir(client, monkeypatch):
+    """POST /api/open_output_dir 走路由, 返回 {message: ...}.
+
+    必须 mock _open_output_dir — 否则会真执行 subprocess.Popen(['explorer', ...]),
+    每次跑 pytest 都弹一个文件夹窗口出来 (用户报告"不停打开 output 目录"的根因).
+    """
+    called = {"n": 0}
+
+    def fake_open():
+        called["n"] += 1
+        return "(mocked) test, no explorer"
+
+    monkeypatch.setattr(flask_app, "_open_output_dir", fake_open)
     r = client.post("/api/open_output_dir")
     assert r.status_code == 200
     data = r.get_json()
     assert "message" in data
+    assert called["n"] == 1
 
 
 # ============================================================
