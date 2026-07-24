@@ -54,6 +54,36 @@
   .wizard-node-title { display: block; color: var(--text-primary); font-size: 0.88em; margin-top: 2px; }
   .wizard-node-class { display: block; color: var(--text-muted); font-size: 0.74em; font-style: italic; margin-top: 1px; }
   .wizard-current-value { color: var(--text-secondary); font-size: 0.78em; margin-top: 3px; max-width: 240px; word-break: break-all; line-height: 1.35; }
+  /* 步骤 2: 卡片式选输入 — 大卡片, 点击切换勾选, 高置信度高亮边框 */
+  .wizard-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin: 16px 0; }
+  .wizard-pick-card {
+    background: var(--bg-input); border: 2px solid var(--border-default); border-radius: var(--radius-md);
+    padding: 14px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .wizard-pick-card:hover { border-color: var(--text-muted); }
+  .wizard-pick-card.selected { border-color: var(--theme-accent-400, #f59e0b); background: rgba(245,158,11,0.06); }
+  .wizard-pick-card.conf-high { border-left: 4px solid #4ade80; }
+  .wizard-pick-card.conf-medium { border-left: 4px solid #fbbf24; }
+  .wizard-pick-card.conf-low { border-left: 4px solid var(--border-default); }
+  .wizard-pick-header { display: flex; align-items: center; gap: 8px; }
+  .wizard-pick-header input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
+  .wizard-pick-title { font-size: 1.05em; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+  .wizard-pick-title-sm { font-size: 0.92em; margin-bottom: 2px; }
+  .wizard-pick-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.8em; }
+  .wizard-pick-field { background: var(--bg-overlay); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--text-secondary); }
+  .wizard-pick-nodeid { color: var(--text-muted); font-size: 0.88em; }
+  .wizard-pick-class { color: var(--text-muted); font-size: 0.85em; font-style: italic; }
+  .wizard-pick-value {
+    color: var(--text-secondary); font-size: 0.82em; background: var(--bg-overlay);
+    padding: 4px 8px; border-radius: var(--radius-sm); word-break: break-all;
+    max-height: 3.2em; overflow: hidden; line-height: 1.4;
+  }
+  /* 置信度标签 (卡片里用文字而不是星星, 更直观) */
+  .wizard-pick-card .wizard-conf-tag { background: var(--bg-overlay); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.72em; }
+  .wizard-pick-card .wizard-conf-tag.conf-high { color: #4ade80; }
+  .wizard-pick-card .wizard-conf-tag.conf-medium { color: #fbbf24; }
+  .wizard-pick-card .wizard-conf-tag.conf-low { color: var(--text-muted); }
 </style>
 <div class="wizard-page" x-data="wizardTab()" x-init="init()">
   <section class="wizard-header">
@@ -64,8 +94,9 @@
   <!-- 步骤指示器 -->
   <nav class="wizard-steps">
     <span :class="{ active: step === 1, done: step > 1 }">① 上传 workflow</span>
-    <span :class="{ active: step === 2, done: step > 2 }">② 确认输入项</span>
-    <span :class="{ active: step === 3 }">③ 跑一次 · 选输出</span>
+    <span :class="{ active: step === 2, done: step > 2 }">② 选择输入项</span>
+    <span :class="{ active: step === 3, done: step > 3 }">③ 排序 · 分层</span>
+    <span :class="{ active: step === 4 }">④ 跑一次 · 选输出</span>
   </nav>
 
   <!-- 步骤 1: 上传 workflow JSON -->
@@ -82,52 +113,78 @@
 
     <div x-show="fields.length > 0" class="wizard-parse-result">
       <p class="wizard-success">✅ 解析成功：识别出 <b x-text="nodeCount"></b> 个节点，<b x-text="fields.length"></b> 个候选输入字段。</p>
-      <button type="button" class="btn-run-primary" @click="goStep(2)">下一步：确认输入项 →</button>
+      <button type="button" class="btn-run-primary" @click="goStep(2)">下一步：选择输入项 →</button>
     </div>
   </section>
 
-  <!-- 步骤 2: 确认输入项 (可编辑) -->
+  <!-- 步骤 2: 选择输入项 (卡片式, 只勾选) -->
   <section class="wizard-step" x-show="step === 2">
-    <h3>确认输入项</h3>
-    <p class="wizard-hint">系统已自动推断每个字段的类型。已勾选高置信度字段（上传素材/种子/尺寸/提示词），其余按需勾选。</p>
+    <h3>选择输入项</h3>
+    <p class="wizard-hint">从解析出的字段里，勾选要暴露给用户的。<b>高置信度字段已自动勾选</b>（上传素材/种子/尺寸/提示词）。点击卡片可切换勾选。</p>
 
     <div class="wizard-fields-toolbar">
       <button type="button" class="btn-secondary" @click="selectAllFields()">☑ 全选</button>
       <button type="button" class="btn-secondary" @click="selectNoneFields()">☐ 全不选</button>
       <span class="wizard-fields-count">
-        已勾选 <b x-text="fields.filter(f => f.enabled).length"></b> / <span x-text="fields.length"></span>
+        已选 <b x-text="fields.filter(f => f.enabled).length"></b> / <span x-text="fields.length"></span>
       </span>
     </div>
 
+    <div class="wizard-pick-grid">
+      <template x-for="(f, idx) in fields" :key="idx">
+        <div class="wizard-pick-card" :class="{ selected: f.enabled, ['conf-' + (f.confidence || 'low')]: true }"
+             @click="f.enabled = !f.enabled">
+          <div class="wizard-pick-header">
+            <input type="checkbox" x-model="f.enabled" @click.stop>
+            <span class="wizard-conf-tag"
+                  :class="'conf-' + (f.confidence || 'low')"
+                  x-text="{'high':'建议','medium':'可能','low':'待定'}[f.confidence || 'low']"
+                  :title="{'high':'高置信度 — 建议勾选','medium':'可能是输入项','low':'语义不明, 按需勾选'}[f.confidence || 'low']"></span>
+          </div>
+          <div class="wizard-pick-title" x-text="f.node_title || f.class_type || ('Node ' + f.node_id)"></div>
+          <div class="wizard-pick-meta">
+            <code class="wizard-pick-field" x-text="f.field"></code>
+            <span class="wizard-pick-nodeid" x-text="'#' + f.node_id"></span>
+            <span class="wizard-pick-class" x-show="f.class_type" x-text="f.class_type"></span>
+          </div>
+          <div class="wizard-pick-value" x-show="f.current_value != null && f.current_value !== ''"
+               x-text="formatValue(f.current_value)"></div>
+        </div>
+      </template>
+    </div>
+
+    <div class="wizard-step-actions">
+      <button type="button" class="btn-secondary" @click="goStep(1)">← 上一步</button>
+      <button type="button" class="btn-run-primary" @click="goStep(3)"
+              :disabled="fields.filter(f => f.enabled).length === 0">
+        下一步：排序分层 → (<span x-text="fields.filter(f => f.enabled).length"></span> 项)
+      </button>
+    </div>
+  </section>
+
+  <!-- 步骤 3: 排序 · 分层 (只显示已选字段) -->
+  <section class="wizard-step" x-show="step === 3">
+    <h3>排序 · 分层</h3>
+    <p class="wizard-hint">调整字段顺序（运行页的显示顺序），设置基础/高级分层。基础设置每次展开，高级设置默认折叠。</p>
+
     <table class="wizard-fields-table">
       <thead>
-        <tr><th>启用</th><th>排序</th><th>置信度</th><th>节点 / 标题</th><th>字段 / 当前值</th><th>类型</th><th>标签</th><th>层级</th></tr>
+        <tr><th>排序</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
       </thead>
       <tbody>
         <template x-for="(f, idx) in fields" :key="idx">
-          <tr :class="{ disabled: !f.enabled }">
-            <td><input type="checkbox" x-model="f.enabled"></td>
+          <tr x-show="f.enabled">
             <td class="wizard-reorder">
               <button type="button" class="wizard-move-btn" title="上移"
                       @click="moveField(idx, -1)" :disabled="idx === 0">▲</button>
               <button type="button" class="wizard-move-btn" title="下移"
-                      @click="moveField(idx, 1)" :disabled="idx === fields.length - 1">▼</button>
+                      @click="moveField(idx, 1)"
+                      :disabled="idx >= fields.filter(f => f.enabled).length - 1">▼</button>
             </td>
             <td>
-              <span class="wizard-conf-tag"
-                    :class="'conf-' + (f.confidence || 'low')"
-                    x-text="{'high':'★★★','medium':'★★','low':'★'}[f.confidence || 'low']"
-                    :title="'高置信度' + (f.confidence==='high' ? '(建议勾选)' : '')"></span>
-            </td>
-            <td class="wizard-node-cell">
-              <code class="wizard-node-id" x-text="'#' + f.node_id"></code>
-              <span class="wizard-node-title" x-text="f.node_title || f.class_type || ''"></span>
-              <span class="wizard-node-class" x-text="f.class_type ? '[' + f.class_type + ']' : ''"></span>
-            </td>
-            <td>
+              <div class="wizard-pick-title wizard-pick-title-sm" x-text="f.node_title || f.class_type || ''"></div>
               <code x-text="f.field"></code>
-              <div class="wizard-current-value" x-show="f.current_value != null && f.current_value !== ''"
-                   x-text="'当前: ' + formatValue(f.current_value)"></div>
+              <span class="wizard-pick-nodeid" x-text="'#' + f.node_id"></span>
             </td>
             <td>
               <select x-model="f.type">
@@ -155,13 +212,13 @@
     </table>
 
     <div class="wizard-step-actions">
-      <button type="button" class="btn-secondary" @click="goStep(1)">← 上一步</button>
-      <button type="button" class="btn-run-primary" @click="goRun()">跑一次 →</button>
+      <button type="button" class="btn-secondary" @click="goStep(2)">← 上一步</button>
+      <button type="button" class="btn-run-primary" @click="goRun()">下一步：跑一次 →</button>
     </div>
   </section>
 
-  <!-- 步骤 3: 跑一次 + 选输出 -->
-  <section class="wizard-step" x-show="step === 3">
+  <!-- 步骤 4: 跑一次 + 选输出 -->
+  <section class="wizard-step" x-show="step === 4">
     <h3>跑一次 · 选择最终输出</h3>
     <p class="wizard-hint">用当前参数跑一次，系统会列出所有输出节点的产物。点选哪个是"最终结果"。</p>
 
@@ -170,6 +227,10 @@
 
     <div x-show="outputs.length > 0 && !running" class="wizard-outputs">
       <p class="wizard-success">✅ 运行完成，找到 <b x-text="outputs.length"></b> 个产物。点选最终输出：</p>
+      <div class="wizard-step-actions" style="margin-bottom:12px">
+        <button type="button" class="btn-secondary" @click="goStep(3)">← 返回排序分层</button>
+        <button type="button" class="btn-secondary" @click="goRun()">🔁 重跑一次</button>
+      </div>
       <div class="wizard-output-grid">
         <template x-for="(o, idx) in outputs" :key="idx">
           <div class="wizard-output-card"

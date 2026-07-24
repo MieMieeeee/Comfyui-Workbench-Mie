@@ -619,11 +619,20 @@ function wizardTab() {
       return s.length > 60 ? s.slice(0, 60) + '…' : s;
     },
 
-    goStep(n) { this.step = n; },
+    goStep(n) {
+      // 进步骤 3 (排序) 前, 把已选字段重排到数组前面, 未选的挪到后面.
+      // 这样排序表格只显示前面已选的, moveField 在连续的已选段操作不会跳到隐藏字段.
+      if (n === 3) {
+        const selected = this.fields.filter(f => f.enabled);
+        const unselected = this.fields.filter(f => !f.enabled);
+        this.fields = [...selected, ...unselected];
+      }
+      this.step = n;
+    },
 
-    // --- 步骤 2 → 3: 跑一次 ---
+    // --- 步骤 3 → 4: 跑一次 ---
     async goRun() {
-      this.step = 3;
+      this.step = 4;
       this.running = true;
       this.runError = '';
       this.outputs = [];
