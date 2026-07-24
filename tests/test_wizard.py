@@ -125,6 +125,29 @@ def test_parse_klein_edit_finds_file_image():
     assert image_specs[0]["node_id"] == "76"
 
 
+def test_parse_fields_include_node_context():
+    """每个候选字段应带 node_title / class_type / current_value, 供向导 UI 显示.
+
+    用户选输入项时需要看节点上下文 (光给 node_id '108' 分不清正向还是负向提示词,
+    有 title 'CLIP Text Encode (Positive Prompt)' 才知道).
+    """
+    raw = (PRESETS / "klein_edit.json").read_text(encoding="utf-8")
+    result = wizard.parse_workflow_api_json(raw)
+    # 所有字段都带这三个上下文字段
+    for f in result["fields"]:
+        assert "node_title" in f, f"字段 {f.get('field')} 缺 node_title"
+        assert "class_type" in f, f"字段 {f.get('field')} 缺 class_type"
+        assert "current_value" in f, f"字段 {f.get('field')} 缺 current_value"
+    # node 76 LoadImage 的 title 应该是 'Load Image'
+    img = next(f for f in result["fields"] if f["node_id"] == "76" and f["field"] == "image")
+    assert img["class_type"] == "LoadImage"
+    assert img["node_title"]  # 非空
+    assert img["current_value"]  # 非空 (图片文件名)
+    # 正向提示词 node 108 的 title 含 'Positive'
+    pos = next(f for f in result["fields"] if f["node_id"] == "108" and f["field"] == "text")
+    assert "Positive" in pos["node_title"], f"正向提示词 title 不对: {pos['node_title']}"
+
+
 def test_parse_liveportrait_finds_file_video_and_filters_connections():
     """liveportrait: VHS_LoadVideo → file:video; 连接引用被过滤."""
     raw = (PRESETS / "liveportrait.json").read_text(encoding="utf-8")

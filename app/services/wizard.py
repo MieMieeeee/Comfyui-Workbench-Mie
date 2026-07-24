@@ -157,11 +157,16 @@ def parse_workflow_api_json(raw: str) -> dict:
         if not isinstance(node_def, dict) or "inputs" not in node_def:
             continue
         class_type = node_def.get("class_type", "")
+        node_title = node_def.get("_meta", {}).get("title", "") or class_type
         inputs = node_def.get("inputs", {})
         for field, value in inputs.items():
             spec = infer_spec(node_id, field, value, class_type)
             if spec is None:
                 continue
+            # 注入节点上下文 (供向导 UI 显示, 帮用户判断字段语义)
+            spec["node_title"] = node_title
+            spec["class_type"] = class_type
+            spec["current_value"] = value
             # image_sizes: 暂存, 等 width+height 都收集到再合并
             if spec.get("_merge_key"):
                 sizes_pending.setdefault(str(node_id), {})[field] = value
@@ -171,6 +176,12 @@ def parse_workflow_api_json(raw: str) -> dict:
     # 把 image_sizes 候选合并成单个 spec (一个 node 一个 image_sizes, 不拆 width/height)
     # 合并后仍是 high (尺寸是核心输出参数)
     for nid, dims in sizes_pending.items():
+        node_title = ""
+        class_type = ""
+        ndef = workflow.get(nid) or workflow.get(int(nid))
+        if isinstance(ndef, dict):
+            class_type = ndef.get("class_type", "")
+            node_title = ndef.get("_meta", {}).get("title", "") or class_type
         if "width" in dims and "height" in dims:
             fields.append(_base_spec(nid, "sizes", "image_sizes",
                                      default=[f"{dims['width']}x{dims['height']}"], confidence="high"))
@@ -178,6 +189,11 @@ def parse_workflow_api_json(raw: str) -> dict:
             fields.append(_base_spec(nid, "width", "int", default=dims["width"]))
         elif "height" in dims:
             fields.append(_base_spec(nid, "height", "int", default=dims["height"]))
+        # 给合并后的 image_sizes 也注入节点上下文
+        if fields:
+            fields[-1]["node_title"] = node_title
+            fields[-1]["class_type"] = class_type
+            fields[-1]["current_value"] = dims
 
     return {
         "workflow": workflow,

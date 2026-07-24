@@ -611,6 +611,14 @@ function wizardTab() {
       this.fields.splice(j, 0, tmp);
     },
 
+    // 格式化字段的当前值用于表格显示 (截断长字符串)
+    formatValue(v) {
+      if (v == null) return '';
+      if (typeof v === 'boolean') return v ? 'true' : 'false';
+      const s = String(v);
+      return s.length > 60 ? s.slice(0, 60) + '…' : s;
+    },
+
     goStep(n) { this.step = n; },
 
     // --- 步骤 2 → 3: 跑一次 ---
