@@ -3,55 +3,57 @@
 
 {% block content %}
 <style>
-  /* 向导页局部样式 (复用 tokens.css 变量) */
+  /* 向导页局部样式 — 用 tokens.css 真实 token (不用错误名, 提升暗色元素对比度).
+     token 值: --text-primary #f3f4f6 / --text-secondary #c2c7d2 / --text-muted #8b909b
+               --bg-card #1a1d23 / --bg-input #0c0e12 / --border-default #2f333d */
   .wizard-page { max-width: 1000px; margin: 0 auto; padding: 16px; }
   .wizard-header h2 { margin-bottom: 4px; }
-  .wizard-hint { color: var(--text-muted, #888); font-size: 0.9em; margin: 8px 0 16px; }
-  .wizard-steps { display: flex; gap: 12px; margin: 16px 0; padding: 12px; background: var(--surface-1, #1a1d23); border-radius: var(--radius-md, 8px); }
-  .wizard-steps span { color: var(--text-faint, #666); font-size: 0.9em; }
-  .wizard-steps span.active { color: var(--text-strong, #fff); font-weight: 600; }
-  .wizard-steps span.done { color: var(--success, #4ade80); }
-  .wizard-step { background: var(--surface-1, #1a1d23); padding: 20px; border-radius: var(--radius-md, 8px); margin-bottom: 16px; }
+  .wizard-hint { color: var(--text-secondary); font-size: 0.9em; margin: 8px 0 16px; }
+  .wizard-steps { display: flex; gap: 12px; margin: 16px 0; padding: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+  .wizard-steps span { color: var(--text-muted); font-size: 0.9em; }
+  .wizard-steps span.active { color: var(--text-primary); font-weight: 600; }
+  .wizard-steps span.done { color: #4ade80; }
+  .wizard-step { background: var(--bg-card); border: 1px solid var(--border-subtle); padding: 20px; border-radius: var(--radius-md); margin-bottom: 16px; }
   .wizard-step h3 { margin-top: 0; }
   .wizard-upload { margin: 16px 0; }
-  .wizard-upload input[type=file] { padding: 8px; }
-  .wizard-loading { color: var(--text-muted, #888); padding: 12px; }
-  .wizard-error { color: var(--danger, #ef4444); padding: 8px 0; }
-  .wizard-success { color: var(--success, #4ade80); padding: 8px 0; }
+  .wizard-upload input[type=file] { padding: 8px; color: var(--text-secondary); }
+  .wizard-loading { color: var(--text-secondary); padding: 12px; }
+  .wizard-error { color: #ef4444; padding: 8px 0; }
+  .wizard-success { color: #4ade80; padding: 8px 0; }
   .wizard-parse-result { margin-top: 16px; }
   .wizard-fields-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.85em; }
-  .wizard-fields-table th { text-align: left; padding: 8px 6px; color: var(--text-muted, #888); border-bottom: 1px solid var(--border, #333); font-weight: 500; }
-  .wizard-fields-table td { padding: 6px; border-bottom: 1px solid var(--border, #2a2d33); }
-  .wizard-fields-table tr.disabled { opacity: 0.4; }
-  .wizard-fields-table select, .wizard-fields-table input[type=text] { background: var(--surface-2, #222); border: 1px solid var(--border, #333); color: var(--text-strong, #fff); padding: 4px 6px; border-radius: 4px; font-size: 0.9em; }
+  .wizard-fields-table th { text-align: left; padding: 8px 6px; color: var(--text-secondary); border-bottom: 1px solid var(--border-default); font-weight: 600; }
+  .wizard-fields-table td { padding: 6px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  .wizard-fields-table tr.disabled { opacity: 0.45; }
+  .wizard-fields-table select, .wizard-fields-table input[type=text] { background: var(--bg-input); border: 1px solid var(--border-default); color: var(--text-primary); padding: 4px 6px; border-radius: var(--radius-sm); font-size: 0.9em; }
   .wizard-label-input { width: 140px; }
   .wizard-step-actions { display: flex; gap: 12px; justify-content: space-between; margin-top: 16px; }
   .wizard-output-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
-  .wizard-output-card { border: 2px solid var(--border, #333); border-radius: var(--radius-md, 8px); padding: 8px; cursor: pointer; transition: border-color 0.15s; }
-  .wizard-output-card:hover { border-color: var(--text-muted, #666); }
-  .wizard-output-card.selected { border-color: var(--theme-accent-400, #f59e0b); background: rgba(245,158,11,0.08); }
-  .wizard-output-card.temp { opacity: 0.7; }
+  .wizard-output-card { border: 2px solid var(--border-default); border-radius: var(--radius-md); padding: 8px; cursor: pointer; transition: border-color 0.15s; background: var(--bg-input); }
+  .wizard-output-card:hover { border-color: var(--text-muted); }
+  .wizard-output-card.selected { border-color: var(--theme-accent-400, #f59e0b); background: rgba(245,158,11,0.10); }
+  .wizard-output-card.temp { opacity: 0.75; }
   .wizard-output-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.8em; }
-  .wizard-output-title { color: var(--text-muted, #aaa); }
-  .wizard-output-tag { font-size: 0.75em; padding: 2px 6px; border-radius: 4px; background: var(--surface-2, #333); }
-  .wizard-save-form { margin-top: 20px; padding: 16px; background: var(--surface-2, #222); border-radius: var(--radius-md, 8px); }
-  .wizard-save-form label { display: block; margin: 8px 0; }
-  .wizard-save-form input, .wizard-save-form select { display: block; width: 100%; max-width: 360px; margin-top: 4px; padding: 6px 8px; background: var(--surface-1, #1a1d23); border: 1px solid var(--border, #333); color: var(--text-strong, #fff); border-radius: 4px; }
+  .wizard-output-title { color: var(--text-secondary); }
+  .wizard-output-tag { font-size: 0.75em; padding: 2px 6px; border-radius: var(--radius-sm); background: var(--bg-overlay); color: var(--text-secondary); }
+  .wizard-save-form { margin-top: 20px; padding: 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+  .wizard-save-form label { display: block; margin: 8px 0; color: var(--text-secondary); }
+  .wizard-save-form input, .wizard-save-form select { display: block; width: 100%; max-width: 360px; margin-top: 4px; padding: 6px 8px; background: var(--bg-card); border: 1px solid var(--border-default); color: var(--text-primary); border-radius: var(--radius-sm); }
   .wizard-fields-toolbar { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
-  .wizard-fields-count { color: var(--text-muted, #aaa); font-size: 0.88em; }
-  .wizard-conf-tag { font-size: 0.7em; letter-spacing: -1px; cursor: help; }
-  .wizard-conf-tag.conf-high { color: var(--success, #4ade80); }
-  .wizard-conf-tag.conf-medium { color: var(--warning, #fbbf24); }
-  .wizard-conf-tag.conf-low { color: var(--text-faint, #555); }
+  .wizard-fields-count { color: var(--text-secondary); font-size: 0.88em; }
+  .wizard-conf-tag { font-size: 0.75em; letter-spacing: -1px; cursor: help; font-weight: 700; }
+  .wizard-conf-tag.conf-high { color: #4ade80; }
+  .wizard-conf-tag.conf-medium { color: #fbbf24; }
+  .wizard-conf-tag.conf-low { color: var(--text-muted); }
   .wizard-reorder { white-space: nowrap; }
-  .wizard-move-btn { background: none; border: 1px solid var(--border, #333); color: var(--text-muted, #aaa); padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.7em; line-height: 1; }
-  .wizard-move-btn:hover:not(:disabled) { color: var(--text-strong, #fff); border-color: var(--text-muted, #666); }
+  .wizard-move-btn { background: none; border: 1px solid var(--border-default); color: var(--text-secondary); padding: 2px 6px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.7em; line-height: 1; }
+  .wizard-move-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
   .wizard-move-btn:disabled { opacity: 0.3; cursor: default; }
   .wizard-node-cell { min-width: 180px; }
-  .wizard-node-id { color: var(--text-faint, #888); font-size: 0.78em; }
-  .wizard-node-title { display: block; color: var(--text-primary, #e5e7eb); font-size: 0.85em; margin-top: 2px; }
-  .wizard-node-class { display: block; color: var(--text-faint, #666); font-size: 0.72em; font-style: italic; }
-  .wizard-current-value { color: var(--text-muted, #888); font-size: 0.75em; margin-top: 3px; max-width: 240px; word-break: break-all; line-height: 1.3; }
+  .wizard-node-id { color: var(--text-secondary); font-size: 0.78em; font-weight: 600; }
+  .wizard-node-title { display: block; color: var(--text-primary); font-size: 0.88em; margin-top: 2px; }
+  .wizard-node-class { display: block; color: var(--text-muted); font-size: 0.74em; font-style: italic; margin-top: 1px; }
+  .wizard-current-value { color: var(--text-secondary); font-size: 0.78em; margin-top: 3px; max-width: 240px; word-break: break-all; line-height: 1.35; }
 </style>
 <div class="wizard-page" x-data="wizardTab()" x-init="init()">
   <section class="wizard-header">
