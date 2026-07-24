@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from app import prompts as prompts_mod
 from app.services import theme
 from app.services import form_schema
 from app.services import runner
+from app.services import wizard
 from app.services.persistence import _save_last_run, _load_last_run
 
 
@@ -504,6 +506,147 @@ def preset_cfg(preset_name):
         ),
         "user_facing_inputs": cfg.get("user_facing_inputs", []),
     })
+
+
+# ============================================================
+# 工作流向导 API (workflow-decouple-wizard 2026-07-24)
+# 引导用户把 ComfyUI workflow JSON 变成 preset definition, 不用手工编辑 JSON.
+# workflow 在 parse 时存到 app/data/wizard/<token>.json, run/save 用 token 引用.
+# ============================================================
+
+import secrets
+
+_WIZARD_DIR = config.REPO_ROOT / "app" / "data" / "wizard"
+
+
+def _wizard_path(token: str) -> Path:
+    return _WIZARD_DIR / f"{token}.json"
+
+
+@app.route("/api/wizard/parse", methods=["POST"])
+def wizard_parse():
+    """步骤 A: 上传 ComfyUI API 格式 workflow JSON → 返回推断后的候选输入字段.
+
+    POST body: {"workflow_json": "<raw json string>"}
+    返回: {"token": "...", "fields": [...], "node_count": N}
+    workflow 存到 app/data/wizard/<token>.json, 后续 run/save 用 token.
+    """
+    data = request.get_json(silent=True) or {}
+    raw = data.get("workflow_json")
+    if not raw or not isinstance(raw, str):
+        return jsonify({"error": "missing workflow_json (ComfyUI API 格式 JSON 字符串)"}), 400
+    try:
+        parsed = wizard.parse_workflow_api_json(raw)
+    except (ValueError, json.JSONDecodeError) as e:
+        return jsonify({"error": f"workflow JSON 解析失败: {e}"}), 400
+
+    token = secrets.token_hex(8)
+    _WIZARD_DIR.mkdir(parents=True, exist_ok=True)
+    _wizard_path(token).write_text(
+        json.dumps(parsed["workflow"], ensure_ascii=False), encoding="utf-8")
+    return jsonify({
+        "token": token,
+        "fields": parsed["fields"],
+        "node_count": parsed["node_count"],
+    })
+
+
+@app.route("/api/wizard/run", methods=["POST"])
+def wizard_run():
+    """步骤 B: 用向导确认的输入跑一次 workflow → 返回所有输出 node 的产物.
+
+    POST body: {"token": "...", "fields": [...], "values": {...}}
+    返回: {"outputs": [{node_id, title, media_key, filename, type, url}, ...]}
+    需要 ComfyUI 在跑.
+    """
+    data = request.get_json(silent=True) or {}
+    token = data.get("token")
+    fields = data.get("fields", [])
+    values = data.get("values", {})
+    wf_path = _wizard_path(token) if token else None
+    if not wf_path or not wf_path.exists():
+        return jsonify({"error": "invalid or expired token, 请重新上传 workflow"}), 400
+    if not isinstance(fields, list):
+        return jsonify({"error": "fields 必须是数组"}), 400
+
+    workflow = json.loads(wf_path.read_text(encoding="utf-8"))
+    try:
+        replacements = wizard.build_replacements(fields, values)
+        history = wizard.run_workflow_once(workflow, replacements)
+    except Exception as e:
+        return jsonify({"error": f"运行失败: {e}"}), 500
+
+    outputs = wizard.extract_all_outputs(history, workflow)
+    if not outputs:
+        return jsonify({"error": "运行完成但没有输出产物, 检查 workflow 是否有输出节点"}), 422
+    return jsonify({"outputs": outputs})
+
+
+@app.route("/api/wizard/save", methods=["POST"])
+def wizard_save():
+    """步骤 C: 把向导结果存成 preset definition.
+
+    POST body: {
+        "token": "...", "name": "my_workflow", "display_name": "...",
+        "fields": [...] (用户最终确认的 user_facing_inputs),
+        "output_node_id": "456", "output_kind": "video",
+        "example": {...} (可选, 默认用这次跑的输入),
+    }
+    返回: {"name": ..., "definition_path": ...}
+    """
+    data = request.get_json(silent=True) or {}
+    token = data.get("token")
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "missing name"}), 400
+    # name 只允许小写字母数字下划线 (变成文件名)
+    if not all(c.isalnum() or c == "_" for c in name) or not name[0].isalpha():
+        return jsonify({"error": "name 只能含字母数字下划线, 且以字母开头"}), 400
+
+    wf_path = _wizard_path(token) if token else None
+    if not wf_path or not wf_path.exists():
+        return jsonify({"error": "invalid or expired token"}), 400
+    # 已存在的 preset 名不允许覆盖 (避免误删作者手写的 definition)
+    existing = {w["name"] for w in config.list_workflows()}
+    if name in existing:
+        return jsonify({"error": f"preset '{name}' 已存在, 换个名字"}), 409
+
+    workflow = json.loads(wf_path.read_text(encoding="utf-8"))
+    fields = data.get("fields", [])
+    cfg = {
+        "workflow_file": _save_workflow_template(name, workflow),
+        "display_name": data.get("display_name") or name,
+        "category": data.get("category", "other"),
+        "order": data.get("order", 999),
+        "description": data.get("description", ""),
+        "user_facing_inputs": fields,
+        "output_kind": data.get("output_kind", "video"),
+        "example": data.get("example") or {},
+    }
+    if data.get("output_node_id"):
+        cfg["do_not_modify_warnings"] = [{
+            "node_id": str(data["output_node_id"]),
+            "reason": "向导标记的最终用户输出节点",
+        }]
+    out = config.save_definition(name, cfg)
+    # 清理临时 workflow
+    try:
+        wf_path.unlink()
+    except OSError:
+        pass
+    try:
+        rel = str(out.relative_to(config.REPO_ROOT))
+    except ValueError:
+        rel = str(out)
+    return jsonify({"name": name, "definition_path": rel})
+
+
+def _save_workflow_template(name: str, workflow: dict) -> str:
+    """把向导上传的 workflow 存成 app/presets/<name>.json, 返回文件名."""
+    fname = f"{name}.json"
+    out = config.PRESETS_DIR / fname
+    out.write_text(json.dumps(workflow, ensure_ascii=False, indent=2), encoding="utf-8")
+    return fname
 
 
 # ============================================================

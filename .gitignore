@@ -55,3 +55,5 @@ _probe*.py
 _debug*.js
 _debug*.py
 _ui_shots/
+# 向导临时 workflow (parse 时存 token, save 时清)
+app/data/wizard/
