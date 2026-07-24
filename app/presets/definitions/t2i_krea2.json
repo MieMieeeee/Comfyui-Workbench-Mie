@@ -1,0 +1,76 @@
+{
+  "workflow_file": "t2i_krea2.json",
+  "display_name": "文生图（Krea-2）",
+  "category": "image",
+  "order": 999,
+  "description": "Krea-2 快速生成高质感图片。",
+  "user_facing_inputs": [
+    {
+      "node_id": "19",
+      "field": "value",
+      "label": "提示词",
+      "type": "text",
+      "default": "a cat on a sofa",
+      "max_chars": 2000,
+      "help": "描述希望生成的内容、风格与构图。",
+      "tier": "basic"
+    },
+    {
+      "node_id": "6",
+      "field": "sizes",
+      "label": "输出尺寸",
+      "type": "image_sizes",
+      "default": [
+        "1024x1024"
+      ],
+      "presets": [
+        {
+          "label": "1024×1024 ｜ 1:1 正方形",
+          "value": "1024x1024"
+        },
+        {
+          "label": "1280×720 ｜ 16:9 横版",
+          "value": "1280x720"
+        },
+        {
+          "label": "720×1280 ｜ 9:16 竖版",
+          "value": "720x1280"
+        },
+        {
+          "label": "1024×1280 ｜ 4:5 海报",
+          "value": "1024x1280"
+        }
+      ],
+      "help": "选择要生成的输出尺寸。",
+      "tier": "basic"
+    },
+    {
+      "node_id": "9",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int_random",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 77,
+      "random_default": true,
+      "step": 1,
+      "help": "勾选随机会在每次运行时生成新种子；取消后使用固定数值。",
+      "tier": "basic"
+    }
+  ],
+  "output_kind": "image",
+  "example": {
+    "value": "a cat on a sofa",
+    "sizes": [
+      "1024x1024"
+    ],
+    "seed": 77,
+    "preview_image": "app/static/examples/t2i_krea2.png"
+  },
+  "do_not_modify_warnings": [
+    {
+      "node_id": "10",
+      "reason": "向导标记的最终用户输出节点"
+    }
+  ]
+}

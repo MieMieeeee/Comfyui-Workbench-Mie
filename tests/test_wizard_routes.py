@@ -178,3 +178,43 @@ def test_wizard_save_rejects_bad_name(client, monkeypatch, tmp_path):
             "token": token, "name": bad, "fields": [],
         })
         assert r.status_code == 400, f"{bad!r} 应该被拒"
+
+
+def test_wizard_save_builds_example_from_selected_run_output(client, monkeypatch, tmp_path):
+    r = client.post("/api/wizard/parse", json={"workflow_json": json.dumps(_SAMPLE_WF)})
+    token = r.get_json()["token"]
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}), encoding="utf-8")
+    expected_example = {"text": "a cat", "preview_image": "app/static/examples/new_wf.png"}
+    calls = {}
+    def fake_prepare(name, fields, values, output):
+        calls["args"] = (name, fields, values, output)
+        return expected_example
+    monkeypatch.setattr(flask_app.wizard, "prepare_example", fake_prepare)
+    fields = [{"node_id": "6", "field": "text", "type": "text", "default": "a cat"}]
+    output = {"node_id": "9", "filename": "out.png", "subfolder": "", "type": "output", "media_key": "images"}
+    r = client.post("/api/wizard/save", json={
+        "token": token, "name": "new_wf", "display_name": "新工作流",
+        "description": "一句用途说明", "fields": fields, "values": {"text": "a cat"},
+        "selected_output": output, "output_node_id": "9", "output_kind": "image",
+    })
+    assert r.status_code == 200
+    cfg = json.loads((tmp_path / "defs" / "new_wf.json").read_text(encoding="utf-8"))
+    assert cfg["description"] == "一句用途说明"
+    assert cfg["example"] == expected_example
+    assert calls["args"] == ("new_wf", fields, {"text": "a cat"}, output)
+
+
+def test_wizard_save_does_not_write_definition_when_preview_copy_fails(client, monkeypatch, tmp_path):
+    r = client.post("/api/wizard/parse", json={"workflow_json": json.dumps(_SAMPLE_WF)})
+    token = r.get_json()["token"]
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.wizard, "prepare_example", lambda *args: (_ for _ in ()).throw(FileNotFoundError("missing output")))
+    r = client.post("/api/wizard/save", json={"token": token, "name": "broken_wf", "fields": [], "selected_output": {"filename": "missing.png"}})
+    assert r.status_code == 422
+    assert not (tmp_path / "defs" / "broken_wf.json").exists()

@@ -13,6 +13,8 @@ definition.json. 三个核心函数:
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 from typing import Any
 
 
@@ -24,6 +26,8 @@ from typing import Any
 _SIZES_LATENT_CLASSES = frozenset({
     "EmptySD3LatentImage",
     "EmptyFlux2LatentImage",
+    "EmptyLatentImage",
+    "EmptyLatentImageCustomPresets",
 })
 
 # image_sizes 类节点: 一个 spec 同时管 width+height (不拆成两个 int)
@@ -101,8 +105,37 @@ def _base_spec(node_id: str, field: str, typ: str, default=None, confidence: str
         #             low  = 类型兜底 (裸 int/text/bool), 语义不明, 默认不勾选等用户决定.
         "confidence": confidence,
     }
+    spec.update(_default_spec_options(typ))
     spec.update(extra)
     return spec
+
+
+def _default_spec_options(typ: str) -> dict:
+    """向导生成配置的通用显示元数据。"""
+    if typ == "image_sizes":
+        return {
+            "presets": [
+                {"label": "1024×1024 ｜ 1:1 正方形", "value": "1024x1024"},
+                {"label": "1280×720 ｜ 16:9 横版", "value": "1280x720"},
+                {"label": "720×1280 ｜ 9:16 竖版", "value": "720x1280"},
+                {"label": "1024×1280 ｜ 4:5 海报", "value": "1024x1280"},
+            ],
+            "help": "选择要生成的输出尺寸。",
+        }
+    if typ == "int_random":
+        return {
+            "min": 0,
+            "max": 9223372036854776000,
+            "step": 1,
+            "help": "勾选随机会在每次运行时生成新种子；取消后使用固定数值。",
+        }
+    if typ in ("text", "prompt_pool"):
+        return {"max_chars": 2000, "help": "描述希望生成的内容、风格与构图。"}
+    if typ == "file:image":
+        return {"help": "上传本次生成使用的参考图片。"}
+    if typ == "file:video":
+        return {"help": "上传本次生成使用的驱动视频。"}
+    return {}
 
 
 def _default_label(field: str, typ: str) -> str:
@@ -317,17 +350,69 @@ def build_replacements(fields: list[dict], values: dict) -> dict:
     return replacements
 
 
-def run_workflow_once(workflow: dict, replacements: dict, timeout: int = 600) -> dict:
+def prepare_example(
+    preset_name: str,
+    fields: list[dict],
+    values: dict,
+    selected_output: dict,
+) -> dict:
+    """保存试跑参数，并把选中的 ComfyUI 产物复制为静态示例。"""
+    from app import config
+
+    if not selected_output:
+        raise ValueError("必须选择一个最终输出")
+    filename = Path(str(selected_output.get("filename", ""))).name
+    if not filename:
+        raise ValueError("最终输出缺少文件名")
+
+    kind = selected_output.get("type", "output")
+    if kind == "temp":
+        source_root = config.COMFY_INSTALL_DIR / "temp"
+    else:
+        source_root = config.COMFY_OUTPUT_DIR
+    source_root = source_root.resolve()
+    source = (source_root / str(selected_output.get("subfolder", "")) / filename).resolve()
+    try:
+        source.relative_to(source_root)
+    except ValueError as exc:
+        raise ValueError("输出路径不在 ComfyUI 产物目录内") from exc
+    if not source.is_file():
+        raise FileNotFoundError(f"找不到本次运行产物: {source}")
+
+    ext = source.suffix.lower()
+    media_key = selected_output.get("media_key", "")
+    preview_key = (
+        "preview_image" if media_key == "images" else
+        "preview_audio" if media_key == "audio" else
+        "preview_video"
+    )
+    dest_dir = config.REPO_ROOT / "app" / "static" / "examples"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{preset_name}{ext}"
+    shutil.copy2(source, dest)
+
+    example = {}
+    for spec in fields:
+        key = spec.get("example_key") or spec.get("field")
+        if key:
+            example[key] = values.get(spec.get("field"), spec.get("default"))
+    example[preview_key] = f"app/static/examples/{dest.name}"
+    return example
+
+
+def run_workflow_once(workflow: dict, replacements: dict, timeout_sec: int = 600) -> dict:
     """用临时 patch 跑一次 workflow, 返回 history (含所有输出 node 产物).
 
-    向导步骤 B 用: 不存 preset definition, 直接 patch + queue + wait + get_history.
+    向导步骤 ④ 用: 不存 preset definition, 直接 patch + queue + wait + get_history.
     返回 ComfyUI /history/{prompt_id} 的响应 (含 outputs).
     需要 ComfyUI 在跑 (调 scail2_client).
     """
     from app import scail2_client
-    patched = scail2_client.patch_workflow(workflow, replacements)
-    prompt_id, client_id = scail2_client.queue_prompt(patched)
+    # validate_after=False: 向导跑的是用户临时上传的 workflow, 没有 preset_config,
+    # 无法也不需要跑 schema 校验 (那是给作者手写 definition 用的 config-drift 检查).
+    patched = scail2_client.patch_workflow(workflow, replacements, validate_after=False)
+    prompt_id, _client_id = scail2_client.queue_prompt(patched)
     # 等 ComfyUI 跑完, drain 状态消息 (向导不需要进度流, 丢掉)
-    for _msg in scail2_client.wait_for_completion(prompt_id, timeout=timeout):
+    for _msg in scail2_client.wait_for_completion(prompt_id, timeout_sec=timeout_sec):
         pass
     return scail2_client.get_history(prompt_id)

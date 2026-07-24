@@ -282,3 +282,72 @@ def test_build_replacements_merges_same_node_fields():
     ]
     reps = wizard.build_replacements(fields, {"tags": "rock", "lyrics": "la la"})
     assert reps == {"94": {"tags": "rock", "lyrics": "la la"}}
+
+
+def test_run_workflow_once_uses_client_timeout_sec(monkeypatch):
+    """向导试跑应使用客户端当前的 timeout_sec 参数名。"""
+    from app import scail2_client
+
+    calls = {}
+    history = {"outputs": {}}
+
+    def fake_patch(workflow, replacements, validate_after=True):
+        calls["patch"] = (workflow, replacements, validate_after)
+        return {"patched": True}
+
+    def fake_wait(prompt_id, **kwargs):
+        calls["wait"] = (prompt_id, kwargs)
+        return iter(["done"])
+
+    monkeypatch.setattr(scail2_client, "patch_workflow", fake_patch)
+    monkeypatch.setattr(scail2_client, "queue_prompt", lambda workflow: ("prompt-1", "client-1"))
+    monkeypatch.setattr(scail2_client, "wait_for_completion", fake_wait)
+    monkeypatch.setattr(scail2_client, "get_history", lambda prompt_id: history)
+
+    result = wizard.run_workflow_once({"1": {}}, {"1": {"text": "hello"}})
+
+    assert result is history
+    assert calls["patch"] == ({"1": {}}, {"1": {"text": "hello"}}, False)
+    assert calls["wait"] == ("prompt-1", {"timeout_sec": 600})
+
+
+def test_parse_empty_latent_image_merges_width_height():
+    workflow = {"6": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 768, "batch_size": 1}}}
+    result = wizard.parse_workflow_api_json(workflow)
+    sizes = [f for f in result["fields"] if f["type"] == "image_sizes"]
+    assert len(sizes) == 1
+    assert sizes[0]["default"] == ["1024x768"]
+    assert sizes[0]["help"]
+    assert sizes[0]["presets"]
+
+
+def test_prepare_example_maps_defaults_and_copies_selected_output(tmp_path, monkeypatch):
+    from app import config, scail2_client
+    source = tmp_path / "ComfyUI" / "output" / "Krea2" / "k2_0001.png"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"png-data")
+    monkeypatch.setattr(config, "COMFY_OUTPUT_DIR", tmp_path / "ComfyUI" / "output")
+    monkeypatch.setattr(config, "REPO_ROOT", tmp_path / "repo")
+    monkeypatch.setattr(scail2_client, "get_output_url", lambda *args: "unused")
+    fields = [
+        {"node_id": "19", "field": "value", "type": "text", "default": "a cat"},
+        {"node_id": "6", "field": "sizes", "type": "image_sizes", "default": ["1024x1024"]},
+        {"node_id": "9", "field": "seed", "type": "int_random", "default": 77},
+    ]
+    output = {"filename": "k2_0001.png", "subfolder": "Krea2", "type": "output", "media_key": "images"}
+    example = wizard.prepare_example("t2i_krea2", fields, {}, output)
+    assert example["value"] == "a cat"
+    assert example["sizes"] == ["1024x1024"]
+    assert example["seed"] == 77
+    assert example["preview_image"] == "app/static/examples/t2i_krea2.png"
+    assert (tmp_path / "repo" / "app" / "static" / "examples" / "t2i_krea2.png").read_bytes() == b"png-data"
+
+
+def test_prepare_example_rejects_output_outside_comfy_root(tmp_path, monkeypatch):
+    import pytest
+    from app import config
+    monkeypatch.setattr(config, "COMFY_OUTPUT_DIR", tmp_path / "output")
+    monkeypatch.setattr(config, "REPO_ROOT", tmp_path / "repo")
+    output = {"filename": "escape.png", "subfolder": "../outside", "type": "output", "media_key": "images"}
+    with pytest.raises(ValueError, match="输出路径"):
+        wizard.prepare_example("unsafe", [], {}, output)

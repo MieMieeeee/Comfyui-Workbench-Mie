@@ -345,7 +345,7 @@ def run_image_workflow(preset_name, *component_values):
     prompt_text = ""
     sizes_raw = None
     seed_val = 0
-    prompt_node_id = None
+    prompt_target: tuple[str, str] | None = None
     sizes_node_id = None
     seed_node_id = None
     i = 0
@@ -353,9 +353,9 @@ def run_image_workflow(preset_name, *component_values):
         spec = inputs_spec[i]
         typ = spec["type"]
         nid = str(spec["node_id"])
-        if typ == "prompt_pool":
+        if typ in ("text", "prompt_pool"):
             prompt_text = component_values[i] or ""
-            prompt_node_id = nid
+            prompt_target = (nid, spec["field"])
             i += 1
         elif typ == "image_sizes":
             sizes_raw = component_values[i]
@@ -402,8 +402,9 @@ def run_image_workflow(preset_name, *component_values):
     for idx, (w, h) in enumerate(sizes, 1):
         actual_seed = seed_val if seed_val and seed_val > 0 else random.randint(1, 10**12)
         replacements = {}
-        if prompt_node_id:
-            replacements[prompt_node_id] = {"text": prompt_text}
+        if prompt_target:
+            prompt_node_id, prompt_field = prompt_target
+            replacements[prompt_node_id] = {prompt_field: prompt_text}
         if seed_node_id:
             replacements[seed_node_id] = {"seed": actual_seed}
         if sizes_node_id:

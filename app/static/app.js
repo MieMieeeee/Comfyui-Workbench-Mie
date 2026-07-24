@@ -72,6 +72,12 @@ function appShell() {
 // runTab — 运行 tab
 // ============================================================
 
+function panelData(panel) {
+  if (!panel) return null;
+  if (window.Alpine && Alpine.$data) return Alpine.$data(panel);
+  return panel.__x ? panel.__x.$data : null;
+}
+
 function runTab(workflows, presetCfgs) {
   return {
     workflows: workflows,
@@ -234,7 +240,7 @@ function runTab(workflows, presetCfgs) {
       if (!panel) return;
 
       // 先用本地文件名占位, 显示"上传中"
-      panel.__x.$data.formValues[specIdx] = file.name + ' (上传中…)';
+      panelData(panel).formValues[specIdx] = file.name + ' (上传中…)';
 
       const formData = new FormData();
       formData.append('file', file);
@@ -247,9 +253,9 @@ function runTab(workflows, presetCfgs) {
         }
         const data = await r.json();
         // 用 ComfyUI 端的 name 替换占位
-        panel.__x.$data.formValues[specIdx] = data.name;
+        panelData(panel).formValues[specIdx] = data.name;
       } catch (e) {
-        panel.__x.$data.formValues[specIdx] = '';
+        panelData(panel).formValues[specIdx] = '';
         alert('上传失败: ' + e.message);
       }
     },
@@ -258,7 +264,7 @@ function runTab(workflows, presetCfgs) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;
       const checked = event.target;
-      const current = panel.__x.$data.formValues[specIdx] || [];
+      const current = panelData(panel).formValues[specIdx] || [];
       const value = checked.value;
       if (checked.checked) {
         if (!current.includes(value)) current.push(value);
@@ -266,7 +272,7 @@ function runTab(workflows, presetCfgs) {
         const i = current.indexOf(value);
         if (i >= 0) current.splice(i, 1);
       }
-      panel.__x.$data.formValues[specIdx] = current;
+      panelData(panel).formValues[specIdx] = current;
     },
 
     async randomPrompt(presetName, specIdx, n) {
@@ -274,7 +280,7 @@ function runTab(workflows, presetCfgs) {
         const url = n > 1 ? `/api/random_prompt?n=${n}` : '/api/random_prompt';
         const data = await fetchJSON(url);
         const panel = document.querySelector(`[data-preset="${presetName}"]`);
-        if (panel) panel.__x.$data.formValues[specIdx] = data.prompt;
+        if (panel) panelData(panel).formValues[specIdx] = data.prompt;
       } catch (e) {
         console.error('randomPrompt failed:', e);
       }
@@ -283,7 +289,7 @@ function runTab(workflows, presetCfgs) {
     async loadExample(presetName) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;
-      const cfg = panel.__x.$data.presetCfg;
+      const cfg = panelData(panel)?.presetCfg;
       if (!cfg) return;
       const values = await fetchJSON(`/api/example/${presetName}`);
       this._applyFormValues(panel, cfg, values);
@@ -292,7 +298,7 @@ function runTab(workflows, presetCfgs) {
     async loadLastRun(presetName) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;
-      const cfg = panel.__x.$data.presetCfg;
+      const cfg = panelData(panel)?.presetCfg;
       if (!cfg) return;
       const values = await fetchJSON(`/api/last_run/${presetName}`);
       this._applyFormValues(panel, cfg, values);
@@ -319,7 +325,7 @@ function runTab(workflows, presetCfgs) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;
       const formValues = this.collectFormValues(panel);
-      const cfg = panel.__x.$data.presetCfg;
+      const cfg = panelData(panel)?.presetCfg;
       const outputKind = cfg?.output_kind || 'video';
 
       this.runState[presetName] = 'running';
@@ -394,9 +400,9 @@ function runTab(workflows, presetCfgs) {
     },
 
     collectFormValues(panel) {
-      // 从 panel.__x.$data.formValues 收集成扁平 list (按 spec 顺序)
-      const cfg = panel.__x.$data.presetCfg;
-      const fv = panel.__x.$data.formValues;
+      // 从 panelData(panel).formValues 收集成扁平 list (按 spec 顺序)
+      const cfg = panelData(panel)?.presetCfg;
+      const fv = panelData(panel).formValues;
       if (!cfg) return [];
       const out = [];
       let flatIdx = 0;
@@ -545,11 +551,13 @@ function wizardTab() {
     runError: '',
     outputs: [],
     selectedOutput: null,
+    runValues: {},
 
     // 保存表单
     saveName: '',
     saveDisplayName: '',
     saveCategory: 'image',
+    saveDescription: '',
     saving: false,
     saveMsg: '',
     saveError: '',
@@ -644,11 +652,14 @@ function wizardTab() {
         for (const f of enabled) {
           values[f.field] = f.default;
         }
+        this.runValues = values;
         const data = await fetchJSON('/api/wizard/run', {
           method: 'POST',
           body: JSON.stringify({ token: this.token, fields: enabled, values }),
         });
         this.outputs = data.outputs;
+        const finished = this.outputs.map((o, i) => o.type === 'output' ? i : -1).filter(i => i >= 0);
+        if (finished.length === 1) this.selectedOutput = finished[0];
       } catch (e) {
         this.runError = '运行失败: ' + e.message;
       } finally {
@@ -685,10 +696,12 @@ function wizardTab() {
             name: this.saveName.trim(),
             display_name: this.saveDisplayName.trim() || this.saveName.trim(),
             category: this.saveCategory,
+            description: this.saveDescription.trim(),
             fields: enabled,
             output_node_id: sel ? sel.node_id : null,
             output_kind: sel ? this._kindFromMediaKey(sel.media_key, sel.filename) : 'video',
-            example: {},
+            selected_output: sel,
+            values: this.runValues,
           }),
         });
         this.saveMsg = `✅ 已保存为 ${data.name}！刷新"运行"页即可在左侧看到这个工作流。`;

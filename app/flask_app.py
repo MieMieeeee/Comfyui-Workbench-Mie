@@ -624,6 +624,14 @@ def wizard_save():
 
     workflow = json.loads(wf_path.read_text(encoding="utf-8"))
     fields = data.get("fields", [])
+    example = data.get("example") or {}
+    if data.get("selected_output"):
+        try:
+            example = wizard.prepare_example(
+                name, fields, data.get("values", {}), data["selected_output"]
+            )
+        except (FileNotFoundError, OSError, ValueError) as e:
+            return jsonify({"error": f"示例素材保存失败: {e}"}), 422
     cfg = {
         "workflow_file": _save_workflow_template(name, workflow),
         "display_name": data.get("display_name") or name,
@@ -632,7 +640,7 @@ def wizard_save():
         "description": data.get("description", ""),
         "user_facing_inputs": fields,
         "output_kind": data.get("output_kind", "video"),
-        "example": data.get("example") or {},
+        "example": example,
     }
     if data.get("output_node_id"):
         cfg["do_not_modify_warnings"] = [{
