@@ -75,79 +75,57 @@
               </template>
               <template x-if="presetCfg !== null">
                 <div>
-                  <!-- 遍历 user_facing_inputs, 每个 spec 渲染成对应表单字段 -->
-                  <template x-for="(spec, idx) in presetCfg.user_facing_inputs" :key="idx">
-                    <div class="form-field" :data-tier="spec.tier || 'basic'">
+                  <!-- 基础设置: tier=basic 的字段, 默认展开 -->
+                  <template x-for="{ spec, idx } in basicInputs(presetCfg)" :key="'b' + idx">
+                    <div class="form-field" data-tier="basic">
                       <label class="field-label" x-text="spec.label"></label>
-
-                      <!-- file:image -->
                       <template x-if="spec.type === 'file:image'">
                         <div class="file-field">
-                          <input type="file"
-                                 :accept="imageExts"
+                          <input type="file" :accept="imageExts"
                                  @change="onFileSelect($event, w.name, idx, 'image')">
                           <p class="file-current" x-show="formValues[idx]"
                              x-text="'当前: ' + (formValues[idx] || '')"></p>
                           <img class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
-                               :src="getExampleThumbUrl(w.name, idx)"
-                               loading="lazy">
+                               :src="getExampleThumbUrl(w.name, idx)" loading="lazy">
                         </div>
                       </template>
-
-                      <!-- file:video -->
                       <template x-if="spec.type === 'file:video'">
                         <div class="file-field">
-                          <input type="file"
-                                 :accept="videoExts"
+                          <input type="file" :accept="videoExts"
                                  @change="onFileSelect($event, w.name, idx, 'video')">
                           <p class="file-current" x-show="formValues[idx]"
                              x-text="'当前: ' + (formValues[idx] || '')"></p>
                           <video class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
-                                 :src="getExampleThumbUrl(w.name, idx)"
-                                 controls preload="metadata"></video>
+                                 :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
                         </div>
                       </template>
-
-                      <!-- text / prompt_pool -->
                       <template x-if="['text', 'prompt_pool'].includes(spec.type)">
                         <div>
-                          <textarea x-model="formValues[idx]"
-                                    :placeholder="spec.help || ''"
-                                    rows="4"></textarea>
+                          <textarea x-model="formValues[idx]" :placeholder="spec.help || ''" rows="4"></textarea>
                           <template x-if="spec.type === 'prompt_pool'">
                             <div class="prompt-actions">
-                              <button type="button" class="btn-secondary"
-                                      @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
-                              <button type="button" class="btn-secondary"
-                                      @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
+                              <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
+                              <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
                             </div>
                           </template>
                         </div>
                       </template>
-
-                      <!-- image_sizes (多 checkbox) -->
                       <template x-if="spec.type === 'image_sizes'">
                         <fieldset class="sizes-fieldset">
                           <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
                             <label class="size-option">
-                              <input type="checkbox"
-                                     :value="sizeValue(opt)"
-                                     @change="onSizeToggle($event, w.name, idx)">
+                              <input type="checkbox" :value="sizeValue(opt)" @change="onSizeToggle($event, w.name, idx)">
                               <span x-text="sizeLabel(opt)"></span>
                             </label>
                           </template>
                         </fieldset>
                       </template>
-
-                      <!-- bool -->
                       <template x-if="spec.type === 'bool'">
                         <label class="bool-field">
                           <input type="checkbox" x-model="formValues[idx]">
                           <span x-text="spec.help || ''"></span>
                         </label>
                       </template>
-
-                      <!-- select -->
                       <template x-if="spec.type === 'select'">
                         <select x-model="formValues[idx]">
                           <template x-for="c in (spec.choices || [])" :key="typeof c === 'object' ? c.value : c">
@@ -156,31 +134,97 @@
                           </template>
                         </select>
                       </template>
-
-                      <!-- int_random (checkbox + number) -->
                       <template x-if="spec.type === 'int_random'">
                         <div class="int-random-field">
-                          <label>
-                            <input type="checkbox" x-model="formValues[idx + '_random']">
-                            随机
-                          </label>
-                          <input type="number"
-                                 x-model="formValues[idx]"
-                                 :disabled="formValues[idx + '_random']"
-                                 :min="spec.min || 0">
+                          <label><input type="checkbox" x-model="formValues[idx + '_random']"> 随机</label>
+                          <input type="number" x-model="formValues[idx]"
+                                 :disabled="formValues[idx + '_random']" :min="spec.min || 0">
                         </div>
                       </template>
-
-                      <!-- int -->
                       <template x-if="spec.type === 'int'">
-                        <input type="number"
-                               x-model="formValues[idx]"
+                        <input type="number" x-model="formValues[idx]"
                                :min="spec.min" :max="spec.max" :step="spec.step || 1">
                       </template>
-
                       <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
                     </div>
                   </template>
+
+                  <!-- 高级设置: tier=advanced 的字段, 默认折叠进 details -->
+                  <details class="advanced-section" x-show="advancedInputs(presetCfg).length > 0">
+                    <summary>🔧 高级设置 <span class="advanced-count" x-text="'(' + advancedInputs(presetCfg).length + ')'"></span></summary>
+                    <template x-for="{ spec, idx } in advancedInputs(presetCfg)" :key="'a' + idx">
+                      <div class="form-field" data-tier="advanced">
+                        <label class="field-label" x-text="spec.label"></label>
+                        <template x-if="spec.type === 'file:image'">
+                          <div class="file-field">
+                            <input type="file" :accept="imageExts"
+                                   @change="onFileSelect($event, w.name, idx, 'image')">
+                            <p class="file-current" x-show="formValues[idx]"
+                               x-text="'当前: ' + (formValues[idx] || '')"></p>
+                            <img class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
+                                 :src="getExampleThumbUrl(w.name, idx)" loading="lazy">
+                          </div>
+                        </template>
+                        <template x-if="spec.type === 'file:video'">
+                          <div class="file-field">
+                            <input type="file" :accept="videoExts"
+                                   @change="onFileSelect($event, w.name, idx, 'video')">
+                            <p class="file-current" x-show="formValues[idx]"
+                               x-text="'当前: ' + (formValues[idx] || '')"></p>
+                            <video class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
+                                   :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
+                          </div>
+                        </template>
+                        <template x-if="['text', 'prompt_pool'].includes(spec.type)">
+                          <div>
+                            <textarea x-model="formValues[idx]" :placeholder="spec.help || ''" rows="4"></textarea>
+                            <template x-if="spec.type === 'prompt_pool'">
+                              <div class="prompt-actions">
+                                <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
+                                <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="spec.type === 'image_sizes'">
+                          <fieldset class="sizes-fieldset">
+                            <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
+                              <label class="size-option">
+                                <input type="checkbox" :value="sizeValue(opt)" @change="onSizeToggle($event, w.name, idx)">
+                                <span x-text="sizeLabel(opt)"></span>
+                              </label>
+                            </template>
+                          </fieldset>
+                        </template>
+                        <template x-if="spec.type === 'bool'">
+                          <label class="bool-field">
+                            <input type="checkbox" x-model="formValues[idx]">
+                            <span x-text="spec.help || ''"></span>
+                          </label>
+                        </template>
+                        <template x-if="spec.type === 'select'">
+                          <select x-model="formValues[idx]">
+                            <template x-for="c in (spec.choices || [])" :key="typeof c === 'object' ? c.value : c">
+                              <option :value="typeof c === 'object' ? c.value : c"
+                                      x-text="typeof c === 'object' ? c.label : c"></option>
+                            </template>
+                          </select>
+                        </template>
+                        <template x-if="spec.type === 'int_random'">
+                          <div class="int-random-field">
+                            <label><input type="checkbox" x-model="formValues[idx + '_random']"> 随机</label>
+                            <input type="number" x-model="formValues[idx]"
+                                   :disabled="formValues[idx + '_random']" :min="spec.min || 0">
+                          </div>
+                        </template>
+                        <template x-if="spec.type === 'int'">
+                          <input type="number" x-model="formValues[idx]"
+                                 :min="spec.min" :max="spec.max" :step="spec.step || 1">
+                        </template>
+                        <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
+                      </div>
+                    </template>
+                  </details>
                 </div>
               </template>
             </div>

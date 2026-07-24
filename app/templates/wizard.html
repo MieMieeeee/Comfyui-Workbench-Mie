@@ -43,6 +43,10 @@
   .wizard-conf-tag.conf-high { color: var(--success, #4ade80); }
   .wizard-conf-tag.conf-medium { color: var(--warning, #fbbf24); }
   .wizard-conf-tag.conf-low { color: var(--text-faint, #555); }
+  .wizard-reorder { white-space: nowrap; }
+  .wizard-move-btn { background: none; border: 1px solid var(--border, #333); color: var(--text-muted, #aaa); padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.7em; line-height: 1; }
+  .wizard-move-btn:hover:not(:disabled) { color: var(--text-strong, #fff); border-color: var(--text-muted, #666); }
+  .wizard-move-btn:disabled { opacity: 0.3; cursor: default; }
 </style>
 <div class="wizard-page" x-data="wizardTab()" x-init="init()">
   <section class="wizard-header">
@@ -90,12 +94,18 @@
 
     <table class="wizard-fields-table">
       <thead>
-        <tr><th>启用</th><th>置信度</th><th>节点</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
+        <tr><th>启用</th><th>排序</th><th>置信度</th><th>节点</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
       </thead>
       <tbody>
         <template x-for="(f, idx) in fields" :key="idx">
           <tr :class="{ disabled: !f.enabled }">
             <td><input type="checkbox" x-model="f.enabled"></td>
+            <td class="wizard-reorder">
+              <button type="button" class="wizard-move-btn" title="上移"
+                      @click="moveField(idx, -1)" :disabled="idx === 0">▲</button>
+              <button type="button" class="wizard-move-btn" title="下移"
+                      @click="moveField(idx, 1)" :disabled="idx === fields.length - 1">▼</button>
+            </td>
             <td>
               <span class="wizard-conf-tag"
                     :class="'conf-' + (f.confidence || 'low')"

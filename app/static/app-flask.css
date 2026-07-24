@@ -224,7 +224,15 @@ code {
  * ============================================================ */
 .preset-form { display: flex; flex-direction: column; gap: var(--space-3); }
 .form-field { display: flex; flex-direction: column; gap: var(--space-1); }
-.form-field[data-tier="advanced"] { padding-top: var(--space-2); border-top: 1px solid var(--border-subtle); }
+/* 高级设置折叠区: tier=advanced 的字段包在 <details> 里, 默认折叠 */
+.advanced-section { margin-top: var(--space-3); border-top: 1px solid var(--border-subtle); padding-top: var(--space-2); }
+.advanced-section > summary {
+  cursor: pointer; font-size: var(--text-sm); color: var(--text-secondary);
+  font-weight: 500; user-select: none; padding: var(--space-1) 0;
+}
+.advanced-section > summary:hover { color: var(--text-primary); }
+.advanced-count { color: var(--text-muted); font-weight: 400; }
+.advanced-section .form-field { margin-top: var(--space-2); }
 .field-label {
   font-size: var(--text-sm);
   font-weight: 600;

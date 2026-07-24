@@ -171,6 +171,35 @@ function runTab(workflows, presetCfgs) {
       return this.presetCfgs[name] || null;
     },
 
+    // 把 preset 的 user_facing_inputs 按 tier 分成两组, 保留原 idx
+    // (idx 是 spec 在原数组里的位置, formValues/collectFormValues 按它读写, 不能因分组而变)
+    // 不管 spec 数组里 tier 是否有序, 渲染时都是 basic 在前、advanced 折叠在后.
+    basicInputs(cfg) {
+      if (!cfg || !cfg.user_facing_inputs) return [];
+      return cfg.user_facing_inputs
+        .map((spec, idx) => ({ spec, idx }))
+        .filter(({ spec }) => (spec.tier || 'basic') === 'basic');
+    },
+
+    advancedInputs(cfg) {
+      if (!cfg || !cfg.user_facing_inputs) return [];
+      return cfg.user_facing_inputs
+        .map((spec, idx) => ({ spec, idx }))
+        .filter(({ spec }) => spec.tier === 'advanced');
+    },
+
+    // 分组列表: [{tier:'basic', items:[...]}, {tier:'advanced', items:[...]}]
+    // 没有 advanced 字段时只返回 basic 一组 (模板里不渲染 details 折叠区).
+    groupedInputs(cfg) {
+      const basic = this.basicInputs(cfg);
+      const advanced = this.advancedInputs(cfg);
+      const groups = [{ tier: 'basic', items: basic }];
+      if (advanced.length > 0) {
+        groups.push({ tier: 'advanced', items: advanced });
+      }
+      return groups;
+    },
+
     fillPresetPanel(name, cfg, values) {
       // 兼容旧调用 (loadExample / loadLastRun 用)
       const panel = document.querySelector(`[data-preset="${name}"]`);
@@ -571,6 +600,15 @@ function wizardTab() {
 
     selectNoneFields() {
       this.fields.forEach(f => f.enabled = false);
+    },
+
+    // 调整字段顺序 (基础设置里用户可上下挪动). dir: -1 上移 / +1 下移.
+    moveField(idx, dir) {
+      const j = idx + dir;
+      if (j < 0 || j >= this.fields.length) return;
+      const tmp = this.fields[idx];
+      this.fields.splice(idx, 1);
+      this.fields.splice(j, 0, tmp);
     },
 
     goStep(n) { this.step = n; },
