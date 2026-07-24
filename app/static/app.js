@@ -507,6 +507,7 @@ function wizardTab() {
     token: '',
     fields: [],
     nodeCount: 0,
+    fieldsSummary: '',
     parsing: false,
     uploadError: '',
 
@@ -541,17 +542,35 @@ function wizardTab() {
         });
         this.token = data.token;
         this.nodeCount = data.node_count;
-        // 给每个字段加 enabled/tier (前端编辑用), 默认全启用 + basic
-        this.fields = data.fields.map(f => ({
-          ...f,
-          enabled: true,
-          tier: f.tier || 'basic',
-        }));
+        // 给每个字段加 enabled/tier (前端编辑用).
+        // enabled 默认值由 confidence 决定:
+        //   high   (LoadImage/视频/seed/尺寸) → 勾选 (明确是用户要改的)
+        //   medium (提示词 CLIPTextEncode.text 长内容) → 勾选
+        //   low    (裸 int/bool/短 text 兜底) → 不勾选 (语义不明, 等用户决定)
+        this.fields = data.fields.map(f => {
+          const conf = f.confidence || 'low';
+          return {
+            ...f,
+            enabled: conf === 'high' || conf === 'medium',
+            tier: f.tier || 'basic',
+          };
+        });
+        const selCount = this.fields.filter(f => f.enabled).length;
+        const totalCount = this.fields.length;
+        this.fieldsSummary = `已勾选 ${selCount}/${totalCount} 个高置信度字段，其余请按需勾选`;
       } catch (e) {
         this.uploadError = '解析失败: ' + e.message;
       } finally {
         this.parsing = false;
       }
+    },
+
+    selectAllFields() {
+      this.fields.forEach(f => f.enabled = true);
+    },
+
+    selectNoneFields() {
+      this.fields.forEach(f => f.enabled = false);
     },
 
     goStep(n) { this.step = n; },

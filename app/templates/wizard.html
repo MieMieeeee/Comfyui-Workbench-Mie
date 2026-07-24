@@ -37,6 +37,12 @@
   .wizard-save-form { margin-top: 20px; padding: 16px; background: var(--surface-2, #222); border-radius: var(--radius-md, 8px); }
   .wizard-save-form label { display: block; margin: 8px 0; }
   .wizard-save-form input, .wizard-save-form select { display: block; width: 100%; max-width: 360px; margin-top: 4px; padding: 6px 8px; background: var(--surface-1, #1a1d23); border: 1px solid var(--border, #333); color: var(--text-strong, #fff); border-radius: 4px; }
+  .wizard-fields-toolbar { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+  .wizard-fields-count { color: var(--text-muted, #aaa); font-size: 0.88em; }
+  .wizard-conf-tag { font-size: 0.7em; letter-spacing: -1px; cursor: help; }
+  .wizard-conf-tag.conf-high { color: var(--success, #4ade80); }
+  .wizard-conf-tag.conf-medium { color: var(--warning, #fbbf24); }
+  .wizard-conf-tag.conf-low { color: var(--text-faint, #555); }
 </style>
 <div class="wizard-page" x-data="wizardTab()" x-init="init()">
   <section class="wizard-header">
@@ -72,16 +78,30 @@
   <!-- 步骤 2: 确认输入项 (可编辑) -->
   <section class="wizard-step" x-show="step === 2">
     <h3>确认输入项</h3>
-    <p class="wizard-hint">系统已自动推断每个字段的类型。勾选要暴露给用户的字段，调整标签和层级。</p>
+    <p class="wizard-hint">系统已自动推断每个字段的类型。已勾选高置信度字段（上传素材/种子/尺寸/提示词），其余按需勾选。</p>
+
+    <div class="wizard-fields-toolbar">
+      <button type="button" class="btn-secondary" @click="selectAllFields()">☑ 全选</button>
+      <button type="button" class="btn-secondary" @click="selectNoneFields()">☐ 全不选</button>
+      <span class="wizard-fields-count">
+        已勾选 <b x-text="fields.filter(f => f.enabled).length"></b> / <span x-text="fields.length"></span>
+      </span>
+    </div>
 
     <table class="wizard-fields-table">
       <thead>
-        <tr><th>启用</th><th>节点</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
+        <tr><th>启用</th><th>置信度</th><th>节点</th><th>字段</th><th>类型</th><th>标签</th><th>层级</th></tr>
       </thead>
       <tbody>
         <template x-for="(f, idx) in fields" :key="idx">
           <tr :class="{ disabled: !f.enabled }">
             <td><input type="checkbox" x-model="f.enabled"></td>
+            <td>
+              <span class="wizard-conf-tag"
+                    :class="'conf-' + (f.confidence || 'low')"
+                    x-text="{'high':'★★★','medium':'★★','low':'★'}[f.confidence || 'low']"
+                    :title="'高置信度' + (f.confidence==='high' ? '(建议勾选)' : '')"></span>
+            </td>
             <td><code x-text="f.node_id"></code></td>
             <td><code x-text="f.field"></code></td>
             <td>

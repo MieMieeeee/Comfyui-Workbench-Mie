@@ -37,7 +37,7 @@ _SAMPLE_WF = {
 # ============================================================
 
 def test_wizard_parse_returns_fields_and_token(client):
-    """上传 workflow JSON → 返回推断的 fields + token."""
+    """上传 workflow JSON → 返回推断的 fields + token. 每个 field 带 confidence 字段."""
     r = client.post("/api/wizard/parse", json={"workflow_json": json.dumps(_SAMPLE_WF)})
     assert r.status_code == 200
     data = r.get_json()
@@ -49,6 +49,13 @@ def test_wizard_parse_returns_fields_and_token(client):
     assert "text" in types
     assert "int_random" in types  # seed
     assert "image_sizes" in types  # EmptySD3 width+height 合并
+    # 每个 field 都带 confidence 字段
+    for f in data["fields"]:
+        assert "confidence" in f, f"field {f.get('field')} 缺 confidence"
+        assert f["confidence"] in ("high", "medium", "low")
+    # seed 应该是 high (高置信度, 默认勾选)
+    seed_fields = [f for f in data["fields"] if f["field"] == "seed"]
+    assert seed_fields[0]["confidence"] == "high"
 
 
 def test_wizard_parse_missing_json_returns_400(client):

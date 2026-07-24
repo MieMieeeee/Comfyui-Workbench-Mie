@@ -30,25 +30,29 @@ def test_infer_loadimage_image_is_file_image():
     spec = wizard.infer_spec("196", "image", "model-10.png", "LoadImage")
     assert spec["type"] == "file:image"
     assert spec["label"] == "参考图"
+    assert spec["confidence"] == "high"
 
 
 def test_infer_vhs_loadvideo_video_is_file_video():
     spec = wizard.infer_spec("202", "video", "d6.mp4", "VHS_LoadVideo")
     assert spec["type"] == "file:video"
+    assert spec["confidence"] == "high"
 
 
 def test_infer_seed_is_int_random():
-    """seed 字段默认 int_random (带随机复选框)."""
+    """seed 字段默认 int_random (带随机复选框), 高置信度."""
     spec = wizard.infer_spec("3", "seed", 0, "KSampler")
     assert spec["type"] == "int_random"
     assert spec.get("random_default") is True
+    assert spec["confidence"] == "high"
 
 
 def test_infer_sizes_latent_width_height_is_image_sizes():
-    """EmptySD3LatentImage 的 width/height → image_sizes (合并标记)."""
+    """EmptySD3LatentImage 的 width/height → image_sizes (合并标记), 高置信度."""
     spec = wizard.infer_spec("13", "width", 1024, "EmptySD3LatentImage")
     assert spec["type"] == "image_sizes"
     assert spec.get("_merge_key") == "13"
+    assert spec["confidence"] == "high"
 
 
 def test_infer_bool_value_is_bool():
@@ -64,6 +68,22 @@ def test_infer_int_value_is_int():
 def test_infer_string_value_is_text():
     spec = wizard.infer_spec("6", "text", "a prompt", "CLIPTextEncode")
     assert spec["type"] == "text"
+    assert spec["confidence"] == "low"
+
+
+def test_infer_long_clip_text_is_prompt_pool():
+    """CLIPTextEncode.text + 长内容 (>20字符) → prompt_pool (中置信度, 像正向提示词)."""
+    long_prompt = "Photorealistic, ultra-detailed portrait of a woman in a forest"
+    spec = wizard.infer_spec("6", "text", long_prompt, "CLIPTextEncode")
+    assert spec["type"] == "prompt_pool"
+    assert spec["confidence"] == "medium"
+
+
+def test_infer_short_clip_text_stays_text():
+    """CLIPTextEncode.text + 短内容 (负向提示词 'blurry ugly bad') → text (低置信度)."""
+    spec = wizard.infer_spec("7", "text", "blurry ugly bad", "CLIPTextEncode")
+    assert spec["type"] == "text"
+    assert spec["confidence"] == "low"
 
 
 def test_infer_vhs_loadvideo_non_video_field_is_int():
@@ -77,19 +97,22 @@ def test_infer_vhs_loadvideo_non_video_field_is_int():
 # ============================================================
 
 def test_parse_zimage_finds_prompt_sizes_seed():
-    """zimage 应解析出: prompt(text), sizes(image_sizes 合并), seed(int_random)."""
+    """zimage 应解析出: 长 prompt(prompt_pool medium), sizes(image_sizes high), seed(int_random high)."""
     raw = (PRESETS / "zimage.json").read_text(encoding="utf-8")
     result = wizard.parse_workflow_api_json(raw)
-    fields = {f["field"]: f for f in result["fields"]}
-    # node 6 CLIPTextEncode.text → text (不是 prompt_pool, 那是用户在 UI 升级)
-    assert "text" in fields
-    assert fields["text"]["type"] == "text"
-    # node 3 seed → int_random
-    assert "seed" in fields
-    assert fields["seed"]["type"] == "int_random"
-    # node 13 width+height 合并成一个 image_sizes (field="sizes")
-    assert any(f["type"] == "image_sizes" for f in result["fields"]), \
-        "EmptySD3LatentImage 的 width/height 应合并成 image_sizes"
+    # node 6 的正向 prompt 是长句 → prompt_pool (medium)
+    prompt_specs = [f for f in result["fields"] if f["field"] == "text" and f["node_id"] == "6"]
+    assert len(prompt_specs) == 1
+    assert prompt_specs[0]["type"] == "prompt_pool"
+    assert prompt_specs[0]["confidence"] == "medium"
+    # node 3 seed → int_random (high)
+    seed_specs = [f for f in result["fields"] if f["field"] == "seed"]
+    assert seed_specs[0]["type"] == "int_random"
+    assert seed_specs[0]["confidence"] == "high"
+    # node 13 width+height 合并成 image_sizes (field="sizes"), 合并后仍是 high
+    sizes_specs = [f for f in result["fields"] if f["type"] == "image_sizes"]
+    assert len(sizes_specs) == 1
+    assert sizes_specs[0]["confidence"] == "high"
     assert result["node_count"] == 9
 
 

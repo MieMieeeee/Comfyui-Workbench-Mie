@@ -57,39 +57,49 @@ def infer_spec(node_id: str, field: str, value: Any, class_type: str = "") -> di
     if _is_connection_ref(value):
         return None
 
-    # 规则 2-3: 文件上传槽
+    # 规则 2-3: 文件上传槽 (高置信度 — LoadImage/VHS_LoadVideo 明确是用户上传的素材)
     if class_type == "LoadImage" and field == "image":
-        return _base_spec(node_id, field, "file:image", default=value)
+        return _base_spec(node_id, field, "file:image", default=value, confidence="high")
     if class_type == "VHS_LoadVideo" and field == "video":
-        return _base_spec(node_id, field, "file:video", default=value)
+        return _base_spec(node_id, field, "file:video", default=value, confidence="high")
 
-    # 规则 4: seed → int_random (默认随机; 音频类想固定 seed 改声音, 用户在 UI 降级)
+    # 规则 4: seed → int_random (高置信度 — seed 几乎总是要暴露给用户)
     if field == "seed":
-        return _base_spec(node_id, field, "int_random", default=value or 0, random_default=True)
+        return _base_spec(node_id, field, "int_random", default=value or 0, random_default=True, confidence="high")
 
-    # 规则 5: image_sizes (width/height 合并) — 调用方负责合并, 这里单字段先返 int 占位
+    # 规则 5: image_sizes (width/height 合并) — 高置信度 (尺寸是核心输出参数)
     if class_type in _SIZES_LATENT_CLASSES and field in ("width", "height"):
-        # 返回特殊标记, parse 阶段把同 node 的 width+height 合并成一个 image_sizes spec
-        return _base_spec(node_id, field, "image_sizes", default=value, _merge_key=node_id)
+        return _base_spec(node_id, field, "image_sizes", default=value, _merge_key=node_id, confidence="high")
 
-    # 规则 6-8: 按 value 类型兜底
+    # 规则 6: bool (低置信度 — 可能是开关, 语义不明)
     if isinstance(value, bool):
         return _base_spec(node_id, field, "bool", default=value)
+
+    # 规则 7: 数字 (低置信度 — value/frame_load_cap/cfg 等, 大概率不需要用户改)
     if isinstance(value, (int, float)):
         return _base_spec(node_id, field, "int", default=value)
+
+    # 规则 8: 字符串 (中置信度 — CLIPTextEncode.text 可能是正/负向提示词)
     if isinstance(value, str):
+        # CLIPTextEncode 的 text 字段 + 较长内容 → 大概率是提示词, 标 medium
+        if class_type == "CLIPTextEncode" and field == "text" and len(value) > 20:
+            return _base_spec(node_id, field, "prompt_pool", default=value, confidence="medium")
+        # 其它字符串: 短的 (单个词/枚举值) 保持 low
         return _base_spec(node_id, field, "text", default=value)
 
     return None
 
 
-def _base_spec(node_id: str, field: str, typ: str, default=None, **extra) -> dict:
+def _base_spec(node_id: str, field: str, typ: str, default=None, confidence: str = "low", **extra) -> dict:
     spec = {
         "node_id": str(node_id),
         "field": field,
         "type": typ,
         "label": _default_label(field, typ),
         "default": default,
+        # confidence: high = 高置信度推断 (LoadImage/视频/seed/尺寸/提示词), 默认勾选;
+        #             low  = 类型兜底 (裸 int/text/bool), 语义不明, 默认不勾选等用户决定.
+        "confidence": confidence,
     }
     spec.update(extra)
     return spec
@@ -159,10 +169,11 @@ def parse_workflow_api_json(raw: str) -> dict:
             fields.append(spec)
 
     # 把 image_sizes 候选合并成单个 spec (一个 node 一个 image_sizes, 不拆 width/height)
+    # 合并后仍是 high (尺寸是核心输出参数)
     for nid, dims in sizes_pending.items():
         if "width" in dims and "height" in dims:
             fields.append(_base_spec(nid, "sizes", "image_sizes",
-                                     default=[f"{dims['width']}x{dims['height']}"]))
+                                     default=[f"{dims['width']}x{dims['height']}"], confidence="high"))
         elif "width" in dims:
             fields.append(_base_spec(nid, "width", "int", default=dims["width"]))
         elif "height" in dims:
