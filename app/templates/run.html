@@ -49,10 +49,19 @@
            x-init="initPanelScope(w.name, $data)"
            :data-preset="w.name">
 
-        <!-- preset 标题 + 描述 -->
-        <header class="preset-header">
-          <h2 x-text="w.display_name"></h2>
-          <p class="preset-description" x-text="w.description"></p>
+        <!-- Creator-style 卡片头 (linktree 风格, 复用森系主题) -->
+        <header class="creator-card" data-creator-card>
+          <div class="creator-meta">
+            <h2 class="creator-title" x-text="w.display_name"></h2>
+            <p class="creator-handle" x-text="'@' + (w.name || 'workflow')"></p>
+            <p class="creator-bio" x-text="w.description || '让 WebUI 代你调用 ComfyUI 工作流'"></p>
+          </div>
+          <div class="creator-socials" aria-label="快捷动作">
+            <button class="btn-secondary creator-stagger" type="button" @click="loadExample(w.name)">📥 加载示例</button>
+            <button class="btn-secondary creator-stagger" type="button" @click="loadLastRun(w.name)" x-show="hasLastRun[w.name]">📂 加载上次</button>
+            <a class="btn-secondary creator-stagger" href="/comfy_input" target="_blank" rel="noopener">👁️ 输入目录</a>
+            <a class="btn-secondary creator-stagger" href="/comfy_output?filename=Anima_Turbo_smoke_00001_.png&type=output&subfolder=" target="_blank" rel="noopener">📖 最近输出</a>
+          </div>
         </header>
 
         <!-- 加载示例 / 加载上次参数 -->

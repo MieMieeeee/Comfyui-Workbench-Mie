@@ -56,6 +56,7 @@ code {
 .main-tabs {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   padding: 0 var(--space-5) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
@@ -423,7 +424,7 @@ button {
 /* ============================================================
  * 设置页
  * ============================================================ */
-.settings-page { padding: 0 var(--space-5) var(--space-8); max-width: 800px; }
+.settings-page { padding: 0 var(--space-5) var(--space-8); max-width: 100%; }
 .settings-section { margin-bottom: var(--space-6); }
 .url-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
 .url-row .url-input { flex: 1; }
@@ -565,4 +566,93 @@ body[data-theme="forest-island"] .run-status-bar {
   .workflow-list { grid-template-columns: minmax(0, 1fr); }
   .preset-actions, .result-actions { align-items: stretch; }
   .preset-actions button, .result-actions button { flex: 1 1 auto; }
+}
+
+
+/* ============================================================
+ * 页面级居中: 头部、导航、主区统一水平居中
+ * ============================================================ */
+.app-shell-header { text-align: center; }
+.main-tabs {
+  justify-content: center;
+}
+.page-frame {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  padding: 0 var(--space-4);
+}
+.page-frame > .workflow-workbench,
+.page-frame > .settings-page,
+.page-frame > .wizard-page {
+  width: 100%;
+  max-width: 100%;
+}
+.page-frame .settings-section {
+  text-align: left;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto var(--space-6);
+}
+.page-frame .settings-section h2,
+.page-frame .settings-section h3,
+.page-frame .settings-section p,
+.page-frame .settings-section .url-row,
+.page-frame .settings-section .url-actions,
+.page-frame .settings-section .health-report,
+.page-frame .settings-section .theme-options { text-align: left; }
+.page-frame .settings-section .url-row .url-input,
+.page-frame .settings-section .url-row .btn-run-primary { text-align: left; }
+.settings-section h2,
+.settings-section h3,
+.settings-section p,
+.settings-section .url-row,
+.settings-section .url-actions,
+.settings-section .theme-options,
+.settings-section .health-report { text-align: left; }
+.settings-section { text-align: left; }
+
+
+/* ============================================================
+ * Creator-style 卡片头 (linktree 灵感, 复用现有森系主题 token)
+ * 复用 --bg-panel/--bg-card/--theme-accent/--text-* 不引入新色板
+ * ============================================================ */
+.creator-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-card) 100%);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-4);
+}
+.creator-meta { min-width: 0; }
+.creator-title { margin: 0; font-size: 1.4rem; color: var(--text-primary); font-weight: 700; line-height: 1.2; }
+.creator-handle { margin: 2px 0 0; color: var(--text-muted); font-size: 0.85rem; font-family: var(--font-mono); }
+.creator-bio { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: 0.88rem; line-height: var(--leading-normal); }
+.creator-socials { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.creator-socials .creator-stagger { animation: creator-rise 0.45s var(--ease-out) both; }
+.creator-socials .creator-stagger:nth-child(1) { animation-delay: 0.05s; }
+.creator-socials .creator-stagger:nth-child(2) { animation-delay: 0.15s; }
+.creator-socials .creator-stagger:nth-child(3) { animation-delay: 0.25s; }
+.creator-socials .creator-stagger:nth-child(4) { animation-delay: 0.35s; }
+@keyframes creator-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .creator-card {  }
+  .creator-title { font-size: 1.15rem; }
+  .creator-bio { font-size: 0.82rem; }
+  .creator-socials { gap: 6px; }
+  .creator-socials .btn-secondary { padding: 6px 10px; font-size: 0.8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .creator-socials .creator-stagger { animation: none; }
 }

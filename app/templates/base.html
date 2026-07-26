@@ -36,7 +36,9 @@
 
   <!-- 主内容区 (子模板填充) -->
   <main class="main-stage">
-    {% block content %}{% endblock %}
+    <div class="page-frame">
+      {% block content %}{% endblock %}
+    </div>
   </main>
 </body>
 </html>
