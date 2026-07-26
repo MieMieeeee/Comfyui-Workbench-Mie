@@ -292,6 +292,14 @@ function runTab(workflows, presetCfgs) {
       }
     },
 
+    clearFile(presetName, specIdx) {
+      // 用户点清除框后, 文件位置释放, run 时跳过对应 spec.
+      // 不是“删除文件”, 只是不用这个输入了.
+      const panel = document.querySelector(`[data-preset="${presetName}"]`);
+      if (!panel) return;
+      panelData(panel).formValues[specIdx] = '';
+    },
+
     onSizeToggle(event, presetName, specIdx) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;

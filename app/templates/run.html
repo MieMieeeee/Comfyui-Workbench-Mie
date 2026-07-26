@@ -77,20 +77,34 @@
                       <label class="field-label" x-text="spec.label"></label>
                       <template x-if="spec.type === 'file:image'">
                         <div class="file-field">
-                          <input type="file" :accept="imageExts"
-                                 @change="onFileSelect($event, w.name, idx, 'image')">
-                          <p class="file-current" x-show="formValues[idx]"
-                             x-text="'当前: ' + (formValues[idx] || '')"></p>
+                          <div class="file-status" x-show="formValues[idx]">
+                            <span class="file-status-dot"></span>
+                            <span class="file-status-name" x-text="formValues[idx]"></span>
+                            <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                          </div>
+                          <label class="file-upload">
+                            <input type="file" :accept="imageExts"
+                                   @change="onFileSelect($event, w.name, idx, 'image')">
+                            <span x-show="formValues[idx]">👇 点击上传新文件覆盖</span>
+                            <span x-show="!formValues[idx]">📁 选择图片 (示例已加载, 可上传覆盖)</span>
+                          </label>
                           <img class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
                                :src="getExampleThumbUrl(w.name, idx)" loading="lazy">
                         </div>
                       </template>
                       <template x-if="spec.type === 'file:video'">
                         <div class="file-field">
-                          <input type="file" :accept="videoExts"
-                                 @change="onFileSelect($event, w.name, idx, 'video')">
-                          <p class="file-current" x-show="formValues[idx]"
-                             x-text="'当前: ' + (formValues[idx] || '')"></p>
+                          <div class="file-status" x-show="formValues[idx]">
+                            <span class="file-status-dot"></span>
+                            <span class="file-status-name" x-text="formValues[idx]"></span>
+                            <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                          </div>
+                          <label class="file-upload">
+                            <input type="file" :accept="videoExts"
+                                   @change="onFileSelect($event, w.name, idx, 'video')">
+                            <span x-show="formValues[idx]">👇 点击上传新视频覆盖</span>
+                            <span x-show="!formValues[idx]">📁 选择视频 (示例已加载, 可上传覆盖)</span>
+                          </label>
                           <video class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
                                  :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
                         </div>
@@ -152,20 +166,34 @@
                         <label class="field-label" x-text="spec.label"></label>
                         <template x-if="spec.type === 'file:image'">
                           <div class="file-field">
-                            <input type="file" :accept="imageExts"
-                                   @change="onFileSelect($event, w.name, idx, 'image')">
-                            <p class="file-current" x-show="formValues[idx]"
-                               x-text="'当前: ' + (formValues[idx] || '')"></p>
+                            <div class="file-status" x-show="formValues[idx]">
+                              <span class="file-status-dot"></span>
+                              <span class="file-status-name" x-text="formValues[idx]"></span>
+                              <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                            </div>
+                            <label class="file-upload">
+                              <input type="file" :accept="imageExts"
+                                     @change="onFileSelect($event, w.name, idx, 'image')">
+                              <span x-show="formValues[idx]">👇 点击上传新文件覆盖</span>
+                              <span x-show="!formValues[idx]">📁 选择图片 (示例已加载, 可上传覆盖)</span>
+                            </label>
                             <img class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
                                  :src="getExampleThumbUrl(w.name, idx)" loading="lazy">
                           </div>
                         </template>
                         <template x-if="spec.type === 'file:video'">
                           <div class="file-field">
-                            <input type="file" :accept="videoExts"
-                                   @change="onFileSelect($event, w.name, idx, 'video')">
-                            <p class="file-current" x-show="formValues[idx]"
-                               x-text="'当前: ' + (formValues[idx] || '')"></p>
+                            <div class="file-status" x-show="formValues[idx]">
+                              <span class="file-status-dot"></span>
+                              <span class="file-status-name" x-text="formValues[idx]"></span>
+                              <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                            </div>
+                            <label class="file-upload">
+                              <input type="file" :accept="videoExts"
+                                     @change="onFileSelect($event, w.name, idx, 'video')">
+                              <span x-show="formValues[idx]">👇 点击上传新视频覆盖</span>
+                              <span x-show="!formValues[idx]">📁 选择视频 (示例已加载, 可上传覆盖)</span>
+                            </label>
                             <video class="file-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
                                    :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
                           </div>
