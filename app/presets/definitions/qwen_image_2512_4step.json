@@ -9,7 +9,7 @@
       "node_id": "6",
       "field": "text",
       "label": "正向提示词",
-      "type": "prompt_pool",
+      "type": "text",
       "max_chars": 2000,
       "default": "卡通3D风格海报，欢乐明亮。背景是春日蓝天白云下的户外踏青场景。",
       "help": "文生图正向提示词。Qwen Image 对中文海报 / 标题渲染极强, 适合带字的图片。"

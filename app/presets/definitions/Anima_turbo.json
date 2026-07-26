@@ -16,7 +16,7 @@
       "max_chars": 2000,
       "node_id": "5",
       "node_title": "CLIP Text Encode (Prompt)",
-      "type": "prompt_pool",
+      "type": "text",
       "enabled": true,
       "tier": "basic"
     },
