@@ -19,7 +19,9 @@ def test_creator_card_uses_theme_color_tokens():
 def test_creator_card_has_handle_and_bio():
     assert "creator-handle" in TEMPLATE
     assert "creator-bio" in TEMPLATE
-    assert "preset_actions" in TEMPLATE or "preset-actions" in TEMPLATE
+    # 加载示例 / 加载上次 已经合并到 creator-card 顶部 (不再单独放 preset-actions 行)
+    assert "loadExample(w.name)" in TEMPLATE
+    assert "loadLastRun(w.name)" in TEMPLATE
 
 
 def test_creator_card_stagger_animation_respects_reduced_motion():

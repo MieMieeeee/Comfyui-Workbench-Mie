@@ -590,8 +590,8 @@ body[data-theme="forest-island"] .run-status-bar {
 
 @media (max-width: 430px) {
   .workflow-list { grid-template-columns: minmax(0, 1fr); }
-  .preset-actions, .result-actions { align-items: stretch; }
-  .preset-actions button, .result-actions button { flex: 1 1 auto; }
+  .result-actions { align-items: stretch; }
+  .result-actions button { flex: 1 1 auto; }
 }
 
 

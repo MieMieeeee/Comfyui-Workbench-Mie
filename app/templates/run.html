@@ -64,16 +64,8 @@
           </div>
         </header>
 
-        <!-- 加载示例 / 加载上次参数 -->
-        <div class="preset-actions">
-          <button class="btn-secondary" type="button"
-                  @click="loadExample(w.name)">📥 加载示例素材</button>
-          <button class="btn-secondary" type="button"
-                  @click="loadLastRun(w.name)"
-                  x-show="hasLastRun[w.name]">📂 加载上次成功参数</button>
-        </div>
-
         <!-- 两栏布局: 左控制 / 右结果 -->
+        <!-- 注: 加载示例 / 加载上次参数 已合并到 creator-card 顶部, 避免重复按钮 -->
         <div class="preset-body">
           <!-- ===== 左栏: 表单 + 运行控制 ===== -->
           <div class="preset-controls">
