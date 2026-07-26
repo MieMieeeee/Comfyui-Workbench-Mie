@@ -101,7 +101,6 @@
                           <template x-if="spec.type === 'prompt_pool'">
                             <div class="prompt-actions">
                               <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
-                              <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
                             </div>
                           </template>
                         </div>
@@ -177,7 +176,6 @@
                             <template x-if="spec.type === 'prompt_pool'">
                               <div class="prompt-actions">
                                 <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 1)">🎲 随机提示词</button>
-                                <button type="button" class="btn-secondary" @click="randomPrompt(w.name, idx, 3)">🎲 随机 3 条</button>
                               </div>
                             </template>
                           </div>

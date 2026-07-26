@@ -212,7 +212,7 @@
           "node_id": "108",
           "field": "text",
           "label": "编辑提示词",
-          "type": "prompt_pool",
+          "type": "text",
           "max_chars": 2000,
           "default": "Change only the clothing and shoes of the woman to a sleek shiny silver metallic futuristic sci-fi armor suit with high collar, segmented shoulder and arm armor plates, rounded metallic breastplate with strong curves, highly reflective chrome-like surface with bright star-like highlights and realistic reflections, tight bodycon fit, paired with matching silver metallic boots, keep the exact same pose, body position, hairstyle, facial expression, actions, lighting, and background completely unchanged, highly detailed metallic texture and glossy reflections",
           "help": "告诉模型要改什么。明确写出保留 (pose / face / background) 和要改 (clothing / style),效果最稳。"

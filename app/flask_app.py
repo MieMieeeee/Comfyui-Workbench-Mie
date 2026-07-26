@@ -69,7 +69,7 @@ def _reset_url_action():
 def _comfy_status_dict() -> dict:
     """连接状态 {ok, url, dot}."""
     try:
-        ok, _msg = scail2_client.check_connection(timeout=2)
+        ok, _msg = scail2_client.check_connection(timeout=1)
     except Exception:
         ok = False
     return {
@@ -104,25 +104,19 @@ def _update_est_markdown(drive_path, per_seg=81, pre_drop=5, max_segments=0) -> 
 
 
 def _open_output_dir() -> str:
-    """打开 ComfyUI 输出目录 (服务端调用, 仅本地部署有效)."""
-    import platform
-    import subprocess
+    """返回输出目录路径.
+
+    原本调用本地文件管理器 (explorer/open/xdg-open), 但用户可能是从局域网访问远程服务器,
+    服务器调用的 explorer/open 只会在服务器本机上打开文件夹, 用户看不到.
+    现在返回路径本体, 前端用类似“复制路径”的按钮处理:
+    —— 点击后复制到剪贴板，用户可以走远程文件系统走输出。
+    保留路径的 mkdir 以防初次部署时路径不存在。"""
     path = str(config.COMFY_OUTPUT_DIR)
     try:
         config.COMFY_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
-    try:
-        sys_name = platform.system()
-        if sys_name == "Windows":
-            subprocess.Popen(["explorer", path])
-        elif sys_name == "Darwin":
-            subprocess.Popen(["open", path])
-        else:
-            subprocess.Popen(["xdg-open", path])
-        return f"已打开: {path}"
-    except Exception as e:
-        return f"打开失败 ({type(e).__name__}): {e}"
+    return path
 
 
 def _category_icon(cat: str) -> str:

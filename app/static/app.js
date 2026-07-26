@@ -66,12 +66,18 @@ function appShell() {
       }
     },
 
-    async openOutputFolder() {
+    async copyOutputPath() {
       try {
         const data = await fetchJSON('/api/open_output_dir', { method: 'POST' });
-        this.openDirMsg = data.message;
+        // data.message 现在是路径本体, 复制到剪贴板
+        if (navigator.clipboard && data.message) {
+          await navigator.clipboard.writeText(data.message);
+          this.openDirMsg = '已复制路径: ' + data.message;
+        } else {
+          this.openDirMsg = '路径: ' + data.message + ' (剪贴板 API 不可用, 请手动复制)';
+        }
       } catch (e) {
-        this.openDirMsg = '打开失败: ' + e.message;
+        this.openDirMsg = '复制失败: ' + e.message;
       }
     },
 
@@ -165,7 +171,7 @@ function runTab(workflows, presetCfgs) {
         } else if (k === 'audio') {
           scope.defaultResultHtml = `<div style="padding:8px"><audio controls preload="metadata" style="width:100%;max-width:480px"><source src="${cfg.preview_url}"/></audio></div>${caption}`;
         } else {
-          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto""/></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto" /></div>${caption}`;
         }
       }
     },
@@ -490,13 +496,23 @@ function settingsTab() {
     themeDesc: '',
 
     async init() {
-      // 当前 URL 通过 /api/settings/url/test 之前的某个 GET 拿, 或直接从 comfy_status
-      // 这里用 comfy_status 的 url 字段 (settings tab 已有 refreshStatus)
-      try {
-        const s = await fetchJSON('/api/comfy_status');
-        this.url = s.url || '';
-      } catch (e) {}
-      await this.loadThemes();
+      // 并行拆 3 个独竆请求 (comfy_status + themes + theme).
+      // 之前串行实现在主机上走 ~6 秒才能看到主题列表.
+      // 现在三者并行, 总耗时 = max(50ms, 50ms, 2ms) ≈ 50ms.
+      // 只拉 themes 和 theme. comfy_status 由 appShell 处理, 不重拉 (同一个接口会走 check_connection(timeout=2), 双拉一起后面的请求都要排队 2 秒).
+      const [themes, cur] = await Promise.all([
+        fetchJSON('/api/themes').catch(() => []),
+        fetchJSON('/api/theme').catch(() => ({ theme_id: '', desc: '' })),
+      ]);
+      // url 从 appShell 的 comfyStatusHtml 反推 (调用 /api/comfy_status 也会重走连接检查的 2 秒超时).
+      this.url = (window.Alpine && document.body._x_dataStack && document.body._x_dataStack[0] && document.body._x_dataStack[0].comfyStatusHtml) || '';
+      this.themes = themes || [];
+      this.currentThemeId = (cur && cur.theme_id) || '';
+      this.themeDesc = (cur && cur.desc) || '';
+      // themes 加载完成后, 还要为每个主题设 currentThemeId 默认 (首次访问时为空)
+      if (!this.currentThemeId && this.themes.length > 0) {
+        this.currentThemeId = this.themes[0].id;
+      }
     },
 
     async loadThemes() {
