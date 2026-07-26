@@ -94,8 +94,8 @@ code {
  * ============================================================ */
 .workflow-workbench {
   display: flex;
-  gap: var(--space-5);
-  padding: 0 var(--space-5) var(--space-8);
+  gap: var(--space-4);
+  padding: 0 0 var(--space-8);  /* 横向不再额外内缩, 子元素填满 1200px 跟顶部 header/nav 同宽 */
   align-items: flex-start;
   max-width: 1200px;
   margin: 0 auto;
@@ -196,16 +196,38 @@ code {
 /* ============================================================
  * preset 主体两栏布局: 左控制 / 右结果
  * ============================================================ */
+/* 两侧各自一个框: 子元素 (.preset-controls / .preset-result) 担起 border + bg,
+   parent .preset-body 只负责 grid 布局, 不再带 border/bg 以免与子元素重叠 */
 .preset-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: var(--space-5);
+  gap: var(--space-4);
   align-items: start;
+  padding: var(--space-3) 0;  /* 横向 padding 交给子元素, 避免重叠内 padding */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin-top: var(--space-3);
+}
+.preset-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   padding: var(--space-4);
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  margin-top: var(--space-3);
+}
+.preset-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  position: sticky;
+  top: var(--space-4);
 }
 @media (max-width: 980px) {
   .preset-body { grid-template-columns: 1fr; }
@@ -613,9 +635,10 @@ body[data-theme="forest-island"] .run-status-bar {
   /* padding 留给子元素 (workflow-workbench / settings-page / wizard-page 自己有)
      避免 page-frame 再加一层水平 padding 导致 workbench 比 header/nav 内缩 16px */
 }
+/* workbench 和 settings-page 需要填满 page-frame 1200px,
+   wizard-page 在自己的类名下定义了 max-width: 1000px, 不要跟着加 max-width: 100% 覄掊 */
 .page-frame > .workflow-workbench,
-.page-frame > .settings-page,
-.page-frame > .wizard-page {
+.page-frame > .settings-page {
   width: 100%;
   max-width: 100%;
 }

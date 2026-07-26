@@ -6,7 +6,10 @@
   /* 向导页局部样式 — 用 tokens.css 真实 token (不用错误名, 提升暗色元素对比度).
      token 值: --text-primary #f3f4f6 / --text-secondary #c2c7d2 / --text-muted #8b909b
                --bg-card #1a1d23 / --bg-input #0c0e12 / --border-default #2f333d */
-  .wizard-page { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  /* width:100% 是为了在 page-frame (也 flex column, align-items: stretch) 里被拉到 1000px (max-width 上限).
+   只设 max-width 耏不设 width, flex item 会被 content 拉成 shrink-to-fit, 导致仅 ~616px.
+   page-frame 上有 align-items: stretch 但 wizard-page 原本在老 CSS 里被加了 max-width: 100% 还顺便以为会拉满, 现在那个规则删了必须补上 width. */
+.wizard-page { width: 100%; max-width: 1000px; margin: 0 auto; padding: 16px; }
   .wizard-header h2 { margin-bottom: 4px; }
   .wizard-hint { color: var(--text-secondary); font-size: 0.9em; margin: 8px 0 16px; }
   .wizard-steps { display: flex; gap: 12px; margin: 16px 0; padding: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }

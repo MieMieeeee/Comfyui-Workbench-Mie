@@ -741,7 +741,10 @@ body {
   margin-bottom: var(--space-3) !important;
 }
 .run-status-bar {
-  display: flex !important;
+  /* display: flex 不加 !important: 新 Flask/Alpine 应用里 Alpine x-show 会用 inline display:none
+     隐藏 idle 状态的状态条, 加上 !important 会打败 inline style
+     导致 idle 时也能看到一个空框。这是旧 Gradio 应用的遗留, 现在只有 Gradio 备份尝试走这个选择器 */
+  display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) !important;
