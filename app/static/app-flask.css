@@ -45,8 +45,11 @@ code {
  * 应用头部
  * ============================================================ */
 .app-shell-header {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto var(--space-3);
   padding: var(--space-4) var(--space-5);
-  margin-bottom: var(--space-3);
+  text-align: center;
 }
 .app-shell-header h1 { margin: 0; font-size: var(--text-xl); }
 
@@ -54,13 +57,16 @@ code {
  * 主 tabs 导航
  * ============================================================ */
 .main-tabs {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto var(--space-4);
+  padding: 0 var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: 0 var(--space-5) var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: var(--space-4);
 }
 .main-tabs a {
   color: var(--text-muted);
@@ -76,9 +82,11 @@ code {
 .main-tabs a:hover { color: var(--text-primary); background: var(--bg-card); }
 .main-tabs a.active { color: var(--theme-accent-400); }
 .main-tabs .nav-status {
-  margin-left: auto;
+  flex-basis: 100%;
+  text-align: center;
   font-size: var(--text-sm);
   color: var(--text-muted);
+  margin-top: var(--space-2);
 }
 
 /* ============================================================
@@ -86,23 +94,24 @@ code {
  * ============================================================ */
 .workflow-workbench {
   display: flex;
-  gap: var(--space-5);
-  padding: 0 var(--space-5) var(--space-8);
-  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-8);
+  align-items: center;
 }
 
 /* 左栏导航 */
 .workflow-nav-rail {
-  flex: 0 0 260px;
+  width: 100%;
+  max-width: 1200px;
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-lg);
   padding: var(--space-4);
-  position: sticky;
-  top: var(--space-4);
 }
-.nav-group { margin-bottom: var(--space-4); }
-.nav-group-system { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
+.nav-group { margin-bottom: var(--space-3); }
+.nav-group:last-child { margin-bottom: 0; }
+.nav-group-system { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); margin-top: var(--space-2); }
 .nav-section-title {
   font-size: var(--text-xs);
   font-weight: 600;
@@ -110,9 +119,11 @@ code {
   letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: var(--space-2);
+  text-align: left;
 }
 .nav-search {
-  width: 100%;
+  width: 320px;
+  max-width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -129,12 +140,12 @@ code {
 }
 
 /* 工作流列表项 */
-.workflow-list { list-style: none; padding: 0; margin: 0; }
+.workflow-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.workflow-list li { flex: 0 1 auto; }
 .workflow-list label {
   display: flex;
   align-items: center;
   padding: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-1);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-left: 3px solid transparent;
@@ -142,6 +153,7 @@ code {
   color: var(--text-secondary);
   font-size: var(--text-sm);
   cursor: pointer;
+  white-space: nowrap;
   transition: background var(--duration-fast) var(--ease-out),
               border-color var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out);
@@ -167,8 +179,16 @@ code {
 /* ============================================================
  * 右栏主区
  * ============================================================ */
-.workflow-main-stage { flex: 1 1 auto; min-width: 0; }
-.preset-panel { display: flex; flex-direction: column; gap: var(--space-3); }
+.workflow-main-stage { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; max-width: 100%; }
+.preset-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
 .preset-header h2 { margin: 0; }
 .preset-description { color: var(--text-muted); font-size: var(--text-sm); }
 
@@ -225,6 +245,8 @@ code {
  * ============================================================ */
 .preset-form { display: flex; flex-direction: column; gap: var(--space-3); }
 .form-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.creator-card { border-radius: var(--radius-md); margin-bottom: 0; }
+.preset-form { padding: var(--space-3) 0; }
 /* 高级设置折叠区: tier=advanced 的字段包在 <details> 里, 默认折叠 */
 .advanced-section { margin-top: var(--space-3); border-top: 1px solid var(--border-subtle); padding-top: var(--space-2); }
 .advanced-section > summary {
