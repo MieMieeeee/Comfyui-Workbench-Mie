@@ -43,3 +43,45 @@ def test_run_tab_uses_alpine3_panel_data_helper():
     assert "function panelData(panel)" in app_js
     assert "const cfg = panel.__x.$data.presetCfg" not in app_js
     assert "const fv = panel.__x.$data.formValues" not in app_js
+
+
+def test_wizard_has_existing_workflow_editor_mode():
+    assert "wizardMode === 'edit'" in TEMPLATE
+    assert "编辑已有工作流" in TEMPLATE
+    assert 'x-model="editPreset"' in TEMPLATE
+    assert 'x-model="item.help"' in TEMPLATE
+    assert '@dragstart="startEditDrag(idx)"' in TEMPLATE
+    assert '@drop="dropEditItem(idx)"' in TEMPLATE
+    assert "恢复内置默认" in TEMPLATE
+
+
+def test_wizard_editor_calls_controlled_definition_apis():
+    app_js = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "/api/wizard/editable-workflows" in app_js
+    assert "/api/wizard/definition/${this.editPreset}" in app_js
+    assert "method: 'PUT'" in app_js
+    assert "method: 'DELETE'" in app_js
+    assert "editDirty" in app_js
+    assert "moveEditItem" in app_js
+
+
+def test_wizard_editor_mobile_keeps_reorder_controls_visible():
+    assert ".wizard-edit-list" in TEMPLATE
+    assert "@media (max-width: 640px)" in TEMPLATE
+    assert ".wizard-edit-move" in TEMPLATE
+
+
+def test_run_clears_stale_example_while_new_result_is_generating():
+    app_js = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "正在生成新结果" in app_js
+    assert "this.resultHtml[presetName]" in app_js
+
+
+def test_image_sizes_checkbox_uses_form_values_and_first_size_default():
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "app-flask.css").read_text(encoding="utf-8")
+    assert ".size-option.selected" in css
+    tmpl = (Path(__file__).resolve().parent.parent / "app" / "templates" / "run.html").read_text(encoding="utf-8")
+    assert "(formValues[idx] || []).includes(sizeValue(opt))" in tmpl
+    app_js = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "sizeChecked(opt, idx)" in app_js
+    assert "formValues[idx]" in app_js

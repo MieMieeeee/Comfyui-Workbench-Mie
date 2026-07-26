@@ -26,3 +26,17 @@ def test_krea2_text_value_field_is_patched(monkeypatch):
     assert captured["19"] == {"value": "a red sports car in rain"}
     assert captured["6"] == {"width": 1024, "height": 1024, "batch_size": 1}
     assert captured["9"] == {"seed": 77}
+
+
+def test_stream_events_does_not_stop_at_segment_internal_success(monkeypatch):
+    def fake_image_run(name, *values):
+        yield "[READY] preparing image gen…", None
+        yield "[1/1] ✅ done in 00:01", []
+        yield "✅ [1/1] 1024x1024 done", ["http://comfy/view?filename=new.png&type=output"]
+        yield "✅ 全部完成，共 1 张图", ["http://comfy/view?filename=new.png&type=output"]
+    monkeypatch.setattr(runner, "run_image_workflow", fake_image_run)
+    monkeypatch.setattr(runner.config, "preset_config", lambda name: {"output_kind": "image"})
+    events = list(runner.stream_events("Anima_turbo", ["new prompt"]))
+    assert any(e.media_html and "new.png" in e.media_html for e in events)
+    assert events[-1].type == "done"
+    assert events[-1].state == "success"

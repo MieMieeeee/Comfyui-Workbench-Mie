@@ -21,7 +21,7 @@ from app import config
 
 _TOKENS_CACHE: str | None = None
 _THEMES_CACHE: list[dict] | None = None
-_DEFAULT_THEME_ID = "coral-orange"  # fallback only —— actual startup value comes from _load_saved_theme()
+_DEFAULT_THEME_ID = "forest-island"  # fallback only —— actual startup value comes from _load_saved_theme()
 _THEMES_PATH = config.REPO_ROOT / "app" / "presets" / "themes.json"
 _TOKENS_PATH = config.REPO_ROOT / "app" / "static" / "tokens.css"
 
@@ -64,7 +64,7 @@ def _list_themes() -> list[dict]:
 def _load_saved_theme() -> str:
     """启动时读取 config.THEME_SETTINGS_FILE 取上次选的主题。
 
-    文件不存在 / 解析失败 / theme id 不在 themes.json 里 → 回退 _DEFAULT_THEME_ID(coral-orange)。
+    文件不存在 / 解析失败 / theme id 不在 themes.json 里 → 回退 _DEFAULT_THEME_ID(forest-island)。
     失败永不让 UI 崩,最多回到默认。
     """
     try:
@@ -94,7 +94,7 @@ def _save_theme(theme_id: str) -> None:
 def _apply_theme(theme_id: str) -> str:
     """生成 <style>:root{...}</style> 用于主题注入。
 
-    未知 theme_id 回落到默认主题 (coral-orange),不抛异常。
+    未知 theme_id 回落到默认主题 (forest-island),不抛异常。
     """
     themes = {t["id"]: t for t in _list_themes()}
     theme = themes.get(theme_id) or themes.get(_DEFAULT_THEME_ID)
@@ -105,6 +105,15 @@ def _apply_theme(theme_id: str) -> str:
         f"  {k}: {v};" for k, v in theme["tokens"].items()
     )
     return f"<style>:root {{\n{decls}\n}}</style>"
+
+
+def _theme_page_bg_color(theme_id: str) -> str:
+    """返回主题自己的应用背景色，供浏览器 theme-color 使用。"""
+    themes = {t["id"]: t for t in _list_themes()}
+    selected = themes.get(theme_id) or themes.get(_DEFAULT_THEME_ID)
+    if not selected:
+        return _PAGE_BG_COLOR
+    return selected["tokens"].get("--bg-app", _PAGE_BG_COLOR)
 
 
 def _strip_style_tag(html: str) -> str:

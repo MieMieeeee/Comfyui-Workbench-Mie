@@ -361,7 +361,7 @@ def get_output_url(filename: str, subfolder: str = "", kind: str = "output") -> 
     """拼 /view URL。浏览器 <img>/<video> 直接吃这个 URL (同机可访问)."""
     from urllib.parse import quote
     qs = f"filename={quote(filename)}&type={kind}&subfolder={quote(subfolder)}"
-    return f"{get_base_url()}/view?{qs}"
+    return f"/comfy_output?{qs}"
 
 
 # --- 流式轮询 ---

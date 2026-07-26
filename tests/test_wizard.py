@@ -185,8 +185,8 @@ def test_extract_all_outputs_multiple_nodes_and_types():
     assert results[1]["node_id"] == "456"
     assert results[1]["media_key"] == "videos"
     assert results[1]["subfolder"] == "SCAIL-2"
-    # url 应该是 ComfyUI /view URL
-    assert "/view?" in results[0]["url"]
+    # url 走 WebUI 同源代理，局域网浏览器不会访问自己的 127.0.0.1
+    assert results[0]["url"].startswith("/comfy_output?")
 
 
 def test_extract_all_outputs_includes_temp_products():

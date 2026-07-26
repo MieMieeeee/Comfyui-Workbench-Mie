@@ -72,10 +72,9 @@ def get_run(prompt_id: str) -> dict[str, Any] | None:
 
 
 def make_view_url(filename: str, subfolder: str = "", kind: str = "output") -> str:
-    """拼 /view URL（给历史 tab 用）。走运行时 base url，与 client 保持一致。"""
-    from .scail2_client import get_base_url
+    """拼 WebUI 同源输出代理 URL。"""
     qs = f"filename={quote(filename)}&type={kind}&subfolder={quote(subfolder)}"
-    return f"{get_base_url()}/view?{qs}"
+    return f"/comfy_output?{qs}"
 
 
 # --- 写 ---

@@ -69,11 +69,12 @@ def test_upload_uses_runtime_url(tmp_path):
         scail2_client.reset_base_url()
 
 
-def test_get_output_url_uses_runtime_url():
+def test_get_output_url_uses_same_origin_proxy():
     scail2_client.set_base_url("http://rt:8188")
     try:
         url = scail2_client.get_output_url("x.mp4", "sub")
-        assert url.startswith("http://rt:8188/view")
+        assert url.startswith("/comfy_output?")
+        assert "http://rt:8188" not in url
     finally:
         scail2_client.reset_base_url()
 

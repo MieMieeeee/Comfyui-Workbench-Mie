@@ -44,6 +44,7 @@ PARAMS_FILE: Path = PRESETS_DIR / "params.json"
 # preset_config 先读这里, 找不到回退 PARAMS_FILE (迁移期 + 老测试兼容).
 # 引导向导 save_definition() 写到这里, 新增工作流不碰 params.json.
 DEFINITIONS_DIR: Path = PRESETS_DIR / "definitions"
+INPUT_LAYOUTS_DIR: Path = REPO_ROOT / "app" / "data" / "input_layouts"
 
 # 每次运行的 sidecar manifest 落盘位置（Phase 3 用）
 RUNS_DIR: Path = REPO_ROOT / "app" / "data" / "runs"
@@ -105,23 +106,47 @@ def workflow_path(preset_name: str) -> Path:
 
 
 def preset_config(preset_name: str) -> dict:
-    """取单个 preset 的配置.
-
-    双源 (workflow-decouple 2026-07-24):
-      1. 优先读 DEFINITIONS_DIR / f"{preset_name}.json" (新, 每个 preset 独立文件)
-      2. 回退读 PARAMS_FILE["presets"][preset_name] (旧, 迁移期 + 老测试兼容)
-    都没有 -> KeyError.
-    """
+    """读取 definition/params 主配置，再叠加用户输入布局。"""
     import json
     def_path = DEFINITIONS_DIR / f"{preset_name}.json"
     if def_path.exists():
         with def_path.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            cfg = json.load(f)
+        return _apply_input_layout(preset_name, cfg)
     with PARAMS_FILE.open("r", encoding="utf-8") as f:
         all_presets = json.load(f)["presets"]
     if preset_name not in all_presets:
         raise KeyError(f"unknown preset: {preset_name}. known: {list(all_presets)}")
-    return all_presets[preset_name]
+    return _apply_input_layout(preset_name, all_presets[preset_name])
+
+
+def _apply_input_layout(preset_name: str, cfg: dict) -> dict:
+    """叠加用户输入布局，只修改顺序和显示字段。"""
+    import copy
+    import json
+    path = INPUT_LAYOUTS_DIR / f"{preset_name}.json"
+    if not path.exists():
+        return cfg
+    try:
+        layout = json.loads(path.read_text(encoding="utf-8"))
+        submitted = layout.get("inputs", [])
+        original = cfg.get("user_facing_inputs", [])
+        by_id = {f"{x.get('node_id')}::{x.get('field')}": x for x in original}
+        ids = [item.get("stable_id") for item in submitted]
+        if len(ids) != len(original) or len(set(ids)) != len(ids) or set(ids) != set(by_id):
+            return cfg
+        merged = []
+        for item in submitted:
+            spec = copy.deepcopy(by_id[item["stable_id"]])
+            for key in ("label", "tier", "help"):
+                if isinstance(item.get(key), str):
+                    spec[key] = item[key]
+            merged.append(spec)
+        out = copy.deepcopy(cfg)
+        out["user_facing_inputs"] = merged
+        return out
+    except (OSError, json.JSONDecodeError, AttributeError, TypeError):
+        return cfg
 
 
 def list_workflows() -> list[dict]:

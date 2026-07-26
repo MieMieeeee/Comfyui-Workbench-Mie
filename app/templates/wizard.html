@@ -88,12 +88,90 @@
   .wizard-pick-card .wizard-conf-tag.conf-high { color: #4ade80; }
   .wizard-pick-card .wizard-conf-tag.conf-medium { color: #fbbf24; }
   .wizard-pick-card .wizard-conf-tag.conf-low { color: var(--text-muted); }
+  .wizard-mode-tabs { display: flex; gap: 8px; margin: 16px 0; }
+  .wizard-mode-tabs button.active { border-color: var(--theme-accent-400); color: var(--text-primary); background: var(--bg-card-hover); }
+  .wizard-edit-select { display: flex; gap: 10px; align-items: end; margin: 14px 0; }
+  .wizard-edit-select label { flex: 1; color: var(--text-secondary); }
+  .wizard-edit-select select { display: block; width: 100%; margin-top: 4px; padding: 8px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
+  .wizard-edit-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+  .wizard-edit-item { display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(140px, 1fr) 120px; gap: 10px; align-items: center; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+  .wizard-edit-item.dragging { opacity: 0.55; border-color: var(--theme-accent-400); }
+  .wizard-drag-handle { cursor: grab; color: var(--text-muted); padding: 6px; user-select: none; }
+  .wizard-edit-identity { min-width: 0; }
+  .wizard-edit-identity strong { display: block; color: var(--text-primary); }
+  .wizard-edit-identity code { color: var(--text-secondary); }
+  .wizard-edit-item input, .wizard-edit-item select { width: 100%; min-width: 0; padding: 7px 8px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
+  .wizard-edit-fields { display: grid; grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.3fr); gap: 8px; }
+  .wizard-edit-move { display: flex; gap: 4px; justify-content: flex-end; }
+  .wizard-edit-status { color: var(--text-secondary); min-height: 1.5em; }
+  .wizard-edit-status.dirty { color: var(--color-warning); }
+  @media (max-width: 640px) {
+    .wizard-edit-select { flex-direction: column; align-items: stretch; }
+    .wizard-edit-item { grid-template-columns: minmax(0, 1fr) auto; }
+    .wizard-drag-handle { display: none; }
+    .wizard-edit-identity, .wizard-edit-fields { grid-column: 1; }
+    .wizard-edit-fields { grid-template-columns: minmax(0, 1fr); }
+    .wizard-edit-move { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; }
+  }
 </style>
 <div class="wizard-page" x-data="wizardTab()" x-init="init()">
   <section class="wizard-header">
     <h2>🪄 工作流向导</h2>
     <p>把一个 ComfyUI workflow 变成 WebUI 可用的预设，全程不碰代码、不手编 JSON。</p>
   </section>
+
+  <div class="wizard-mode-tabs" role="tablist">
+    <button type="button" class="btn-secondary" :class="{ active: wizardMode === 'new' }" @click="setWizardMode('new')">新建工作流</button>
+    <button type="button" class="btn-secondary" :class="{ active: wizardMode === 'edit' }" @click="setWizardMode('edit')">编辑已有工作流</button>
+  </div>
+
+  <section class="wizard-step" x-show="wizardMode === 'edit'">
+    <h3>编辑已有工作流输入</h3>
+    <p class="wizard-hint">调整运行页的输入顺序、标签、层级和帮助说明。运行参数与 workflow 本身不会被修改。</p>
+    <div class="wizard-edit-select">
+      <label>工作流
+        <select x-model="editPreset" @change="loadEditPreset()">
+          <option value="">请选择工作流</option>
+          <template x-for="w in editableWorkflows" :key="w.name">
+            <option :value="w.name" x-text="w.display_name"></option>
+          </template>
+        </select>
+      </label>
+      <button type="button" class="btn-secondary" x-show="editCanRestore" @click="restoreEditPreset()">恢复内置默认</button>
+    </div>
+    <p x-show="editLoading" class="wizard-loading">加载中…</p>
+    <div class="wizard-edit-list" x-show="editItems.length">
+      <template x-for="(item, idx) in editItems" :key="item.stable_id">
+        <div class="wizard-edit-item" draggable="true" :class="{ dragging: editDragIndex === idx }"
+             @dragstart="startEditDrag(idx)" @dragover.prevent @drop="dropEditItem(idx)" @dragend="editDragIndex = null">
+          <span class="wizard-drag-handle" title="拖动排序">⋮⋮</span>
+          <div class="wizard-edit-identity">
+            <strong x-text="item.label || item.field"></strong>
+            <code x-text="item.field"></code> <span class="wizard-pick-nodeid" x-text="'#' + item.node_id"></span>
+          </div>
+          <div class="wizard-edit-fields">
+            <input type="text" x-model="item.label" @input="markEditDirty()" aria-label="显示标签">
+            <input type="text" x-model="item.help" @input="markEditDirty()" aria-label="帮助说明">
+          </div>
+          <div>
+            <select x-model="item.tier" @change="markEditDirty()" aria-label="显示层级">
+              <option value="basic">基本</option><option value="advanced">高级</option>
+            </select>
+            <div class="wizard-edit-move">
+              <button type="button" class="wizard-move-btn" @click="moveEditItem(idx, -1)" :disabled="idx === 0" title="上移">▲</button>
+              <button type="button" class="wizard-move-btn" @click="moveEditItem(idx, 1)" :disabled="idx === editItems.length - 1" title="下移">▼</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <p class="wizard-edit-status" :class="{ dirty: editDirty }" x-text="editStatus"></p>
+    <button type="button" class="btn-run-primary" x-show="editItems.length" @click="saveEditPreset()" :disabled="editSaving || !editDirty">
+      <span x-text="editSaving ? '保存中…' : '保存输入布局'"></span>
+    </button>
+  </section>
+
+  <div x-show="wizardMode === 'new'">
 
   <!-- 步骤指示器 -->
   <nav class="wizard-steps">
@@ -281,5 +359,6 @@
       </div>
     </div>
   </section>
+  </div>
 </div>
 {% endblock %}

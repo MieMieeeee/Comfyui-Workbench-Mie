@@ -113,8 +113,8 @@
                       <template x-if="spec.type === 'image_sizes'">
                         <fieldset class="sizes-fieldset">
                           <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
-                            <label class="size-option">
-                              <input type="checkbox" :value="sizeValue(opt)" @change="onSizeToggle($event, w.name, idx)">
+                            <label class="size-option" :class="{ selected: (formValues[idx] || []).includes(sizeValue(opt)) }">
+                              <input type="checkbox" :value="sizeValue(opt)" :checked="(formValues[idx] || []).includes(sizeValue(opt))" @change="onSizeToggle($event, w.name, idx)">
                               <span x-text="sizeLabel(opt)"></span>
                             </label>
                           </template>

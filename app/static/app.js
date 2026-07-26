@@ -30,6 +30,14 @@ async function fetchJSON(url, options = {}) {
 // appShell — 全局 shell (base.html)
 // ============================================================
 
+function installThemeResponse(data) {
+  const styleEl = document.getElementById('theme-injector');
+  if (styleEl) styleEl.textContent = data.css.replace(/^<style[^>]*>/, '').replace(/<\/style>$/, '');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta && data.page_bg_color) themeMeta.setAttribute('content', data.page_bg_color);
+  document.body.dataset.theme = data.theme_id;
+}
+
 function appShell() {
   return {
     currentTab: window.location.pathname.startsWith('/settings') ? 'settings'
@@ -59,9 +67,7 @@ function appShell() {
         method: 'POST',
         body: JSON.stringify({ theme_id: themeId }),
       });
-      // 直接重写 <style id="theme-injector"> 的内容, 毫秒级生效
-      const styleEl = document.getElementById('theme-injector');
-      if (styleEl) styleEl.textContent = data.css.replace(/^<style[^>]*>/, '').replace(/<\/style>$/, '');
+      installThemeResponse(data);
       return data;
     },
   };
@@ -103,6 +109,8 @@ function runTab(workflows, presetCfgs) {
     },
 
     async initPanelScope(name, scope) {
+      this.activePanel = scope && scope.$el ? scope.$el : null;
+
       // panel x-init 调用. scope 是 panel 的 $data (Alpine 响应式对象).
       // 拉 example 填默认表单 + 渲染 preview 到结果区.
       const cfg = this.presetCfgs[name];
@@ -123,6 +131,14 @@ function runTab(workflows, presetCfgs) {
           }
         }
         scope.formValues = fv;
+        for (let i = 0; i < cfg.user_facing_inputs.length; i++) {
+          const spec = cfg.user_facing_inputs[i];
+          if (spec.type === 'image_sizes' && Array.isArray(fv[i]) && fv[i].length === 0 && Array.isArray(spec.presets) && spec.presets.length) {
+            const first = spec.presets[0];
+            const val = typeof first === 'object' ? first.value : first;
+            fv[i] = [val];
+          }
+        }
       } catch (e) {
         console.error('initPanelScope example', name, e);
       }
@@ -215,6 +231,17 @@ function runTab(workflows, presetCfgs) {
 
     sizeValue(opt) { return typeof opt === 'object' ? opt.value : opt; },
     sizeLabel(opt) { return typeof opt === 'object' ? opt.label : opt; },
+    sizeChecked(opt, idx) {
+      const val = this.sizeValue(opt);
+      const panels = Array.from(document.querySelectorAll('[data-preset]'));
+      for (const panel of panels) {
+        const data = panelData(panel);
+        if (!data || !Array.isArray(data.formValues)) continue;
+        const list = data.formValues[idx];
+        if (Array.isArray(list) && list.includes(val)) return true;
+      }
+      return false;
+    },
 
     getExampleThumbUrl(presetName, specIdx) {
       // 从 panel 的 formValues[specIdx] 提取缩略图 URL.
@@ -264,15 +291,9 @@ function runTab(workflows, presetCfgs) {
       const panel = document.querySelector(`[data-preset="${presetName}"]`);
       if (!panel) return;
       const checked = event.target;
-      const current = panelData(panel).formValues[specIdx] || [];
       const value = checked.value;
-      if (checked.checked) {
-        if (!current.includes(value)) current.push(value);
-      } else {
-        const i = current.indexOf(value);
-        if (i >= 0) current.splice(i, 1);
-      }
-      panelData(panel).formValues[specIdx] = current;
+      // 单选: 勾一个就锁定这一项, 取消则清空 (兼容多选迁移过来后用户勾新尺寸会覆盖).
+      panelData(panel).formValues[specIdx] = checked.checked ? [value] : [];
     },
 
     async randomPrompt(presetName, specIdx, n) {
@@ -332,6 +353,7 @@ function runTab(workflows, presetCfgs) {
       this.statusMsg[presetName] = '';
       this.errorHtml[presetName] = '';
       this.runLogs[presetName] = '';
+      this.resultHtml[presetName] = '<div class="result-placeholder">正在生成新结果…</div>';
 
       const startTime = Date.now();
       const updateElapsed = () => {
@@ -517,11 +539,7 @@ function settingsTab() {
           method: 'POST',
           body: JSON.stringify({ theme_id: themeId }),
         });
-        // 重写 <style id="theme-injector">
-        const styleEl = document.getElementById('theme-injector');
-        if (styleEl) {
-          styleEl.textContent = data.css.replace(/^<style[^>]*>/, '').replace(/<\/style>$/, '');
-        }
+        installThemeResponse(data);
         this.themeDesc = data.desc;
       } catch (e) {
         this.statusMsg = '主题切换失败: ' + e.message;
@@ -546,6 +564,17 @@ function wizardTab() {
     parsing: false,
     uploadError: '',
 
+    wizardMode: 'new',
+    editableWorkflows: [],
+    editPreset: '',
+    editItems: [],
+    editCanRestore: false,
+    editDirty: false,
+    editLoading: false,
+    editSaving: false,
+    editStatus: '',
+    editDragIndex: null,
+
     // 步骤 3: 运行 + 输出选择
     running: false,
     runError: '',
@@ -563,6 +592,68 @@ function wizardTab() {
     saveError: '',
 
     init() {},
+
+    async setWizardMode(mode) {
+      this.wizardMode = mode;
+      if (mode === 'edit' && this.editableWorkflows.length === 0) {
+        try { this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows'); }
+        catch (e) { this.editStatus = '加载工作流列表失败: ' + e.message; }
+      }
+    },
+
+    async loadEditPreset() {
+      this.editItems = []; this.editDirty = false; this.editStatus = ''; this.editCanRestore = false;
+      if (!this.editPreset) return;
+      this.editLoading = true;
+      try {
+        const data = await fetchJSON(`/api/wizard/definition/${this.editPreset}`);
+        this.editItems = data.inputs.map(item => ({ ...item }));
+        this.editCanRestore = Boolean(data.can_restore);
+      } catch (e) { this.editStatus = '加载失败: ' + e.message; }
+      finally { this.editLoading = false; }
+    },
+
+    markEditDirty() { this.editDirty = true; this.editStatus = '有未保存修改'; },
+
+    moveEditItem(idx, dir) {
+      const next = idx + dir;
+      if (next < 0 || next >= this.editItems.length) return;
+      const item = this.editItems.splice(idx, 1)[0];
+      this.editItems.splice(next, 0, item); this.markEditDirty();
+    },
+
+    startEditDrag(idx) { this.editDragIndex = idx; },
+    dropEditItem(idx) {
+      const from = this.editDragIndex; this.editDragIndex = null;
+      if (from == null || from === idx) return;
+      const item = this.editItems.splice(from, 1)[0];
+      this.editItems.splice(from < idx ? idx - 1 : idx, 0, item); this.markEditDirty();
+    },
+
+    async saveEditPreset() {
+      if (!this.editPreset || !this.editDirty) return;
+      this.editSaving = true;
+      try {
+        const data = await fetchJSON(`/api/wizard/definition/${this.editPreset}/inputs`, {
+          method: 'PUT',
+          body: JSON.stringify({ inputs: this.editItems.map(({ stable_id, label, tier, help }) => ({ stable_id, label, tier, help })) }),
+        });
+        this.editItems = data.inputs.map(item => ({ ...item }));
+        this.editCanRestore = Boolean(data.can_restore); this.editDirty = false;
+        this.editStatus = '已保存，刷新运行页后生效';
+        this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows');
+      } catch (e) { this.editStatus = '保存失败: ' + e.message; }
+      finally { this.editSaving = false; }
+    },
+
+    async restoreEditPreset() {
+      if (!this.editPreset || !this.editCanRestore) return;
+      try {
+        await fetchJSON(`/api/wizard/definition/${this.editPreset}/override`, { method: 'DELETE' });
+        await this.loadEditPreset(); this.editStatus = '已恢复默认输入布局';
+        this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows');
+      } catch (e) { this.editStatus = '恢复失败: ' + e.message; }
+    },
 
     // --- 步骤 1: 上传 ---
     async onUpload(event) {

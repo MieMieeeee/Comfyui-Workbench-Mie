@@ -1,0 +1,94 @@
+{
+  "workflow_file": "Anima_turbo.json",
+  "display_name": "文生图（Anima）",
+  "category": "image",
+  "order": 999,
+  "description": "动漫生成",
+  "user_facing_inputs": [
+    {
+      "class_type": "CLIPTextEncode",
+      "confidence": "medium",
+      "current_value": "masterpiece, best quality, score_7, safe, year 2025, newest, highres, 1girl, blue hair, green eyes, smile, white dress, cherry blossoms, full body, looking at viewer, simple background, soft lighting",
+      "default": "masterpiece, best quality, score_7, safe, year 2025, newest, highres, 1girl, blue hair, green eyes, smile, white dress, cherry blossoms, full body, looking at viewer, simple background, soft lighting",
+      "field": "text",
+      "help": "描述希望生成的内容、风格与构图。",
+      "label": "提示词",
+      "max_chars": 2000,
+      "node_id": "5",
+      "node_title": "CLIP Text Encode (Prompt)",
+      "type": "prompt_pool",
+      "enabled": true,
+      "tier": "basic"
+    },
+    {
+      "class_type": "EmptyLatentImage",
+      "confidence": "high",
+      "current_value": {
+        "height": 1024,
+        "width": 1024
+      },
+      "default": [
+        "1024x1024"
+      ],
+      "field": "sizes",
+      "help": "选择要生成的输出尺寸。",
+      "label": "输出尺寸",
+      "node_id": "4",
+      "node_title": "Empty Latent Image",
+      "presets": [
+        {
+          "label": "1024×1024 ｜ 1:1 正方形",
+          "value": "1024x1024"
+        },
+        {
+          "label": "1280×720 ｜ 16:9 横版",
+          "value": "1280x720"
+        },
+        {
+          "label": "720×1280 ｜ 9:16 竖版",
+          "value": "720x1280"
+        },
+        {
+          "label": "1024×1280 ｜ 4:5 海报",
+          "value": "1024x1280"
+        }
+      ],
+      "type": "image_sizes",
+      "enabled": true,
+      "tier": "basic"
+    },
+    {
+      "class_type": "KSampler",
+      "confidence": "high",
+      "current_value": 42,
+      "default": 42,
+      "field": "seed",
+      "help": "勾选随机会在每次运行时生成新种子；取消后使用固定数值。",
+      "label": "种子值",
+      "max": 9223372036854776000,
+      "min": 0,
+      "node_id": "7",
+      "node_title": "KSampler",
+      "random_default": true,
+      "step": 1,
+      "type": "int_random",
+      "enabled": true,
+      "tier": "basic"
+    }
+  ],
+  "output_kind": "image",
+  "example": {
+    "text": "masterpiece, best quality, score_7, safe, year 2025, newest, highres, 1girl, blue hair, green eyes, smile, white dress, cherry blossoms, full body, looking at viewer, simple background, soft lighting",
+    "sizes": [
+      "1024x1024"
+    ],
+    "seed": 42,
+    "preview_image": "app/static/examples/Anima_turbo.png"
+  },
+  "do_not_modify_warnings": [
+    {
+      "node_id": "9",
+      "reason": "向导标记的最终用户输出节点"
+    }
+  ]
+}

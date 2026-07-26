@@ -287,9 +287,28 @@ code {
   color: var(--text-secondary);
   cursor: pointer;
 }
+.size-option.selected {
+  border-color: var(--theme-accent-500);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+.size-option input { accent-color: var(--theme-accent-500); }
 
 /* int_random */
 .int-random-field { display: flex; align-items: center; gap: var(--space-3); }
+.int-random-field > label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.int-random-field > input[type="number"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
 .bool-field { display: flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
 
 .prompt-actions { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
@@ -436,3 +455,114 @@ button {
  * ============================================================ */
 .loading-placeholder { color: var(--text-faint); padding: var(--space-3); }
 hr { border: none; border-top: 1px solid var(--border-subtle); margin: var(--space-4) 0; }
+
+
+/* Forest Island: nature-inspired night workshop. No third-party assets. */
+body[data-theme="forest-island"] {
+  background-color: var(--bg-app);
+}
+body[data-theme="forest-island"] .app-shell-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+}
+body[data-theme="forest-island"] .app-shell-header h1::before {
+  content: "◆";
+  color: var(--color-warning);
+  font-size: 0.62em;
+  margin-right: var(--space-2);
+  vertical-align: 0.12em;
+}
+body[data-theme="forest-island"] .main-tabs {
+  background: var(--bg-panel);
+  border-bottom-color: var(--border-default);
+}
+body[data-theme="forest-island"] .main-tabs a.active {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+  box-shadow: inset 0 -2px 0 var(--theme-accent-400);
+}
+body[data-theme="forest-island"] .workflow-nav-rail,
+body[data-theme="forest-island"] .settings-section,
+body[data-theme="forest-island"] .wizard-step {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-sm);
+}
+body[data-theme="forest-island"] .workflow-list label.selected {
+  border-left-color: var(--theme-accent-400);
+  box-shadow: inset 3px 0 0 rgba(242, 206, 114, 0.24);
+}
+body[data-theme="forest-island"] .preset-description,
+body[data-theme="forest-island"] .theme-desc {
+  color: var(--text-muted);
+}
+body[data-theme="forest-island"] input:focus,
+body[data-theme="forest-island"] textarea:focus,
+body[data-theme="forest-island"] select:focus {
+  border-color: var(--theme-accent-400);
+  box-shadow: 0 0 0 3px var(--theme-accent-glow);
+}
+body[data-theme="forest-island"] .preset-result {
+  border-color: var(--border-default);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px rgba(114, 201, 212, 0.06);
+}
+body[data-theme="forest-island"] .btn-run-primary {
+  box-shadow: 0 7px 18px rgba(4, 14, 11, 0.42), 0 0 0 1px rgba(185, 229, 141, 0.16) !important;
+}
+body[data-theme="forest-island"] .run-status-bar {
+  border-color: var(--border-default);
+  background: var(--bg-panel);
+}
+
+
+@media (max-width: 760px) {
+  .app-shell-header { padding: var(--space-3) var(--space-4); }
+  .main-tabs {
+    padding: 0 var(--space-3) var(--space-3);
+    gap: var(--space-1);
+    flex-wrap: wrap;
+  }
+  .main-tabs a { padding: var(--space-2); }
+  .main-tabs .nav-status {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .workflow-workbench {
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: 0 var(--space-3) var(--space-6);
+  }
+  .workflow-nav-rail {
+    position: static;
+    width: 100%;
+    flex-basis: auto;
+  }
+  .workflow-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+  .workflow-list label {
+    height: 100%;
+    margin-bottom: 0;
+  }
+  .workflow-main-stage,
+  .preset-panel,
+  .preset-body,
+  .preset-controls,
+  .preset-result {
+    width: 100%;
+    min-width: 0;
+  }
+  .preset-body { grid-template-columns: minmax(0, 1fr); }
+  .preset-result { min-height: 260px; }
+  .settings-page { padding: 0 var(--space-3) var(--space-6); }
+  .url-row { flex-direction: column; }
+  .url-row .btn-run-primary { width: 100%; }
+}
+
+@media (max-width: 430px) {
+  .workflow-list { grid-template-columns: minmax(0, 1fr); }
+  .preset-actions, .result-actions { align-items: stretch; }
+  .preset-actions button, .result-actions button { flex: 1 1 auto; }
+}

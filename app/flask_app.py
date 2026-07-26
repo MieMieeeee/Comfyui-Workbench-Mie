@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+
+import requests
 from pathlib import Path
 
 # bootstrap: 让 `python -m app.flask_app` 能跑 (不在仓库根时也 OK)
@@ -17,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from flask import Flask, jsonify, request, Response, render_template, url_for, send_from_directory
+from flask import Flask, jsonify, request, Response, render_template, url_for, send_from_directory, stream_with_context
 
 from app import config
 from app import scail2_client
@@ -26,6 +28,7 @@ from app.services import theme
 from app.services import form_schema
 from app.services import runner
 from app.services import wizard
+from app.services import workflow_editor
 from app.services.persistence import _save_last_run, _load_last_run
 
 
@@ -157,6 +160,42 @@ def _workflows_for_nav():
 # 静态资源: ComfyUI input 目录文件 (example 文件在这里)
 # ============================================================
 
+@app.route("/comfy_output")
+def comfy_output():
+    """同源代理 ComfyUI /view，供局域网浏览器读取生成产物。"""
+    filename = request.args.get("filename", "").strip()
+    kind = request.args.get("type", "output").strip()
+    subfolder = request.args.get("subfolder", "").strip()
+    if not filename:
+        return jsonify({"error": "missing filename"}), 400
+    if kind not in {"input", "output", "temp"}:
+        return jsonify({"error": "type must be input, output or temp"}), 400
+    try:
+        upstream = requests.get(
+            scail2_client.get_base_url() + "/view",
+            params={"filename": filename, "type": kind, "subfolder": subfolder},
+            stream=True, timeout=(5, 120),
+        )
+    except (requests.ConnectionError, requests.Timeout) as e:
+        return jsonify({"error": f"cannot read ComfyUI output: {e}"}), 502
+
+    headers = {"Cache-Control": "no-store"}
+    for key in ("Content-Type", "Content-Length", "Content-Disposition", "ETag", "Last-Modified"):
+        value = upstream.headers.get(key)
+        if value:
+            headers[key] = value
+
+    def generate():
+        try:
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    return Response(stream_with_context(generate()), status=upstream.status_code, headers=headers)
+
+
 @app.route("/comfy_input/<path:filename>")
 def comfy_input(filename):
     """提供 ComfyUI input 目录下的文件 (example 图片/视频).
@@ -217,7 +256,8 @@ def index():
         workflows=_workflows_for_nav(),
         preset_cfgs=preset_cfgs,
         theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
-        page_bg_color=theme._PAGE_BG_COLOR,
+        page_bg_color=theme._theme_page_bg_color(tid),
+        theme_id=tid,
     )
 
 
@@ -230,7 +270,8 @@ def settings_page():
         default_url=config.COMFY_BASE_URL,
         current_url=scail2_client.get_base_url(),
         theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
-        page_bg_color=theme._PAGE_BG_COLOR,
+        page_bg_color=theme._theme_page_bg_color(tid),
+        theme_id=tid,
     )
 
 
@@ -241,7 +282,8 @@ def wizard_page():
     return render_template(
         "wizard.html",
         theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
-        page_bg_color=theme._PAGE_BG_COLOR,
+        page_bg_color=theme._theme_page_bg_color(tid),
+        theme_id=tid,
     )
 
 
@@ -266,6 +308,7 @@ def get_current_theme():
         "theme_id": tid,
         "css": theme._apply_theme(tid),
         "desc": theme._get_theme_desc(tid),
+        "page_bg_color": theme._theme_page_bg_color(tid),
     })
 
 
@@ -281,6 +324,7 @@ def set_theme():
         "theme_id": tid,
         "css": theme._apply_theme(tid),
         "desc": theme._get_theme_desc(tid),
+        "page_bg_color": theme._theme_page_bg_color(tid),
     })
 
 
@@ -301,8 +345,7 @@ def get_example(preset_name):
 def get_last_run(preset_name):
     """加载上次成功参数. 没跑过返全 None 列表."""
     cfg = config.preset_config(preset_name)
-    n = sum(2 if s.get("type") == "int_random" else 1 for s in cfg["user_facing_inputs"])
-    return jsonify(_load_last_run(preset_name, n))
+    return jsonify(_load_last_run(preset_name, cfg["user_facing_inputs"]))
 
 
 # ============================================================
@@ -414,7 +457,8 @@ def run_preset(preset_name):
 
     # 成功时持久化 last_run
     def on_success(name, vals):
-        _save_last_run(name, vals)
+        specs = config.preset_config(name)["user_facing_inputs"]
+        _save_last_run(name, vals, specs)
 
     def event_stream():
         try:
@@ -532,6 +576,39 @@ _WIZARD_DIR = config.REPO_ROOT / "app" / "data" / "wizard"
 
 def _wizard_path(token: str) -> Path:
     return _WIZARD_DIR / f"{token}.json"
+
+
+@app.route("/api/wizard/editable-workflows")
+def wizard_editable_workflows():
+    return jsonify(workflow_editor.list_editable_workflows())
+
+
+@app.route("/api/wizard/definition/<preset_name>")
+def wizard_editor_definition(preset_name):
+    try:
+        return jsonify(workflow_editor.get_editor_definition(preset_name))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/wizard/definition/<preset_name>/inputs", methods=["PUT"])
+def wizard_save_input_layout(preset_name):
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(workflow_editor.save_input_layout(preset_name, data.get("inputs")))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/wizard/definition/<preset_name>/override", methods=["DELETE"])
+def wizard_restore_input_layout(preset_name):
+    try:
+        restored = workflow_editor.restore_input_layout(preset_name)
+        return jsonify({"name": preset_name, "restored": restored})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/wizard/parse", methods=["POST"])
