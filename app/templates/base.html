@@ -37,8 +37,6 @@
   <div class="system-bar">
     <button class="btn-secondary" type="button" @click="refreshStatus()" title="刷新状态">🔄 刷新状态</button>
     <span class="system-status" x-html="systemStatusHtml"></span>
-    <button class="btn-secondary" type="button" @click="copyOutputPath()" title="复制输出目录路径到剪贴板 (跨平台, 远程访问也能用)">📋 复制路径</button>
-    <span class="system-open-msg" x-show="openDirMsg" x-text="openDirMsg"></span>
   </div>
 
   <!-- 主内容区 (子模板填充) -->

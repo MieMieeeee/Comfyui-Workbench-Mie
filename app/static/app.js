@@ -44,11 +44,10 @@ function appShell() {
              : window.location.pathname.startsWith('/wizard') ? 'wizard'
              : 'run',
     comfyStatusHtml: '',
-    openDirMsg: '',
     pending: false,
     // 与 comfyStatusHtml 同步, 但额外处理空值 (加载中提示), 给 system-bar 用
     get systemStatusHtml() {
-      return this.comfyStatusHtml || '<span class="system-status-empty">连接状态加载中…</span>';
+      return this.comfyStatusHtml || '<span class="system-status-empty">检测 ComfyUI 状态中…</span>';
     },
 
     async init() {
@@ -66,20 +65,6 @@ function appShell() {
       }
     },
 
-    async copyOutputPath() {
-      try {
-        const data = await fetchJSON('/api/open_output_dir', { method: 'POST' });
-        // data.message 现在是路径本体, 复制到剪贴板
-        if (navigator.clipboard && data.message) {
-          await navigator.clipboard.writeText(data.message);
-          this.openDirMsg = '已复制路径: ' + data.message;
-        } else {
-          this.openDirMsg = '路径: ' + data.message + ' (剪贴板 API 不可用, 请手动复制)';
-        }
-      } catch (e) {
-        this.openDirMsg = '复制失败: ' + e.message;
-      }
-    },
 
     // 主题切换 helper (settings tab 也复用)
     async applyTheme(themeId) {
@@ -461,14 +446,6 @@ function runTab(workflows, presetCfgs) {
       return out;
     },
 
-    async openOutputFolder() {
-      try {
-        const data = await fetchJSON('/api/open_output_dir', { method: 'POST' });
-        this.openDirMsg = data.message;
-      } catch (e) {
-        this.openDirMsg = '打开失败: ' + e.message;
-      }
-    },
 
     async refreshStatus() {
       try {

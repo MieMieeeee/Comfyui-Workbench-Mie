@@ -313,24 +313,16 @@ def test_estimated_segments_no_video(client):
 # 打开输出目录
 # ============================================================
 
-def test_open_output_dir(client, monkeypatch):
-    """POST /api/open_output_dir 走路由, 返回 {message: ...}.
+def test_open_output_dir_removed(client):
+    """备忘: /api/open_output_dir 接口被完全删除.
 
-    必须 mock _open_output_dir — 否则会真执行 subprocess.Popen(['explorer', ...]),
-    每次跑 pytest 都弹一个文件夹窗口出来 (用户报告"不停打开 output 目录"的根因).
+    原本这个接口调本地 explorer/open, 但 WebUI 可能从局域网访问远程服务器,
+    调本地文件管理器只会在服务器本机打开. 中间试过 "return 路径 + 复制到剪贴板"
+    也不合适: 用户远程访问时看不到服务器路径 (不是本地路径), 也不走 ComfyUI 自己的 /view。
+    完全删除 —— 输出由 run 与 settings 两个页面通过 /comfy_output 代理看完整产物.
     """
-    called = {"n": 0}
-
-    def fake_open():
-        called["n"] += 1
-        return "(mocked) test, no explorer"
-
-    monkeypatch.setattr(flask_app, "_open_output_dir", fake_open)
     r = client.post("/api/open_output_dir")
-    assert r.status_code == 200
-    data = r.get_json()
-    assert "message" in data
-    assert called["n"] == 1
+    assert r.status_code == 404, "/api/open_output_dir 应该被删除"
 
 
 # ============================================================

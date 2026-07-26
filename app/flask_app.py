@@ -32,6 +32,11 @@ from app.services import workflow_editor
 from app.services.persistence import _save_last_run, _load_last_run
 
 
+def _category_icon(cat: str) -> str:
+    return {
+        "video": "🎬", "image": "🖼️", "audio": "🔊",
+        "3d": "🧺", "other": "📦",
+    }.get(cat, "📦")
 # ============================================================
 # Flask app 构造
 # ============================================================
@@ -102,33 +107,6 @@ def _update_est_markdown(drive_path, per_seg=81, pre_drop=5, max_segments=0) -> 
             return f"**预估段数**: {est}  \n(驱动视频 {frames} 帧 / 每段 {per_seg} / pre-drop {pre_drop} / 净每段 {net} / 限制 ≤ {max_segments})"
     return f"**预估段数**: {est} (无限制)  \n(驱动视频 {frames} 帧 / 每段 {per_seg} / pre-drop {pre_drop} / 净每段 {net})"
 
-
-def _open_output_dir() -> str:
-    """返回输出目录路径.
-
-    原本调用本地文件管理器 (explorer/open/xdg-open), 但用户可能是从局域网访问远程服务器,
-    服务器调用的 explorer/open 只会在服务器本机上打开文件夹, 用户看不到.
-    现在返回路径本体, 前端用类似“复制路径”的按钮处理:
-    —— 点击后复制到剪贴板，用户可以走远程文件系统走输出。
-    保留路径的 mkdir 以防初次部署时路径不存在。"""
-    path = str(config.COMFY_OUTPUT_DIR)
-    try:
-        config.COMFY_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-    return path
-
-
-def _category_icon(cat: str) -> str:
-    return {
-        "video": "🎬", "image": "🖼️", "audio": "🔊",
-        "3d": "🧊", "other": "📦",
-    }.get(cat, "📦")
-
-
-# ============================================================
-# 页面路由
-# ============================================================
 
 def _workflows_for_nav():
     """返回前端 nav 用的工作流元信息列表 (跟 /api/workflows 一致)."""
@@ -398,13 +376,6 @@ def estimated_segments_route():
     })
 
 
-# ============================================================
-# API 路由 — 打开输出目录
-# ============================================================
-
-@app.route("/api/open_output_dir", methods=["POST"])
-def open_output_dir():
-    return jsonify({"message": _open_output_dir()})
 
 
 # ============================================================

@@ -36,25 +36,17 @@ def test_run_html_no_random_3_button():
     assert "随机 3 条" not in RUN, "run.html 仍有 随机 3 条 按钮"
 
 
-def test_open_output_dir_returns_path_not_subprocess():
-    """_open_output_dir 不再调本地文件管理器, 返回路径本体给前端复制."""
-    block = FLASK.split("def _open_output_dir", 1)[1]
-    # 跳过 docstring (三引号 docstring 可能包含描述中提到的关键词, 不能被当成代码检查)
-    docstring_end = block.find('"""' + '\n', block.find('"""'))
-    if docstring_end == -1:
-        docstring_end = block.find('"""' + '\n', block.find('"""'))
-    # 简单点: 查找 docstring 后面的下一个 docstring 闭合
-    first_q = block.find('"""')
-    body_start = block.find('"""', first_q + 3) + 3
-    # 跳过 docstring 后面到函数末尾或下一个顶级语句
-    end = block.find("\ndef ", body_start)
-    body = block[body_start:end] if end != -1 else block[body_start:]
-    # 判断函数体在 docstring 之后是否返回 path
-    # 不能出现 explorer / xdg-open / Darwin open (只检查函数体, 不包括 docstring)
-    for keyword in ("explorer", "xdg-open", "Darwin"):
-        assert keyword not in body, f"_open_output_dir 函数体还在出现 {keyword}"
-    # 应该返回路径 (path 字符串)
-    assert "return path" in body, "_open_output_dir 应该返回 path"
+def test_open_output_dir_fully_removed():
+    """备忘: _open_output_dir 函数体和 /api/open_output_dir 路由都被删除.
+
+    原本这个接口调本地 explorer/open, 中间试过 return path + 复制到剪贴板,
+    都不适合远程访问 (用户看不到服务器本地路径, 也不走 ComfyUI /view).
+    完全删除. 输出下游需要看产物时走 /comfy_output 代理.
+    """
+    assert "def _open_output_dir" not in FLASK, "_open_output_dir 函数体应该被删除"
+    assert '/api/open_output_dir' not in FLASK, "/api/open_output_dir 路由应该被删除"
+
+
 
 
 def test_settings_init_no_redundant_comfy_status():
