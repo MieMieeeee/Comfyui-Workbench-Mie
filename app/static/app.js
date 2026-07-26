@@ -44,7 +44,12 @@ function appShell() {
              : window.location.pathname.startsWith('/wizard') ? 'wizard'
              : 'run',
     comfyStatusHtml: '',
+    openDirMsg: '',
     pending: false,
+    // 与 comfyStatusHtml 同步, 但额外处理空值 (加载中提示), 给 system-bar 用
+    get systemStatusHtml() {
+      return this.comfyStatusHtml || '<span class="system-status-empty">连接状态加载中…</span>';
+    },
 
     async init() {
       await this.refreshStatus();
@@ -58,6 +63,15 @@ function appShell() {
         this.comfyStatusHtml = `ComfyUI: ${s.dot} <code>${s.url}</code>`;
       } catch (e) {
         this.comfyStatusHtml = 'ComfyUI: <span class="err">状态获取失败</span>';
+      }
+    },
+
+    async openOutputFolder() {
+      try {
+        const data = await fetchJSON('/api/open_output_dir', { method: 'POST' });
+        this.openDirMsg = data.message;
+      } catch (e) {
+        this.openDirMsg = '打开失败: ' + e.message;
       }
     },
 

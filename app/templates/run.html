@@ -25,20 +25,15 @@
               <input type="radio" name="preset"
                      :value="w.name"
                      x-model="currentPreset">
-              <span x-text="w.nav_label"></span>
+              <span class="wf-icon" x-text="w.icon"></span>
+              <span class="wf-text" x-text="w.display_name"></span>
             </label>
           </li>
         </template>
       </ul>
     </div>
 
-    <div class="nav-group nav-group-system">
-      <p class="nav-section-title">系统</p>
-      <button class="btn-secondary" @click="refreshStatus()" type="button">🔄 刷新状态</button>
-      <p class="nav-system-status" x-html="statusHtml"></p>
-      <button class="btn-secondary" @click="openOutputFolder()" type="button">📂 输出目录</button>
-      <p class="nav-system-status" x-show="openDirMsg" x-text="openDirMsg"></p>
-    </div>
+    <!-- 系统状态块已搬到 base.html 的 system-bar (在 main-tabs 下), 不再在 nav-rail 里 -->
   </aside>
 
   <!-- 右侧工作区 (动态切换 preset) -->

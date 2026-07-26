@@ -1,0 +1,69 @@
+"""应用外壳 4 项布局打磨:
+   1. .app-shell-header + .main-tabs 加 border + border-radius, 跟下面面板同一语言
+   2. workflow-list label 里 emoji 和文本拆开 (上下结构, 所有项高度一致)
+   3. 系统状态搬到 base.html 的 system-bar (在 main-tabs 下, 1200px 居中)
+   4. creator-socials 按钮 justify-content: center
+"""
+import pytest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+CSS = (ROOT / "app" / "static" / "app-flask.css").read_text(encoding="utf-8")
+BASE = (ROOT / "app" / "templates" / "base.html").read_text(encoding="utf-8")
+RUN = (ROOT / "app" / "templates" / "run.html").read_text(encoding="utf-8")
+
+
+def test_app_shell_header_has_border_and_radius():
+    """header 加上同 .preset-panel 一样的 border + border-radius, 不是完全贯流到页边."""
+    block = CSS.split(".app-shell-header {", 1)[1].split("}", 1)[0]
+    assert "border:" in block
+    assert "border-radius:" in block
+
+
+def test_main_tabs_has_border_and_radius():
+    """main-tabs 也该有 border + border-radius, 跟 header 一致."""
+    block = CSS.split(".main-tabs {", 1)[1].split("}", 1)[0]
+    assert "border:" in block
+    assert "border-radius:" in block
+
+
+def test_workflow_list_label_uses_column_layout():
+    """为了 emoji 上 + 文本下的一致布局, label 起码要是 flex-direction: column."""
+    block = CSS.split(".workflow-list label {", 1)[1].split("}", 1)[0]
+    assert "flex-direction: column" in block, (
+
+        ".workflow-list label 还不是 column 布局, emoji 和文本会复合在同一行"
+    )
+    assert "align-items: center" in block
+
+
+def test_run_html_splits_icon_and_text_into_two_spans():
+    """run.html 里每个项目是两个独立的 span (.wf-icon + .wf-text), 不是一个含 emoji 的长 span."""
+    assert "wf-icon" in RUN and "wf-text" in RUN
+    assert "w.nav_label" not in RUN, (
+
+        "还在用 w.nav_label, 这是不一致的原因: emoji 和文本拿在一个字符串里."
+    )
+
+
+def test_base_html_has_system_bar():
+    """base.html 里应有 system-bar 独竆展示系统状态, 在 main-tabs 下、上面 main 上."""
+    assert "system-bar" in BASE
+    # 顺序: nav.main-tabs 要在 system-bar 之前
+    tabs_idx = BASE.index("class=\"main-tabs\"")
+    bar_idx = BASE.index("class=\"system-bar\"")
+    assert tabs_idx < bar_idx, "system-bar 要在 main-tabs 之后"
+
+
+def test_run_html_no_longer_has_nav_group_system():
+    """run.html 里的 .nav-group-system 被搬到 base.html 了, 不要重复."""
+    assert "nav-group-system" not in RUN, (
+
+        "还在 run.html 里留 .nav-group-system, 会在 nav-rail 下面重复出现"
+    )
+
+
+def test_creator_socials_is_centered():
+    """.creator-socials 加了 justify-content: center, 使按钮在中间."""
+    block = CSS.split(".creator-socials {", 1)[1].split("}", 1)[0]
+    assert "justify-content: center" in block

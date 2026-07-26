@@ -31,8 +31,15 @@
        :class="{ active: currentTab === 'wizard' }">🪄 添加工作流</a>
     <a href="{{ url_for('settings_page') }}"
        :class="{ active: currentTab === 'settings' }">⚙️ 系统设置</a>
-    <span class="nav-status" x-show="comfyStatusHtml" x-html="comfyStatusHtml"></span>
   </nav>
+
+  <!-- 系统状态横栏: 在 main-tabs 下, 跟主区同样 1200px 上限, 用户一眼看 ComfyUI 状态 -->
+  <div class="system-bar">
+    <button class="btn-secondary" type="button" @click="refreshStatus()" title="刷新状态">🔄 刷新状态</button>
+    <span class="system-status" x-html="systemStatusHtml"></span>
+    <button class="btn-secondary" type="button" @click="openOutputFolder()" title="打开 ComfyUI 输出目录">📂 输出目录</button>
+    <span class="system-open-msg" x-show="openDirMsg" x-text="openDirMsg"></span>
+  </div>
 
   <!-- 主内容区 (子模板填充) -->
   <main class="main-stage">
