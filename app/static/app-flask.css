@@ -610,7 +610,8 @@ body[data-theme="forest-island"] .run-status-bar {
   flex-direction: column;
   align-items: stretch;
   text-align: center;
-  padding: 0 var(--space-4);
+  /* padding 留给子元素 (workflow-workbench / settings-page / wizard-page 自己有)
+     避免 page-frame 再加一层水平 padding 导致 workbench 比 header/nav 内缩 16px */
 }
 .page-frame > .workflow-workbench,
 .page-frame > .settings-page,
