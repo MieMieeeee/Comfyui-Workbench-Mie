@@ -89,14 +89,12 @@ code {
   background: var(--bg-panel);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  column-gap: var(--space-3);
   box-shadow: var(--shadow-sm);
-}
-.main-tabs a {
+}.main-tabs a {
   color: var(--text-muted);
   text-decoration: none;
   padding: var(--space-2) var(--space-3);
@@ -107,9 +105,85 @@ code {
   transition: color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
+.main-tabs-nav {
+  grid-column: 2;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: max-content;
+}
+.main-tabs-nav a { /* inherit main-tabs a styles */ }
 .main-tabs a:hover { color: var(--text-primary); background: var(--bg-card); }
 .main-tabs a.active { color: var(--theme-accent-400); }
-/* nav-status 已搬到 system-bar 里独竆展示, main-tabs 不再包含它 */
+
+/* ComfyUI 状态 pill (跟 nav 链接同一行, 靠右, 自然 flex 0) */
+.main-tabs-status {
+  grid-column: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+.status-pill:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.status-pill .status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-faint); /* 默认 loading 灰 */
+  box-shadow: 0 0 0 3px transparent;
+  transition: background var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+.status-pill-ok .status-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px rgba(155, 210, 111, 0.18);
+}
+.status-pill-err .status-dot {
+  background: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(245, 154, 139, 0.18);
+}
+.status-pill-loading .status-dot {
+  background: var(--text-muted);
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.status-text { font-family: var(--font-mono); white-space: nowrap; }
+
+.status-open, .status-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.status-open:hover, .status-refresh:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+.status-open.disabled { opacity: 0.4; pointer-events: none; }
 
 /* ============================================================
  * 工作台两栏布局
@@ -593,6 +667,56 @@ button {
 .theme-options label.selected { border-left-color: var(--theme-accent-500); }
 .theme-options input[type="radio"] { display: none; }
 .theme-desc { font-size: var(--text-xs); color: var(--text-faint); }
+
+/* 主题卡片紧凑 (review 2026-07-28): 去掉带带描述的底部, 换成三个颜色色块预览主题调性. */
+.theme-options label { padding: var(--space-2) var(--space-3); flex-direction: row; align-items: center; gap: var(--space-3); }
+.theme-options .theme-name { flex: 1 1 auto; font-size: var(--text-sm); font-weight: 500; }
+.theme-swatches { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+.theme-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border-subtle); }
+
+/* 完整健康检查报告 modal (点击后才弹出) */
+/* <dialog> 默认 display: none, [open] 状态才显示. display: flex 加在 [open] 上,
+   避免被这个全局规则提前覆盖把 dialog 一直渲染. */
+.health-modal[open] {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  padding: var(--space-5);
+  max-width: 900px;
+  width: 90vw;
+  max-height: 85vh;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.health-modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+.health-modal h3 { margin-top: 0; margin-bottom: var(--space-3); color: var(--text-primary); }
+.health-modal .health-report {
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+}
+.health-modal-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 32px; height: 32px;
+  border: none;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.health-modal-close:hover { background: var(--color-error); color: var(--text-on-accent); }
 .theme-current-desc { font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-2); }
 
 /* ============================================================
@@ -668,9 +792,13 @@ body[data-theme="forest-island"] .run-status-bar {
     flex-wrap: wrap;
   }
   .main-tabs a { padding: var(--space-2); }
-  .main-tabs .nav-status {
+  .main-tabs { grid-template-columns: 1fr; row-gap: var(--space-2); }
+  .main-tabs-nav, .main-tabs-status { grid-column: 1; justify-self: center; }
+  .status-text { font-size: 0.78rem; }
+  .main-tabs-status {
     flex-basis: 100%;
     margin-left: 0;
+    justify-content: space-between;
   }
   .workflow-workbench {
     flex-direction: column;

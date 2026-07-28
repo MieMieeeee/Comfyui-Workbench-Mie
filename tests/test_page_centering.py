@@ -14,8 +14,10 @@ def test_app_header_and_nav_are_centered():
     assert ".app-shell-header" in CSS
     assert ".app-shell-header {" in CSS
     assert "text-align: center" in CSS
-    head = CSS.split(".main-tabs", 1)[1].split("}", 1)[0]
-    assert "justify-content: center" in head
+    head = CSS.split(".main-tabs {", 1)[1].split("}", 1)[0]
+    # review 2026-07-28: nav 居中改用 grid 三列 (1fr auto 1fr), nav 锁列 2.
+    # flex 的 justify-content: center 不再适用, grid 已经保证 nav 在中间列.
+    assert "grid-template-columns: 1fr auto 1fr" in head, "main-tabs 应走 grid 三列布局"
 
 
 def test_page_frame_centering_css():

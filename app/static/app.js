@@ -43,27 +43,47 @@ function appShell() {
     currentTab: window.location.pathname.startsWith('/settings') ? 'settings'
              : window.location.pathname.startsWith('/wizard') ? 'wizard'
              : 'run',
-    comfyStatusHtml: '',
+    comfyStatusHtml: '',         // 兼容旧调用方 (systemStatusHtml getter 还在)
     pending: false,
-    // 与 comfyStatusHtml 同步, 但额外处理空值 (加载中提示), 给 system-bar 用
+    // status pill (顶部菜单栏右侧) 用的派生数据
+    comfyStatusState: 'loading',   // loading | ok | err
+    comfyStatusUrl: '',            // e.g. http://127.0.0.1:8188
+    comfyStatusLabel: '',          // e.g. ComfyUI · 8188
     get systemStatusHtml() {
       return this.comfyStatusHtml || '<span class="system-status-empty">检测 ComfyUI 状态中…</span>';
+    },
+    get comfyStatusClass() {
+      return { ok: 'status-pill-ok', err: 'status-pill-err', loading: 'status-pill-loading' }[this.comfyStatusState] || '';
+    },
+    get comfyStatusShort() {
+      if (this.comfyStatusState === 'loading') return 'ComfyUI 检测中…';
+      return this.comfyStatusLabel || 'ComfyUI';
+    },
+    get comfyStatusTitle() {
+      if (this.comfyStatusState === 'err') return 'ComfyUI 状态获取失败 (HTTP 不可达)';
+      return this.comfyStatusUrl || '';
     },
 
     async init() {
       await this.refreshStatus();
-      // 每 30s 刷新一次连接状态
       setInterval(() => this.refreshStatus(), 30000);
     },
 
     async refreshStatus() {
       try {
         const s = await fetchJSON('/api/comfy_status');
-        this.comfyStatusHtml = `ComfyUI: ${s.dot} <code>${s.url}</code>`;
+        this.comfyStatusHtml = 'ComfyUI: ' + s.dot + ' <code>' + s.url + '</code>';
+        this.comfyStatusUrl = s.url || '';
+        this.comfyStatusLabel = s.url || 'ComfyUI';
+        this.comfyStatusState = s.ok ? 'ok' : 'err';
       } catch (e) {
         this.comfyStatusHtml = 'ComfyUI: <span class="err">状态获取失败</span>';
+        this.comfyStatusUrl = '';
+        this.comfyStatusLabel = 'ComfyUI 不可达';
+        this.comfyStatusState = 'err';
       }
     },
+
 
 
     // 主题切换 helper (settings tab 也复用)
@@ -631,7 +651,7 @@ function settingsTab() {
         fetchJSON('/api/theme').catch(() => ({ theme_id: '', desc: '' })),
       ]);
       // url 从 appShell 的 comfyStatusHtml 反推 (调用 /api/comfy_status 也会重走连接检查的 2 秒超时).
-      this.url = (window.Alpine && document.body._x_dataStack && document.body._x_dataStack[0] && document.body._x_dataStack[0].comfyStatusHtml) || '';
+      this.url = (window.Alpine && document.body._x_dataStack && document.body._x_dataStack[0] && document.body._x_dataStack[0].comfyStatusUrl) || '';
       this.themes = themes || [];
       this.currentThemeId = (cur && cur.theme_id) || '';
       this.themeDesc = (cur && cur.desc) || '';
@@ -681,6 +701,9 @@ function settingsTab() {
 
     async fullCheck() {
       this.healthReport = '检查中…';
+      // 模态弹窗: 完成 (或失败) 时调 showModal() 弹出. dialog 元素来自 settings.html 的 <dialog>.
+      const dlg = document.querySelector('.health-modal');
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
       try {
         const data = await fetchJSON('/api/health');
         this.healthReport = data.report;

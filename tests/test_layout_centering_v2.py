@@ -16,16 +16,16 @@ def test_header_and_nav_have_max_width():
     assert "max-width" in body
 
 
-def test_header_and_nav_center_when_nav_status_visible():
-    # nav-status 用 margin-left: auto 在 flex 中被推到右边, 居中失效
-    body = CSS.split(".main-tabs {", 1)[1].split("}", 1)[0]
-    assert "margin-left: auto" not in body
-    assert ".nav-status {" in CSS
-    nav_status = CSS.split(".nav-status {", 1)[1].split("}", 1)[0]
-    # nav-status 改为独立块, 整体居中后下方一行
-    assert "margin-left: auto" not in nav_status or "flex-basis: 100%" in CSS
-
-
+def test_header_and_nav_with_status_pill_on_right():
+    # review 2026-07-28 (再修): 改成 grid 三列布局, 1fr 1fr 两侧等宽 spacer + auto nav 中间列 + grid-column: 3 / justify-self: end status.
+    # flex 版的 margin-left: auto 不再适用 (会跟 grid 互相打架).
+    assert ".main-tabs-status {" in CSS
+    status_body = CSS.split(".main-tabs-status {", 1)[1].split("}", 1)[0]
+    assert "grid-column: 3" in status_body, "status pill 锁 grid 第 3 列"
+    assert "justify-self: end" in status_body, "status pill 在第 3 列内右对齐"
+    # main-tabs 整体走 grid, 三列 1fr auto 1fr 自动等宽 spacer, nav 自然居中
+    main_tabs_body = CSS.split(".main-tabs {", 1)[1].split("}", 1)[0]
+    assert "grid-template-columns: 1fr auto 1fr" in main_tabs_body, "main-tabs 走 grid 三列布局"
 def test_workflow_core_inside_unified_panel():
     run_html = (ROOT / "app" / "templates" / "run.html").read_text(encoding="utf-8")
     # 工作流主体包在 creator-card + form + result 区, 全部属于同一 panel

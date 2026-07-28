@@ -72,14 +72,28 @@ def _reset_url_action():
 
 
 def _comfy_status_dict() -> dict:
-    """连接状态 {ok, url, dot}."""
+    """连接状态 {ok, url, port, dot}.
+
+    review 2026-07-28: 加 port 字段, 顶部菜单栏的状态 pill 要显示 "ComfyUI · 8188" 这种短标签.
+    解析失败时 port=None, 客户端会显示 "ComfyUI · ?".
+    """
+    import re as _re
+    url = scail2_client.get_base_url()
+    port = None
+    m = _re.search(r":(\d+)(?=/|$)", url)
+    if m:
+        try:
+            port = int(m.group(1))
+        except (TypeError, ValueError):
+            port = None
     try:
         ok, _msg = scail2_client.check_connection(timeout=1)
     except Exception:
         ok = False
     return {
         "ok": bool(ok),
-        "url": scail2_client.get_base_url(),
+        "url": url,
+        "port": port,
         "dot": "🟢" if ok else "🔴",
     }
 
@@ -283,8 +297,9 @@ def wizard_page():
 @app.route("/api/themes")
 def get_themes():
     """所有主题列表."""
+    # review 2026-07-28: 加 tokens 字段, 设置页 swatch 预览要拿 --bg-app / --theme-accent-400 / --text-primary
     return jsonify([
-        {"id": t["id"], "name": t["name"], "desc": t["desc"]}
+        {"id": t["id"], "name": t["name"], "desc": t["desc"], "tokens": t.get("tokens", {})}
         for t in theme._list_themes()
     ])
 

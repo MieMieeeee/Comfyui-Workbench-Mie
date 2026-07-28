@@ -46,13 +46,19 @@ def test_run_html_splits_icon_and_text_into_two_spans():
     )
 
 
-def test_base_html_has_system_bar():
-    """base.html 里应有 system-bar 独竆展示系统状态, 在 main-tabs 下、上面 main 上."""
-    assert "system-bar" in BASE
-    # 顺序: nav.main-tabs 要在 system-bar 之前
-    tabs_idx = BASE.index("class=\"main-tabs\"")
-    bar_idx = BASE.index("class=\"system-bar\"")
-    assert tabs_idx < bar_idx, "system-bar 要在 main-tabs 之后"
+def test_base_html_status_pill_inside_main_tabs():
+    """review 2026-07-28: ComfyUI 状态 pill (.main-tabs-status) 合并进 .main-tabs 同一行.
+    少占一行垂直空间, 状态在 nav 旁边常驻可见, 不再需要独立的 .system-bar 行."""
+    assert "main-tabs-status" in BASE, "main-tabs 里应有 .main-tabs-status 块"
+    # 顺序: .main-tabs-status 应在 3 个 nav <a> 之后
+    nav_status_idx = BASE.index("main-tabs-status")
+    nav_run_idx = BASE.index(">\u25b6 \u8fd0\u884c<", 0)  # first nav link has the emoji+text
+    if nav_run_idx < 0:
+        # fallback: search for the nav links by attribute marker
+        nav_run_idx = BASE.index("\u8fd0\u884c")
+    assert nav_run_idx < nav_status_idx, "status pill 应在 nav 链接之后"
+    # 不再有独立的 .system-bar 行
+    assert "class=\"system-bar\"" not in BASE, "system-bar 行已并入 main-tabs, 不应再出现"
 
 
 def test_run_html_no_longer_has_nav_group_system():

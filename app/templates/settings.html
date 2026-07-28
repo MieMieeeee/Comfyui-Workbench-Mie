@@ -3,9 +3,10 @@
 
 {% block content %}
 <div class="settings-page" x-data="settingsTab()" x-init="init()">
+
   <section class="settings-section">
     <h2>⚙️ 系统设置</h2>
-    <p>ComfyUI 地址运行时可改。默认 <code>{{ default_url }}</code>,可改成局域网/远程实例。</p>
+    <p>ComfyUI 地址运行时可改。默认 <code>{{ default_url }}</code>。</p>
 
     <div class="url-row">
       <input type="text"
@@ -29,27 +30,30 @@
   <hr>
 
   <section class="settings-section">
-    <h3>🔍 完整健康检查报告</h3>
-    <div class="health-report" x-html="healthReport"></div>
-  </section>
-
-  <hr>
-
-  <section class="settings-section">
     <h2>🎨 主题</h2>
-    <p>切换后即时生效 (毫秒级)。新增主题编辑 <code>app/presets/themes.json</code>。</p>
+    <p>切换后即时生效。新增编辑 <code>app/presets/themes.json</code>。</p>
 
     <fieldset class="theme-options">
       <template x-for="t in themes" :key="t.id">
         <label :class="{ selected: t.id === currentThemeId }">
           <input type="radio" name="theme" :value="t.id" x-model="currentThemeId"
                  @change="changeTheme(t.id)">
-          <span x-text="t.name"></span>
-          <em class="theme-desc" x-text="t.desc"></em>
+          <span class="theme-name" x-text="t.name"></span>
+          <span class="theme-swatches">
+            <span class="theme-swatch" :style="'background:' + (t.tokens['--bg-app'] || '#222')"></span>
+            <span class="theme-swatch" :style="'background:' + (t.tokens['--theme-accent-400'] || '#888')"></span>
+            <span class="theme-swatch" :style="'background:' + (t.tokens['--text-primary'] || '#fff')"></span>
+          </span>
         </label>
       </template>
     </fieldset>
-    <p class="theme-current-desc" x-show="themeDesc" x-html="themeDesc"></p>
   </section>
+
+  <!-- 完整健康检查报告: 点击后才弹出 modal, 不占起始页面高度 -->
+  <dialog class="health-modal" @close="healthReport=''" @click="if ($event.target === $event.currentTarget) $event.target.close()">
+    <button type="button" class="health-modal-close" @click="$el.closest('dialog').close()" aria-label="关闭报告 (Esc)">×</button>
+    <h3>🔍 完整健康检查报告</h3>
+    <div class="health-report" x-html="healthReport"></div>
+  </dialog>
 </div>
 {% endblock %}

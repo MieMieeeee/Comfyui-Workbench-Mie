@@ -19,35 +19,34 @@ _FILE_ROUTE_PREFIX = "/comfy_input/"
 def _media_ext_from_url(src):
     """从 URL / 路径里取文件扩展名 (含 query 参数里的 filename).
 
-    ComfyUI /view URL 结构: /view?filename=NAME&type=output&subfolder=SUBFOLDER
-    直接 endswith 在 src 上不工作 (URL 后面跟 &type=...&subfolder=...), 需解析
-    query 取 filename 的扩展名. 其它 HTTP URL (http://x/clip.mp4) 走 path
-    的扩展名; 本地路径走 Path.suffix.
-    返回小写扩展名, e.g. ".mp4" / ".png" / "" (无法识别).
+    review 2026-07-28: 之前区分 http:// / 本地路径走 Path.suffix, 但 Path 不认 ?&
+    (把 ?filename=foo.mp3&type=output 整个当路径, suffix 拿到 ".mp3&type=output" 不是
+    ".mp3"), 导致 /comfy_output?... 这种"裸端点 + filename 在 query"的形态误判.
+    统一走 urlparse 解析:
+      - path 扩展名 (/static/examples/foo.mp3 -> ".mp3"; /comfy_output -> "")
+      - query 里的 filename 扩展名 (/comfy_output?filename=foo.mp3 -> ".mp3")
+      - 找不到 -> ""
     """
     from urllib.parse import urlparse, parse_qs, unquote
     from pathlib import PurePosixPath
     if not src or not isinstance(src, str):
         return ""
-    # 本地路径: 走 Path.suffix
-    if not src.startswith("http"):
-        return Path(src).suffix.lower()
-    # HTTP URL: 优先 path 扩展名; 若是裸端点 (如 /view), 退回 query param 里的 filename
     try:
         parsed = urlparse(src)
     except Exception:
         return ""
+    # 1) path 扩展名
     path_ext = PurePosixPath(parsed.path).suffix.lower()
     if path_ext:
         return path_ext
-    # query 里找 filename-like value, 按常见 key 顺序: filename (ComfyUI), f (测试用), name, file
+    # 2) query 里的 filename / f / name / file (按常见 key 顺序)
     qs = parse_qs(parsed.query, keep_blank_values=False)
     for key in ("filename", "f", "name", "file"):
         for v in qs.get(key, []):
             ext = PurePosixPath(unquote(v)).suffix.lower()
             if ext:
                 return ext
-    # 兜底: 找 query 里第一个有扩展名的 value
+    # 3) 兜底: query 里第一个有扩展名的 value
     for values in qs.values():
         for v in values:
             ext = PurePosixPath(unquote(v)).suffix.lower()
@@ -55,19 +54,25 @@ def _media_ext_from_url(src):
                 return ext
     return ""
 
-
 def _local_to_url(s):
-    """把 http(s) URL 或本地绝对路径转成浏览器可吃的 URL.
+    """把 http(s) URL / Flask 路由 / 本地绝对路径转成浏览器可吃的 URL.
 
-    Flask 路由只有两条能服务本地文件:
-      - /comfy_input/<name>   -> COMFY_INPUT_DIR 下的文件
-      - /static/<rel>         -> app/static/ 下的文件
-    其它路径 (e.g. ComfyUI output 目录) 没有对应路由, 返回 None.
-    实际 runner 走 ComfyUI get_output_url 返回的 /view HTTP URL, 这个函数只是兜底.
+    路径类型 (review 2026-07-28):
+      - http(s) URL                原样返回 (浏览器直接 hit)
+      - /comfy_input/<name>        Flask 路由 -> COMFY_INPUT_DIR 下的文件
+      - /comfy_output?<filename>    Flask 路由 -> ComfyUI run 出来的产物
+      - /static/<rel>              Flask static -> app/static/ 下的文件
+      - 本地绝对路径 (Windows / POSIX)  -> 按相对仓库根算 static 或 /comfy_input
+
+    其它 (e.g. 没有对应 Flask 路由的绝对路径) 返回 None.
     """
     if not s or not isinstance(s, str):
         return None
     if s.startswith("http"):
+        return s
+    # Flask 路由路径: 透传, 浏览器 hit Flask 拿到文件. 不管 query 串.
+    # /comfy_input / /comfy_output / /static 是当前 3 个能服务本地文件的路由
+    if s.startswith("/comfy_input/") or s.startswith("/comfy_output") or s.startswith("/static/"):
         return s
     sp = Path(s)
     if not sp.exists():
