@@ -28,27 +28,37 @@
     },
     {
       "node_id": "111",
-      "field": "width",
-      "label": "宽度 (像素)",
-      "type": "int",
-      "min": 256,
-      "max": 1920,
-      "default": 768,
-      "step": 64,
-      "help": "视频宽度。需为 64 的倍数。",
-      "tier": "basic"
-    },
-    {
-      "node_id": "111",
-      "field": "height",
-      "label": "高度 (像素)",
-      "type": "int",
-      "min": 256,
-      "max": 1088,
-      "default": 512,
-      "step": 64,
-      "help": "视频高度。需为 64 的倍数。",
-      "tier": "basic"
+      "field": "sizes",
+      "label": "输出尺寸",
+      "type": "image_sizes",
+      "tier": "basic",
+      "presets": [
+        {
+          "label": "🎬 768×512 ｜ 3:2 (默认)",
+          "value": "768x512"
+        },
+        {
+          "label": "🖥 1024×576 ｜ 16:9",
+          "value": "1024x576"
+        },
+        {
+          "label": "📱 576×1024 ｜ 9:16",
+          "value": "576x1024"
+        },
+        {
+          "label": "🖼 1024×1024 ｜ 1:1",
+          "value": "1024x1024"
+        }
+      ],
+      "default": [
+        "768x512"
+      ],
+      "allow_custom": true,
+      "min_width": 256,
+      "max_width": 1920,
+      "min_height": 256,
+      "max_height": 1088,
+      "help": "勾选预设尺寸，或输入自定义宽x高。宽度 256-1920、高度 256-1088。"
     },
     {
       "node_id": "112",
@@ -77,13 +87,14 @@
   ],
   "example": {
     "prompt": "A middle-aged East Asian man in a slightly rumpled white dress shirt sits alone at a small vintage wooden desk in a quiet study at dusk, facing the camera. He has just heard something that troubles him; over the four-second shot his composed expression slowly gives way without a single large gesture: his gaze drops from the lens toward his own open hands resting palm-up on the desk, the inner corners of his eyebrows rise and pull together forming a faint apologetic crease above the bridge of his nose, his lips press into a thin flat line, his jaw tightens and he swallows once, then a single slow breath parts his lips slightly. His body, shoulders and the desk stay perfectly still throughout; only his face animates. Behind him a wooden bookshelf and a coat hanging on a chair fall into deep shadow while a single warm tungsten desk lamp casts soft side light onto his expression. No camera motion, no walking, no other movement. Cinematic depth of field, photorealistic, 24fps.",
-    "width": 768,
-    "height": 512,
     "length": 97,
     "frame_rate": 24,
     "preview_image": "app/static/examples/ltx_23_t2v.png",
     "preview_video": "app/static/examples/ltx_23_t2v.mp4",
-    "contract_sha256": "5993b3bfa5262ef82c4a9502de1464e095ee048f03c4e4412a92816fbfe5afb8"
+    "contract_sha256": "5993b3bfa5262ef82c4a9502de1464e095ee048f03c4e4412a92816fbfe5afb8",
+    "sizes": [
+      "768x512"
+    ]
   },
   "output_kind": "video",
   "do_not_modify_warnings": [

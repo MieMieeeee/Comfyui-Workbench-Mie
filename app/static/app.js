@@ -108,6 +108,7 @@ function runTab(workflows, presetCfgs) {
     // 配置常量 (从 config 同步)
     imageExts: '.png,.jpg,.jpeg,.webp',
     videoExts: '.mp4,.mov,.webm,.m4v',
+    audioExts: '.mp3,.wav,.m4a,.flac,.ogg',
 
     async init() {
       this.refreshStatus();
@@ -135,6 +136,7 @@ function runTab(workflows, presetCfgs) {
             fi += 1;
           }
         }
+        this._seedImageSizesCustomKeys(fv, cfg);
         scope.formValues = fv;
         for (let i = 0; i < cfg.user_facing_inputs.length; i++) {
           const spec = cfg.user_facing_inputs[i];
@@ -178,6 +180,7 @@ function runTab(workflows, presetCfgs) {
           flatIdx += 1;
         }
       }
+      this._seedImageSizesCustomKeys(formValues, cfg);
       data.formValues = formValues;
     },
 
@@ -250,17 +253,18 @@ function runTab(workflows, presetCfgs) {
 
     getExampleThumbUrl(presetName, specIdx) {
       // 从 panel 的 formValues[specIdx] 提取缩略图 URL.
-      // form_schema.example_to_form_values 返回 ComfyUI input 目录下的纯文件名
-      // (e.g. 'halfbody.png'), 前端通过 /comfy_input/<name> 路由读取本地文件展示.
-      // 历史侧车 (manifest.json) 里可能存的是绝对路径, 也取 basename 兼容.
-      const panel = document.querySelector(`[data-preset="${presetName}"]`);
-      if (!panel) return '';
+      // form_schema.example_to_form_values 返回 "app/static/examples/<name>" (review 2026-07-28
+      // 起统一从项目仓库读, 不再去 ComfyUI input 翻), 前端通过 /example_thumb/<basename>
+      // 路由读取本地文件展示. 该路由只查 app/static/examples/, 见 flask_app.example_thumb.
+      // 历史 manifest 侧车里可能存的是绝对路径或裸 basename, 也取 basename 兼容.
+      const panel = document.querySelector("[data-preset=\"" + presetName + "\"]");
+      if (!panel) return "";
       const data = Alpine.$data(panel);
       const v = data.formValues[specIdx];
-      if (!v) return '';
-      const basename = v.replace(/\\/g, '/').split('/').pop();
-      if (!basename) return '';
-      return '/comfy_input/' + encodeURIComponent(basename);
+      if (!v) return "";
+      const basename = v.replace(/\\/g, "/").split("/").pop();
+      if (!basename) return "";
+      return "/example_thumb/" + encodeURIComponent(basename);
     },
 
     async onFileSelect(event, presetName, specIdx, kind) {
@@ -305,8 +309,16 @@ function runTab(workflows, presetCfgs) {
       if (!panel) return;
       const checked = event.target;
       const value = checked.value;
-      // 单选: 勾一个就锁定这一项, 取消则清空 (兼容多选迁移过来后用户勾新尺寸会覆盖).
-      panelData(panel).formValues[specIdx] = checked.checked ? [value] : [];
+      // 多选: formValues[idx] 是 ["WxH", ...] 字符串数组, runner image 路径按每个尺寸各跑一张.
+      // 勾上 -> 加入列表 (去重), 不替换; 取消 -> 只移除该项, 保留其它.
+      const current = panelData(panel).formValues[specIdx] || [];
+      if (checked.checked) {
+        panelData(panel).formValues[specIdx] =
+          current.includes(value) ? current : [...current, value];
+      } else {
+        panelData(panel).formValues[specIdx] =
+          current.filter((item) => item !== value);
+      }
     },
 
     async randomPrompt(presetName, specIdx, n) {
@@ -432,6 +444,135 @@ function runTab(workflows, presetCfgs) {
           this.runState[presetName] = ev.state;
         }
       }
+    },
+
+    // === image_sizes 自定义 WxH 字段 helpers ===
+    //
+    // 数据模型 (formValues):
+    //   - formValues[idx]              : ["WxH", ...] 主数组, runner 直接吃
+    //   - formValues[idx + '_custom_on']: bool, 自定义卡片是否勾上
+    //   - formValues[idx + '_cw']      : number, 自定义宽度
+    //   - formValues[idx + '_ch']      : number, 自定义高度
+    //
+    // 三个 _custom_on / _cw / _ch 辅助键必须在 initPanelScope + _applyFormValues
+    // 初始化时就建好 (Alpine 3 Proxy 不追踪后加的 key, 必须预建).
+    // _seedImageSizesCustomKeys 在两条路径都调.
+
+    _parseWxH(s) {
+      if (!s || typeof s !== 'string') return null;
+      const m = s.match(/^(\d+)\s*[x\u00d7]\s*(\d+)$/);
+      return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
+    },
+
+    _presetValuesFor(spec) {
+      return (spec.presets || []).map(p => typeof p === 'object' ? p.value : p);
+    },
+
+    _seedImageSizesCustomKeys(fv, cfg) {
+      // 对 cfg.user_facing_inputs 里的 image_sizes spec:
+      //   - 预建 _custom_on / _cw / _ch 三个键 (Alpine 响应式前提)
+      //   - 若 formValues[idx] 含不在 spec.presets 里的值, 自动点亮自定义 + 填 W/H
+      const inputs = cfg.user_facing_inputs || [];
+      for (let i = 0; i < inputs.length; i++) {
+        const spec = inputs[i];
+        if (spec.type !== 'image_sizes') continue;
+        const presetValues = this._presetValuesFor(spec);
+        const list = Array.isArray(fv[i]) ? fv[i] : [];
+        // 找一个不在 presetValues 里的值 (作为自定义的种子)
+        const customSeed = list.find(v => !presetValues.includes(v));
+        // 预建三个键 (Alpine 3 Proxy 必须显式 set 才能追踪)
+        if (fv[i + '_custom_on'] === undefined) fv[i + '_custom_on'] = !!customSeed;
+        if (fv[i + '_cw'] === undefined) fv[i + '_cw'] = customSeed ? (this._parseWxH(customSeed)?.[0] ?? null) : null;
+        if (fv[i + '_ch'] === undefined) fv[i + '_ch'] = customSeed ? (this._parseWxH(customSeed)?.[1] ?? null) : null;
+      }
+    },
+
+    customChecked(presetName, specIdx) {
+      const panel = document.querySelector('[data-preset="' + presetName + '"]');
+      if (!panel) return false;
+      const fv = panelData(panel).formValues;
+      return !!fv[specIdx + '_custom_on'];
+    },
+
+    customW(presetName, specIdx) {
+      const panel = document.querySelector('[data-preset="' + presetName + '"]');
+      if (!panel) return '';
+      const fv = panelData(panel).formValues;
+      return fv[specIdx + '_cw'] ?? '';
+    },
+
+    customH(presetName, specIdx) {
+      const panel = document.querySelector('[data-preset="' + presetName + '"]');
+      if (!panel) return '';
+      const fv = panelData(panel).formValues;
+      return fv[specIdx + '_ch'] ?? '';
+    },
+
+    onCustomToggle(event, presetName, specIdx) {
+      // 勾 / 取消自定义卡片:
+      //  勾上: 预填 _cw / _ch (从当前主数组第一个非 preset 的值, 或第一个 preset),
+      //        把 "W x H" 推进 formValues[idx] (去重)
+      //  取消: 把 "W x H" 从 formValues[idx] 摘掉, 清 _cw / _ch
+      const panel = document.querySelector('[data-preset="' + presetName + '"]');
+      if (!panel) return;
+      const data = panelData(panel);
+      const fv = data.formValues;
+      const cfg = data.presetCfg;
+      const spec = cfg.user_facing_inputs[specIdx];
+      const presetValues = this._presetValuesFor(spec);
+      const list = Array.isArray(fv[specIdx]) ? fv[specIdx] : [];
+      const checked = !!event.target.checked;
+      fv[specIdx + '_custom_on'] = checked;
+      if (checked) {
+        // 预填 _cw / _ch
+        if (!fv[specIdx + '_cw'] || !fv[specIdx + '_ch']) {
+          // 优先复用当前数组里非 preset 的值, 没有再用第一个 preset
+          const seed = list.find(v => !presetValues.includes(v)) || presetValues[0];
+          const wh = this._parseWxH(seed);
+          if (wh) { fv[specIdx + '_cw'] = wh[0]; fv[specIdx + '_ch'] = wh[1]; }
+        }
+        // 把 "W x H" 推进主数组
+        const tag = fv[specIdx + '_cw'] + 'x' + fv[specIdx + '_ch'];
+        if (fv[specIdx + '_cw'] && fv[specIdx + '_ch'] && !list.includes(tag)) {
+          fv[specIdx] = [...list, tag];
+        }
+      } else {
+        // 把当前 "W x H" 摘掉
+        const tag = fv[specIdx + '_cw'] + 'x' + fv[specIdx + '_ch'];
+        fv[specIdx] = list.filter(v => v !== tag);
+        fv[specIdx + '_cw'] = null;
+        fv[specIdx + '_ch'] = null;
+      }
+    },
+
+    onCustomSizeInput(event, presetName, specIdx, which) {
+      // 用户在自定义 W/H 输入框改值, 实时:
+      //  - 更新 _cw / _ch
+      //  - 把新 "W x H" 写进 formValues[idx] (替换旧的 custom 项)
+      const panel = document.querySelector('[data-preset="' + presetName + '"]');
+      if (!panel) return;
+      const data = panelData(panel);
+      const fv = data.formValues;
+      const cfg = data.presetCfg;
+      const spec = cfg.user_facing_inputs[specIdx];
+      const presetValues = this._presetValuesFor(spec);
+      const v = event.target.value === '' ? null : parseInt(event.target.value, 10);
+      const list = Array.isArray(fv[specIdx]) ? fv[specIdx] : [];
+      // 记住旧 custom 的 tag (要替换)
+      const oldTag = (fv[specIdx + '_cw'] && fv[specIdx + '_ch']) ? (fv[specIdx + '_cw'] + 'x' + fv[specIdx + '_ch']) : null;
+      if (which === 'w') fv[specIdx + '_cw'] = v;
+      else fv[specIdx + '_ch'] = v;
+      const newTag = (fv[specIdx + '_cw'] && fv[specIdx + '_ch']) ? (fv[specIdx + '_cw'] + 'x' + fv[specIdx + '_ch']) : null;
+      // 替换主数组里的 custom 项
+      let next = list;
+      if (oldTag && newTag && oldTag !== newTag) {
+        next = list.map(x => x === oldTag ? newTag : x);
+      } else if (newTag && !oldTag) {
+        next = [...list, newTag];
+      } else if (!newTag && oldTag) {
+        next = list.filter(x => x !== oldTag);
+      }
+      fv[specIdx] = next.filter(x => x && !presetValues.includes(x) || presetValues.includes(x));
     },
 
     collectFormValues(panel) {

@@ -36,6 +36,19 @@
       ]
     },
     {
+      "node_id": "469",
+      "field": "video",
+      "label": "驱动视频",
+      "type": "file:video",
+      "tier": "basic",
+      "also_patch": [
+        {
+          "node_id": "543",
+          "field": "video"
+        }
+      ]
+    },
+    {
       "node_id": "348",
       "field": "text",
       "label": "驱动视频抠图提示词",
@@ -63,19 +76,6 @@
       "help": "模型用的正向提示词。",
       "tier": "basic",
       "example_key": "main_prompt"
-    },
-    {
-      "node_id": "469",
-      "field": "video",
-      "label": "驱动视频",
-      "type": "file:video",
-      "tier": "basic",
-      "also_patch": [
-        {
-          "node_id": "543",
-          "field": "video"
-        }
-      ]
     },
     {
       "node_id": "469",
@@ -117,7 +117,7 @@
     }
   ],
   "example": {
-    "reference_image": "halfbody.png",
+    "reference_image": "app/static/examples/halfbody.png",
     "drive_video": "scail2_drive_00038.mp4",
     "ref_prompt": "human",
     "drive_prompt": "human",

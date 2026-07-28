@@ -113,14 +113,11 @@ def _base_spec(node_id: str, field: str, typ: str, default=None, confidence: str
 def _default_spec_options(typ: str) -> dict:
     """向导生成配置的通用显示元数据。"""
     if typ == "image_sizes":
+        # presets / allow_custom 走全局 (统一显示与 zimage/sca12 一致),
+        # form_schema.enrich_preset_config 会在 preset_config 出口处注入.
+        # 这里只留 help 文案 (向导建的工作流可以独立调一句).
         return {
-            "presets": [
-                {"label": "1024×1024 ｜ 1:1 正方形", "value": "1024x1024"},
-                {"label": "1280×720 ｜ 16:9 横版", "value": "1280x720"},
-                {"label": "720×1280 ｜ 9:16 竖版", "value": "720x1280"},
-                {"label": "1024×1280 ｜ 4:5 海报", "value": "1024x1280"},
-            ],
-            "help": "选择要生成的输出尺寸。",
+            "help": "勾选多个预设尺寸, 或填自定义宽×高 (每个尺寸出一张图)。",
         }
     if typ == "int_random":
         return {

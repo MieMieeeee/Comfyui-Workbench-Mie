@@ -1,8 +1,11 @@
 """提示词池 — 文生图的随机提示词来源。
 
 数据存在 app/presets/prompts.json。用户可手动编辑该文件扩充池子。
-FollowThisImage 项目本身没有提示词池（它的 prompt 由 VLM 反推生成），
-这里的 ~22 条是从它的 history（5049 条真实生成记录）里按类别+长度筛选抽样得来。
+构造 (review 2026-07-27, 凑到 100 条):
+  - 22 条手写 portrait/food/landscape 等多样示例 (保留作者原判)
+  - 44 条来自 FollowThisImage/starred 库 (作者标星的真实生成, 质量高)
+  - 34 条从 FollowThisImage/history (5553 条) 按 photorealistic + 长度 200-900 筛选, round-robin 按 category 抽样保证多样
+category 字段让 random_prompt(category=...) 仍能按主题过滤 (portrait / landscape / food / vehicle / animal / interior / cityscape / product 等).
 """
 from __future__ import annotations
 

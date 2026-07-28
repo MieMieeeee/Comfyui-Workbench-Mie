@@ -36,19 +36,15 @@
       ]
     },
     {
-      "node_id": "348",
-      "field": "text",
-      "label": "驱动视频抠图提示词",
-      "type": "text",
-      "max_chars": 100,
-      "default": "human",
-      "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
+      "node_id": "469",
+      "field": "video",
+      "label": "驱动视频",
+      "type": "file:video",
       "tier": "basic",
-      "example_key": "drive_prompt",
-      "mirror_to": [
+      "also_patch": [
         {
-          "node_id": "540",
-          "field": "text"
+          "node_id": "543",
+          "field": "video"
         }
       ]
     },
@@ -65,15 +61,19 @@
       "example_key": "main_prompt"
     },
     {
-      "node_id": "469",
-      "field": "video",
-      "label": "驱动视频",
-      "type": "file:video",
+      "node_id": "348",
+      "field": "text",
+      "label": "驱动视频抠图提示词",
+      "type": "text",
+      "max_chars": 100,
+      "default": "human",
+      "help": "告诉系统从驱动视频里抠出什么主体。常用：human / person / animal。",
       "tier": "basic",
-      "also_patch": [
+      "example_key": "drive_prompt",
+      "mirror_to": [
         {
-          "node_id": "543",
-          "field": "video"
+          "node_id": "540",
+          "field": "text"
         }
       ]
     },
@@ -117,7 +117,7 @@
     }
   ],
   "example": {
-    "reference_image": "halfbody.png",
+    "reference_image": "app/static/examples/halfbody.png",
     "drive_video": "scail2_drive_00038.mp4",
     "ref_prompt": "human",
     "drive_prompt": "human",

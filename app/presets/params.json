@@ -49,7 +49,8 @@
               "value": "1280x1024"
             }
           ],
-          "help": "勾选要生成的尺寸(每个尺寸出一张图)。多 size 走预设多选,不开自由文本输入。"
+          "allow_custom": true,
+          "help": "勾选多个预设尺寸, 或填自定义宽×高 (每个尺寸出一张图)。"
         },
         {
           "node_id": "3",
@@ -129,23 +130,28 @@
           ],
           "presets": [
             {
-              "label": "🪧 512×768 ｜ 2:3 (海报 / 宣传图默认)",
-              "value": "512x768"
-            },
-            {
-              "label": "📱 704×1280 ｜ 9:16 (高清竖版海报)",
-              "value": "704x1280"
-            },
-            {
-              "label": "🎬 1280×704 ｜ 16:9 (横版封面 / banner)",
-              "value": "1280x704"
-            },
-            {
-              "label": "🖼 1024×1024 ｜ 1:1 (方图)",
+              "label": "🖼 1024×1024 ｜ 1:1 (正方形通用)",
               "value": "1024x1024"
+            },
+            {
+              "label": "🎬 1280×720 ｜ 16:9 (横版封面/视频帧)",
+              "value": "1280x720"
+            },
+            {
+              "label": "📱 720×1280 ｜ 9:16 (竖版手机壁纸)",
+              "value": "720x1280"
+            },
+            {
+              "label": "📕 1024×1280 ｜ 4:5 (竖版海报/社媒)",
+              "value": "1024x1280"
+            },
+            {
+              "label": "🖥 1280×1024 ｜ 5:4 (横版桌面/展示)",
+              "value": "1280x1024"
             }
           ],
-          "help": "勾选要生成的尺寸(每个尺寸出一张图)。Qwen Image 适合 512-1280 范围。"
+          "allow_custom": true,
+          "help": "勾选多个预设尺寸, 或填自定义宽×高 (每个尺寸出一张图)。"
         },
         {
           "node_id": "3",
@@ -305,6 +311,19 @@
           ]
         },
         {
+          "node_id": "469",
+          "field": "video",
+          "label": "驱动视频",
+          "type": "file:video",
+          "tier": "basic",
+          "also_patch": [
+            {
+              "node_id": "543",
+              "field": "video"
+            }
+          ]
+        },
+        {
           "node_id": "348",
           "field": "text",
           "label": "驱动视频抠图提示词",
@@ -332,19 +351,6 @@
           "help": "模型用的正向提示词。",
           "tier": "basic",
           "example_key": "main_prompt"
-        },
-        {
-          "node_id": "469",
-          "field": "video",
-          "label": "驱动视频",
-          "type": "file:video",
-          "tier": "basic",
-          "also_patch": [
-            {
-              "node_id": "543",
-              "field": "video"
-            }
-          ]
         },
         {
           "node_id": "469",
@@ -588,27 +594,37 @@
         },
         {
           "node_id": "111",
-          "field": "width",
-          "label": "宽度 (像素)",
-          "type": "int",
-          "min": 256,
-          "max": 1920,
-          "default": 768,
-          "step": 64,
-          "help": "视频宽度。需为 64 的倍数。",
-          "tier": "basic"
-        },
-        {
-          "node_id": "111",
-          "field": "height",
-          "label": "高度 (像素)",
-          "type": "int",
-          "min": 256,
-          "max": 1088,
-          "default": 512,
-          "step": 64,
-          "help": "视频高度。需为 64 的倍数。",
-          "tier": "basic"
+          "field": "sizes",
+          "label": "输出尺寸",
+          "type": "image_sizes",
+          "tier": "basic",
+          "presets": [
+            {
+              "label": "🎬 768×512 ｜ 3:2 (默认)",
+              "value": "768x512"
+            },
+            {
+              "label": "🖥 1024×576 ｜ 16:9",
+              "value": "1024x576"
+            },
+            {
+              "label": "📱 576×1024 ｜ 9:16",
+              "value": "576x1024"
+            },
+            {
+              "label": "🖼 1024×1024 ｜ 1:1",
+              "value": "1024x1024"
+            }
+          ],
+          "default": [
+            "768x512"
+          ],
+          "allow_custom": true,
+          "min_width": 256,
+          "max_width": 1920,
+          "min_height": 256,
+          "max_height": 1088,
+          "help": "勾选预设尺寸，或输入自定义宽x高。宽度 256-1920、高度 256-1088。"
         },
         {
           "node_id": "112",
@@ -637,13 +653,14 @@
       ],
       "example": {
         "prompt": "A middle-aged East Asian man in a slightly rumpled white dress shirt sits alone at a small vintage wooden desk in a quiet study at dusk, facing the camera. He has just heard something that troubles him; over the four-second shot his composed expression slowly gives way without a single large gesture: his gaze drops from the lens toward his own open hands resting palm-up on the desk, the inner corners of his eyebrows rise and pull together forming a faint apologetic crease above the bridge of his nose, his lips press into a thin flat line, his jaw tightens and he swallows once, then a single slow breath parts his lips slightly. His body, shoulders and the desk stay perfectly still throughout; only his face animates. Behind him a wooden bookshelf and a coat hanging on a chair fall into deep shadow while a single warm tungsten desk lamp casts soft side light onto his expression. No camera motion, no walking, no other movement. Cinematic depth of field, photorealistic, 24fps.",
-        "width": 768,
-        "height": 512,
         "length": 97,
         "frame_rate": 24,
         "preview_image": "app/static/examples/ltx_23_t2v.png",
         "preview_video": "app/static/examples/ltx_23_t2v.mp4",
-        "contract_sha256": "5993b3bfa5262ef82c4a9502de1464e095ee048f03c4e4412a92816fbfe5afb8"
+        "contract_sha256": "5993b3bfa5262ef82c4a9502de1464e095ee048f03c4e4412a92816fbfe5afb8",
+        "sizes": [
+          "768x512"
+        ]
       },
       "output_kind": "video",
       "do_not_modify_warnings": [
@@ -831,7 +848,7 @@
           "label": "朗读文本",
           "type": "text",
           "max_chars": 2000,
-          "default": "你再盯着我看……我可就要收点利息了哦～……",
+          "default": "你再盯着我看我………我可就要收点利息了哦～",
           "help": "要朗读的内容。中文 / 英文 / 数字皆可。",
           "tier": "basic",
           "example_key": "speech_text"
@@ -901,7 +918,7 @@
         }
       ],
       "example": {
-        "speech_text": "你再盯着我看……我可就要收点利息了哦～……",
+        "speech_text": "你再盯着我看我………我可就要收点利息了哦～",
         "instruct": "模拟成熟女性的低沉略哑烟嗓,气息感很重,声音像刚睡醒又喝了红酒的性感女性,语速缓慢而松弛,语调带着漫不经心的慵懒,每句话都像在耳边轻轻吐息,尾音常常往下沉并带一点沙哑的笑意,传递出我随时可以把你吃掉但现在还不想动的危险女性魅力。",
         "language": "Chinese",
         "model_choice": "1.7B",
@@ -1056,6 +1073,122 @@
         {
           "node_id": "104",
           "reason": "SaveAudioMP3: quality 默认 128k,可改 V0 (高质量)。"
+        }
+      ]
+    },
+    "qwen3_tts_clone": {
+      "workflow_file": "qwen3_tts_clone.json",
+      "display_name": "语音克隆 (Qwen3-TTS VoiceClone)",
+      "category": "audio",
+      "order": 205,
+      "description": "上传参考音频, 用目标文本克隆音色。",
+      "user_facing_inputs": [
+        {
+          "node_id": "24",
+          "field": "audio",
+          "label": "参考音频",
+          "type": "file:audio",
+          "tier": "basic",
+          "help": "用来克隆音色的参考音频。例: 元气少女.mp3。3-10 秒清晰人声最佳。",
+          "example_key": "ref_audio"
+        },
+        {
+          "node_id": "40",
+          "field": "ref_text",
+          "label": "音频对应文字",
+          "type": "text",
+          "max_chars": 1000,
+          "tier": "basic",
+          "default": "哼，才不是特意来叫你起床的呢！只是刚好路过顺便说一下……你已经睡过头了啦，笨蛋！快点起来！",
+          "help": "参考音频里实际念的内容, 跟上传的音频严格一致 (含标点 / 语气词)。错字会显著降低克隆相似度。",
+          "example_key": "ref_text"
+        },
+        {
+          "node_id": "40",
+          "field": "target_text",
+          "label": "朗读文本 (克隆音色)",
+          "type": "text",
+          "max_chars": 2000,
+          "tier": "basic",
+          "default": "早安呀！太阳都晒屁股啦～快起来快起来！今天可是要出门吃好吃的呢，再不起来我一个人先走啦！才、才不是特意来叫你的哦",
+          "help": "要用克隆音色念出来的文本。中文 / 英文 / 数字皆可, 留空 = 默认示例。",
+          "example_key": "target_text"
+        },
+        {
+          "node_id": "40",
+          "field": "language",
+          "label": "语言",
+          "type": "select",
+          "choices": [
+            "Auto",
+            "Chinese",
+            "English",
+            "Japanese",
+            "Korean",
+            "French",
+            "German",
+            "Spanish",
+            "Portuguese",
+            "Russian",
+            "Italian"
+          ],
+          "default": "Chinese",
+          "help": "TTS 语言模型。Auto 让模型自动判别。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "40",
+          "field": "model_choice",
+          "label": "模型规模",
+          "type": "select",
+          "choices": [
+            {
+              "label": "0.6B (轻量 / 较快)",
+              "value": "0.6B"
+            },
+            {
+              "label": "1.7B (默认 / 较高质量)",
+              "value": "1.7B"
+            }
+          ],
+          "default": "1.7B",
+          "help": "0.6B 占显存小、生成快; 1.7B 音质更稳。",
+          "tier": "advanced"
+        },
+        {
+          "node_id": "40",
+          "field": "seed",
+          "label": "种子值",
+          "type": "int",
+          "min": 0,
+          "max": 9223372036854776000,
+          "default": 627852582810675,
+          "help": "相同 prompt + seed 复现同一段语音; 想换语气/节奏改 seed。",
+          "tier": "advanced"
+        }
+      ],
+      "example": {
+        "ref_audio": "元气少女.mp3",
+        "ref_text": "哼，才不是特意来叫你起床的呢！只是刚好路过顺便说一下……你已经睡过头了啦，笨蛋！快点起来！",
+        "target_text": "早安呀！太阳都晒屁股啦～快起来快起来！今天可是要出门吃好吃的呢，再不起来我一个人先走啦！才、才不是特意来叫你的哦",
+        "language": "Chinese",
+        "model_choice": "1.7B",
+        "seed": 627852582810675,
+        "preview_audio": "app/static/examples/qwen3_tts_clone.mp3"
+      },
+      "output_kind": "audio",
+      "do_not_modify_warnings": [
+        {
+          "node_id": "40",
+          "reason": "FB_Qwen3TTSVoiceClone 节点; x_vector_only=false 会同时参考音频音色 + ref_text 韵律, 改 true 可只学音色不学韵律. 模型首次调用时自动下载到 ComfyUI/models 下。"
+        },
+        {
+          "node_id": "24",
+          "reason": "LoadAudio 节点: 用户上传 / example 提供的参考音频落到 ComfyUI/input 后, 这里的 audio 字段会 patch 成纯文件名。"
+        },
+        {
+          "node_id": "46",
+          "reason": "SaveAudioMP3 输出节点; filename_prefix + quality 影响最终 MP3 路径和码率。"
         }
       ]
     }

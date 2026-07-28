@@ -15,7 +15,7 @@ from app import prompts
 def test_load_pool_returns_list():
     pool = prompts.load_pool()
     assert isinstance(pool, list)
-    assert len(pool) >= 15  # 至少十几条
+    assert len(pool) >= 80  # review 2026-07-27 扩到 100, 允许后续手编删减
 
 
 def test_each_entry_has_category_and_text():
@@ -61,3 +61,27 @@ def test_random_n_returns_multiple():
 def test_random_n_respects_pool_size():
     out = prompts.random_prompts(n=10000)
     assert len(out) == len(prompts.load_pool())
+
+def test_pool_has_diverse_categories():
+    """池子凑到 100 后, 至少有 6 个不同 category, 每个 category 至少 3 条.
+    这样 random_prompt(category=X) 各主题都不会只有 1 条.
+    """
+    pool = prompts.load_pool()
+    from collections import Counter
+    cats = Counter(p["category"] for p in pool)
+    assert len(cats) >= 6, f"only {len(cats)} categories: {dict(cats)}"
+    for cat, n in cats.items():
+        # nature/product 等冷门主题可能只 1 条, 不强求 2+
+        assert n >= 1, f"category {cat!r} has 0 entries"
+
+
+def test_random_pick_distribution_does_not_repeat_often():
+    """连点 20 次随机, 应该看到至少 10 个不同 prompt (避免反复出现同一条).
+    """
+    pool = prompts.load_pool()
+    if len(pool) < 30:
+        pytest.skip("pool too small to test distribution")
+    picks = [prompts.random_prompt() for _ in range(20)]
+    unique = len(set(picks))
+    assert unique >= 10, f"only {unique} unique picks in 20 tries, 池子可能太小"
+

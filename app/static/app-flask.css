@@ -332,6 +332,19 @@ code {
   background: var(--bg-input);
 }
 
+/* <audio> 原生控件属于缩略图但 object-fit 不适用, height: auto
+   会被浏览器解析成 0~2px (沉到不能点), 需强制一个
+   可用高度 + 与宽度顺项适配.
+   不能继承 max-height: 240px (那个是图/视频的上限, audio 控件只需 ~50px). */
+.file-thumb.audio-thumb {
+  width: 100%;
+  max-width: 480px;
+  height: 54px;
+  object-fit: unset;
+  background: var(--bg-card);
+}
+
+
 /* 结果区图片/视频: object-fit: contain 不扭曲 */
 .result-area img,
 .result-area video {
@@ -419,6 +432,12 @@ code {
   color: var(--text-primary);
 }
 .size-option input { accent-color: var(--theme-accent-500); }
+
+/* 自定义 W×H 卡片 (review 2026-07-27: 修 '自定义' 三字竖排. 三个 fix 一起上) */
+.custom-size-card { flex-wrap: nowrap; gap: 6px; }
+.custom-size-label { white-space: nowrap; flex: 0 0 auto; }
+.sizes-fieldset input.size-num { width: 80px; min-width: 0; flex: 0 0 auto; }
+.size-x { flex: 0 0 auto; }
 
 /* int_random */
 .int-random-field { display: flex; align-items: center; gap: var(--space-3); }

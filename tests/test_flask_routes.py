@@ -221,6 +221,44 @@ def test_get_last_run_returns_list(client):
     assert isinstance(data, list)
 
 
+def test_get_last_output_returns_url_when_manifest_has_output(monkeypatch, client):
+    """GET /api/last_output/<preset> 返回最近成功 run 的首个输出 view URL."""
+    from app import config, history
+    preset = config.list_workflows()[0]["name"]
+
+    # 伪造一份最近成功 run 的 manifest (单图 output + 多图 outputs 都覆盖)
+    fake_runs = [{
+        "preset": preset,
+        "status": "success",
+        "outputs": [
+            {"filename": "img1.png", "subfolder": "sub", "type": "output"},
+            {"filename": "img2.png", "subfolder": "sub", "type": "output"},
+        ],
+        "output": {"filename": "img1.png", "subfolder": "sub", "type": "output"},
+    }]
+    monkeypatch.setattr(history, "list_runs", lambda **kw: fake_runs)
+
+    r = client.get(f"/api/last_output/{preset}")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["available"] is True
+    assert data["filename"] == "img1.png"
+    assert data["url"] == "/comfy_output?filename=img1.png&type=output&subfolder=sub"
+
+
+def test_get_last_output_unavailable_when_no_success_run(monkeypatch, client):
+    """没跑过成功 run -> available=false (前端按钮隐藏)."""
+    from app import config, history
+    preset = config.list_workflows()[0]["name"]
+    monkeypatch.setattr(history, "list_runs", lambda **kw: [])
+
+    r = client.get(f"/api/last_output/{preset}")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["available"] is False
+    assert "url" not in data or not data.get("url")
+
+
 # ============================================================
 # ComfyUI 连接状态
 # ============================================================

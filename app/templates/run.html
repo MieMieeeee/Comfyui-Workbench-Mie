@@ -55,7 +55,9 @@
             <button class="btn-secondary creator-stagger" type="button" @click="loadExample(w.name)">📥 加载示例</button>
             <button class="btn-secondary creator-stagger" type="button" @click="loadLastRun(w.name)" x-show="hasLastRun[w.name]">📂 加载上次</button>
             <a class="btn-secondary creator-stagger" href="/comfy_input" target="_blank" rel="noopener">👁️ 输入目录</a>
-            <a class="btn-secondary creator-stagger" href="/comfy_output?filename=Anima_Turbo_smoke_00001_.png&type=output&subfolder=" target="_blank" rel="noopener">📖 最近输出</a>
+            <a class="btn-secondary creator-stagger" :href="lastOutputUrl[w.name] || '#'"
+               x-show="lastOutputUrl[w.name]"
+               target="_blank" rel="noopener">📖 最近输出</a>
           </div>
         </header>
 
@@ -109,6 +111,23 @@
                                  :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
                         </div>
                       </template>
+                      <template x-if="spec.type === 'file:audio'">
+                        <div class="file-field">
+                          <div class="file-status" x-show="formValues[idx]">
+                            <span class="file-status-dot"></span>
+                            <span class="file-status-name" x-text="formValues[idx]"></span>
+                            <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                          </div>
+                          <label class="file-upload">
+                            <input type="file" :accept="audioExts"
+                                   @change="onFileSelect($event, w.name, idx, 'audio')">
+                            <span x-show="formValues[idx]">👇 点击上传新音频覆盖</span>
+                            <span x-show="!formValues[idx]">📁 选择音频 (示例已加载, 可上传覆盖)</span>
+                          </label>
+                          <audio class="file-thumb audio-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
+                                 :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></audio>
+                        </div>
+                      </template>
                       <template x-if="['text', 'prompt_pool'].includes(spec.type)">
                         <div>
                           <textarea x-model="formValues[idx]" :placeholder="spec.help || ''" rows="4"></textarea>
@@ -120,14 +139,31 @@
                         </div>
                       </template>
                       <template x-if="spec.type === 'image_sizes'">
-                        <fieldset class="sizes-fieldset">
-                          <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
-                            <label class="size-option" :class="{ selected: (formValues[idx] || []).includes(sizeValue(opt)) }">
-                              <input type="checkbox" :value="sizeValue(opt)" :checked="(formValues[idx] || []).includes(sizeValue(opt))" @change="onSizeToggle($event, w.name, idx)">
-                              <span x-text="sizeLabel(opt)"></span>
-                            </label>
-                          </template>
-                        </fieldset>
+                        <div class="sizes-wrap">
+                          <fieldset class="sizes-fieldset">
+                            <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
+                              <label class="size-option" :class="{ selected: (formValues[idx] || []).includes(sizeValue(opt)) }">
+                                <input type="checkbox" :value="sizeValue(opt)" :checked="(formValues[idx] || []).includes(sizeValue(opt))" @change="onSizeToggle($event, w.name, idx)">
+                                <span x-text="sizeLabel(opt)"></span>
+                              </label>
+                            </template>
+                            <template x-if="spec.allow_custom" :key="'custom-' + idx">
+                              <div class="size-option custom-size-card" :class="{ selected: customChecked(w.name, idx) }">
+                                <input type="checkbox" x-model="formValues[idx + '_custom_on']" @change="onCustomToggle($event, w.name, idx)">
+                                <span class="custom-size-label">自定义</span>
+                                <input type="number" class="size-num" :value="customW(w.name, idx)"
+                                       :min="spec.min_width || 1" :max="spec.max_width || ''"
+                                       :disabled="!customChecked(w.name, idx)"
+                                       @input="onCustomSizeInput($event, w.name, idx, 'w')" placeholder="宽">
+                                <span class="size-x">×</span>
+                                <input type="number" class="size-num" :value="customH(w.name, idx)"
+                                       :min="spec.min_height || 1" :max="spec.max_height || ''"
+                                       :disabled="!customChecked(w.name, idx)"
+                                       @input="onCustomSizeInput($event, w.name, idx, 'h')" placeholder="高">
+                              </div>
+                            </template>
+                          </fieldset>
+                        </div>
                       </template>
                       <template x-if="spec.type === 'bool'">
                         <label class="bool-field">
@@ -198,6 +234,23 @@
                                    :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></video>
                           </div>
                         </template>
+                        <template x-if="spec.type === 'file:audio'">
+                          <div class="file-field">
+                            <div class="file-status" x-show="formValues[idx]">
+                              <span class="file-status-dot"></span>
+                              <span class="file-status-name" x-text="formValues[idx]"></span>
+                              <button type="button" class="file-status-clear" @click="clearFile(w.name, idx)" title="清除选中, run 时不传这个位置">× 清除</button>
+                            </div>
+                            <label class="file-upload">
+                              <input type="file" :accept="audioExts"
+                                     @change="onFileSelect($event, w.name, idx, 'audio')">
+                              <span x-show="formValues[idx]">👇 点击上传新音频覆盖</span>
+                              <span x-show="!formValues[idx]">📁 选择音频 (示例已加载, 可上传覆盖)</span>
+                            </label>
+                            <audio class="file-thumb audio-thumb" x-show="formValues[idx] && getExampleThumbUrl(w.name, idx)"
+                                   :src="getExampleThumbUrl(w.name, idx)" controls preload="metadata"></audio>
+                          </div>
+                        </template>
                         <template x-if="['text', 'prompt_pool'].includes(spec.type)">
                           <div>
                             <textarea x-model="formValues[idx]" :placeholder="spec.help || ''" rows="4"></textarea>
@@ -209,14 +262,31 @@
                           </div>
                         </template>
                         <template x-if="spec.type === 'image_sizes'">
-                          <fieldset class="sizes-fieldset">
-                            <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
-                              <label class="size-option">
-                                <input type="checkbox" :value="sizeValue(opt)" @change="onSizeToggle($event, w.name, idx)">
-                                <span x-text="sizeLabel(opt)"></span>
-                              </label>
-                            </template>
-                          </fieldset>
+                          <div class="sizes-wrap">
+                            <fieldset class="sizes-fieldset">
+                              <template x-for="opt in (spec.presets || ['1024x1024'])" :key="opt">
+                                <label class="size-option">
+                                  <input type="checkbox" :value="sizeValue(opt)" @change="onSizeToggle($event, w.name, idx)">
+                                  <span x-text="sizeLabel(opt)"></span>
+                                </label>
+                              </template>
+                              <template x-if="spec.allow_custom" :key="'custom-' + idx">
+                                <div class="size-option custom-size-card" :class="{ selected: customChecked(w.name, idx) }">
+                                  <input type="checkbox" x-model="formValues[idx + '_custom_on']" @change="onCustomToggle($event, w.name, idx)">
+                                  <span class="custom-size-label">自定义</span>
+                                  <input type="number" class="size-num" :value="customW(w.name, idx)"
+                                         :min="spec.min_width || 1" :max="spec.max_width || ''"
+                                         :disabled="!customChecked(w.name, idx)"
+                                         @input="onCustomSizeInput($event, w.name, idx, 'w')" placeholder="宽">
+                                  <span class="size-x">×</span>
+                                  <input type="number" class="size-num" :value="customH(w.name, idx)"
+                                         :min="spec.min_height || 1" :max="spec.max_height || ''"
+                                         :disabled="!customChecked(w.name, idx)"
+                                         @input="onCustomSizeInput($event, w.name, idx, 'h')" placeholder="高">
+                                </div>
+                              </template>
+                            </fieldset>
+                          </div>
                         </template>
                         <template x-if="spec.type === 'bool'">
                           <label class="bool-field">
@@ -300,5 +370,14 @@
       </div>
     </template>
   </section>
+
+  <!-- Lightbox: singleton 全屏预览 dialog. 点击结果区 img.lightboxable / video.lightboxable 时打开.
+       原生 <dialog> 元素: ESC 自动关闭 + focus trap + ::backdrop 黑色蒙层 (CSS 里定义).
+       body.style.overflow=hidden 防止背景滚动. src 直接给 <img :src> 用 (相对 /comfy_input/... 路径浏览器同源可解析).
+  -->
+  <dialog class="lightbox-dialog" @close="closeLightbox()" @click="if ($event.target === $event.currentTarget) closeLightbox()">
+    <button class="lightbox-close" @click="closeLightbox" aria-label="关闭放大预览 (Esc)">×</button>
+    <img :src="lightboxSrc" alt="放大预览" />
+  </dialog>
 </div>
 {% endblock %}

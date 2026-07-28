@@ -1,0 +1,116 @@
+{
+  "workflow_file": "qwen3_tts_clone.json",
+  "display_name": "语音克隆 (Qwen3-TTS VoiceClone)",
+  "category": "audio",
+  "order": 205,
+  "description": "上传参考音频, 用目标文本克隆音色。",
+  "user_facing_inputs": [
+    {
+      "node_id": "24",
+      "field": "audio",
+      "label": "参考音频",
+      "type": "file:audio",
+      "tier": "basic",
+      "help": "用来克隆音色的参考音频。例: 元气少女.mp3。3-10 秒清晰人声最佳。",
+      "example_key": "ref_audio"
+    },
+    {
+      "node_id": "40",
+      "field": "ref_text",
+      "label": "音频对应文字",
+      "type": "text",
+      "max_chars": 1000,
+      "tier": "basic",
+      "default": "哼，才不是特意来叫你起床的呢！只是刚好路过顺便说一下……你已经睡过头了啦，笨蛋！快点起来！",
+      "help": "参考音频里实际念的内容, 跟上传的音频严格一致 (含标点 / 语气词)。错字会显著降低克隆相似度。",
+      "example_key": "ref_text"
+    },
+    {
+      "node_id": "40",
+      "field": "target_text",
+      "label": "朗读文本 (克隆音色)",
+      "type": "text",
+      "max_chars": 2000,
+      "tier": "basic",
+      "default": "早安呀！太阳都晒屁股啦～快起来快起来！今天可是要出门吃好吃的呢，再不起来我一个人先走啦！才、才不是特意来叫你的哦",
+      "help": "要用克隆音色念出来的文本。中文 / 英文 / 数字皆可, 留空 = 默认示例。",
+      "example_key": "target_text"
+    },
+    {
+      "node_id": "40",
+      "field": "language",
+      "label": "语言",
+      "type": "select",
+      "choices": [
+        "Auto",
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "French",
+        "German",
+        "Spanish",
+        "Portuguese",
+        "Russian",
+        "Italian"
+      ],
+      "default": "Chinese",
+      "help": "TTS 语言模型。Auto 让模型自动判别。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "40",
+      "field": "model_choice",
+      "label": "模型规模",
+      "type": "select",
+      "choices": [
+        {
+          "label": "0.6B (轻量 / 较快)",
+          "value": "0.6B"
+        },
+        {
+          "label": "1.7B (默认 / 较高质量)",
+          "value": "1.7B"
+        }
+      ],
+      "default": "1.7B",
+      "help": "0.6B 占显存小、生成快; 1.7B 音质更稳。",
+      "tier": "advanced"
+    },
+    {
+      "node_id": "40",
+      "field": "seed",
+      "label": "种子值",
+      "type": "int",
+      "min": 0,
+      "max": 9223372036854776000,
+      "default": 627852582810675,
+      "help": "相同 prompt + seed 复现同一段语音; 想换语气/节奏改 seed。",
+      "tier": "advanced"
+    }
+  ],
+  "example": {
+    "ref_audio": "app/static/examples/元气少女.mp3",
+    "ref_text": "哼，才不是特意来叫你起床的呢！只是刚好路过顺便说一下……你已经睡过头了啦，笨蛋！快点起来！",
+    "target_text": "早安呀！太阳都晒屁股啦～快起来快起来！今天可是要出门吃好吃的呢，再不起来我一个人先走啦！才、才不是特意来叫你的哦",
+    "language": "Chinese",
+    "model_choice": "1.7B",
+    "seed": 627852582810675,
+    "preview_audio": "app/static/examples/qwen3_tts_clone.mp3"
+  },
+  "output_kind": "audio",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "40",
+      "reason": "FB_Qwen3TTSVoiceClone 节点; x_vector_only=false 会同时参考音频音色 + ref_text 韵律, 改 true 可只学音色不学韵律. 模型首次调用时自动下载到 ComfyUI/models 下。"
+    },
+    {
+      "node_id": "24",
+      "reason": "LoadAudio 节点: 用户上传 / example 提供的参考音频落到 ComfyUI/input 后, 这里的 audio 字段会 patch 成纯文件名。"
+    },
+    {
+      "node_id": "46",
+      "reason": "SaveAudioMP3 输出节点; filename_prefix + quality 影响最终 MP3 路径和码率。"
+    }
+  ]
+}

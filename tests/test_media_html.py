@@ -67,6 +67,51 @@ def test_media_to_html_image_list_grid():
     assert out.count("<img") == 2
 
 
+def test_media_to_html_image_list_uses_flexbox_grid():
+    out = media_svc._media_to_html(
+        ["http://x/a.png", "http://x/b.png", "http://x/c.png"], output_kind="image"
+    )
+    assert out.count("<img") == 3
+    assert "display:flex" in out
+    assert "flex-wrap:wrap" in out
+    assert "gap:" in out
+    import re as _re
+    img_tags = _re.findall(r"<img[^>]+>", out)
+    assert len(img_tags) == 3, f"expected 3 img tags, got {len(img_tags)}"
+    for tag in img_tags:
+        assert "margin:4px" not in tag, f"img still has margin:4px: {tag}"
+    for tag in img_tags:
+        assert "max-width:32%" in tag, f"img missing max-width:32%: {tag}"
+    for tag in img_tags:
+        assert "lightboxable" in tag, f"img missing lightboxable class (click-to-enlarge): {tag}"
+    for tag in img_tags:
+        assert "cursor:zoom-in" in tag, f"img missing cursor:zoom-in: {tag}"
+
+
+def test_media_to_html_single_image_keeps_max_width_100():
+    out = media_svc._media_to_html("http://x/y.png", output_kind="image")
+    assert "<img" in out
+    assert "max-width:100%" in out
+    assert "display:flex" not in out
+    assert "lightboxable" in out, "single img must also be lightboxable"
+    assert "cursor:zoom-in" in out
+
+
+def test_media_to_html_image_list_has_lightboxable_for_click_to_enlarge():
+    """回归: 每张生成的 img 都必须带 class=lightboxable + cursor:zoom-in.
+
+    app.js 用事件委托在 document 上 click .result-area img.lightboxable -> 打开 lightbox 全屏预览.
+    没这俩属性, 点击图片就不会触发 lightbox, 137px 小缩略图用户没法看清细节.
+    """
+    out = media_svc._media_to_html(
+        ["http://x/1.png", "http://x/2.png", "http://x/3.png"], output_kind="image"
+    )
+    import re as _re
+    tags = _re.findall(r"<img[^>]+>", out)
+    assert len(tags) == 3
+    for tag in tags:
+        assert "lightboxable" in tag
+        assert "cursor:zoom-in" in tag
 def test_media_to_html_comfyui_view_url_renders_video_tag():
     """ComfyUI /view URL 在 video context 渲染成 <video>, 不是'未知输出格式' banner."""
     url = "http://127.0.0.1:8188/view?filename=scail-2_00094-audio.mp4&type=output&subfolder=SCAIL-2"

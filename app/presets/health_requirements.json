@@ -224,7 +224,7 @@
         "sca12_motion"
       ]
     },
-        {
+    {
       "class_type": "CreateShapeMask",
       "package": "comfyui_essentials",
       "workflows": [
@@ -283,7 +283,7 @@
         "klein_edit"
       ]
     },
-        {
+    {
       "class_type": "GetImageSizeAndCount",
       "package": "comfyui_essentials",
       "workflows": [
@@ -431,7 +431,7 @@
         "ltx_23_i2v_distilled"
       ]
     },
-            {
+    {
       "class_type": "LivePortraitComposite",
       "package": "comfyui-liveportraitkj",
       "workflows": [
@@ -474,7 +474,7 @@
         "ltx_23_i2v_distilled"
       ]
     },
-        {
+    {
       "class_type": "MieLoopBodyIn|Mie",
       "package": "ComfyUI-MieNodes",
       "workflows": [
@@ -683,6 +683,20 @@
       "workflows": [
         "sca12_replace",
         "sca12_motion"
+      ]
+    },
+    {
+      "class_type": "FB_Qwen3TTSVoiceClone",
+      "package": "ComfyUI-Qwen3-TTS",
+      "workflows": [
+        "qwen3_tts_clone"
+      ]
+    },
+    {
+      "class_type": "LoadAudio",
+      "package": "ComfyUI-Qwen3-TTS",
+      "workflows": [
+        "qwen3_tts_clone"
       ]
     }
   ]

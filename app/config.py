@@ -65,10 +65,26 @@ THEME_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 MAX_IMAGE_MB: int = 5
 MAX_VIDEO_MB: int = 200
+MAX_AUDIO_MB: int = 50
 MAX_PROMPT_CHARS: int = 2000
 
 ALLOWED_IMAGE_EXT: frozenset[str] = frozenset({".png", ".jpg", ".jpeg", ".webp"})
 ALLOWED_VIDEO_EXT: frozenset[str] = frozenset({".mp4", ".mov", ".webm"})
+# 音频输入 (Qwen3-TTS VoiceClone 等): mp3 / wav / m4a / flac / ogg.
+ALLOWED_AUDIO_EXT: frozenset[str] = frozenset({".mp3", ".wav", ".m4a", ".flac", ".ogg"})
+
+# --- image_sizes type 的全局显示配置 ---
+# type=image_sizes 的 spec 都共用这一份预设尺寸 + label, 不在每个 preset 里复制.
+# preset spec 仍可独立写 default / min_width / max_width (per-model 调优),
+# 但 presets 列表 + allow_custom 走全局, 保证 UI 一致 (review 2026-07-27).
+IMAGE_SIZE_PRESETS: list[dict] = [
+    {"label": "🖼️ 1024×1024 ｜ 1:1 (正方形通用)", "value": "1024x1024"},
+    {"label": "🎬 1280×720 ｜ 16:9 (横版封面/视频帧)", "value": "1280x720"},
+    {"label": "📱 720×1280 ｜ 9:16 (竖版手机壁纸)", "value": "720x1280"},
+    {"label": "📕 1024×1280 ｜ 4:5 (竖版海报/社媒)", "value": "1024x1280"},
+    {"label": "🖥 1280×1024 ｜ 5:4 (横版桌面/展示)", "value": "1280x1024"},
+]
+IMAGE_SIZE_ALLOW_CUSTOM: bool = True
 
 DEFAULT_PROMPT_TEXT: str = "A person walking naturally."
 
@@ -112,12 +128,31 @@ def preset_config(preset_name: str) -> dict:
     if def_path.exists():
         with def_path.open("r", encoding="utf-8") as f:
             cfg = json.load(f)
-        return _apply_input_layout(preset_name, cfg)
+        return _enrich_after_layout(preset_name, cfg)
     with PARAMS_FILE.open("r", encoding="utf-8") as f:
         all_presets = json.load(f)["presets"]
     if preset_name not in all_presets:
         raise KeyError(f"unknown preset: {preset_name}. known: {list(all_presets)}")
-    return _apply_input_layout(preset_name, all_presets[preset_name])
+    return _enrich_after_layout(preset_name, all_presets[preset_name])
+
+
+def resolve_output_kind(preset_cfg: dict) -> str:
+    """根据 preset 配置推导输出类型: image | video | audio.
+
+    优先级: output_kind 字段 > category 字段 > 默认 video (向后兼容 sca12 类老 preset).
+
+    历史: 这段推导原来在 flask_app.py (4 处) + runner.py (_output_kind, 1 处) 各写一遍,
+    漂移过几次. 统一到这里, 5 处共用. review 2026-07-28.
+    """
+    ok = preset_cfg.get("output_kind")
+    if ok in ("image", "video", "audio"):
+        return ok
+    cat = preset_cfg.get("category")
+    if cat == "image":
+        return "image"
+    if cat == "audio":
+        return "audio"
+    return "video"
 
 
 def _apply_input_layout(preset_name: str, cfg: dict) -> dict:
@@ -208,3 +243,14 @@ if __name__ == "__main__":
     print(f"PRESETS_DIR     = {PRESETS_DIR}")
     print(f"RUNS_DIR        = {RUNS_DIR}")
     print(f"WEBUI           = {FLASK_HOST}:{FLASK_PORT}")
+
+def _enrich_after_layout(preset_name: str, cfg: dict) -> dict:
+    """preset_config 出口链: _apply_input_layout -> form_schema.enrich_preset_config.
+
+    - _apply_input_layout: 叠加用户输入布局 (排序 / label / help / tier)
+    - enrich_preset_config: 给 image_sizes spec 注入全局显示字段 (presets / allow_custom)
+
+    拆成两步是为了让 input_layout 跟全局 type 显示互不污染.
+    """
+    from app.services.form_schema import enrich_preset_config
+    return enrich_preset_config(_apply_input_layout(preset_name, cfg))

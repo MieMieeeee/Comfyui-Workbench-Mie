@@ -109,17 +109,17 @@ def _media_to_html(media, output_kind: str = "image") -> str:
     if not media:
         return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
 
-    # image 类特化: list → 网格; 单值 → <img>. 本地路径转 Flask 路由, http URL 原样.
+    # image 类特化: list → flexbox 网格 (并排展示); 单值 → <img>. 多图分支 flex 容器, 避免 全局 `.result-area img { display: block }` 把每张图强占 一行 (修复前 max-width:32% 是想要的网格, 但 display:block 让 portrait/square/landscape 三种比例垂向堆成成一长条, 视觉没法对比). class=lightboxable 让点击图片时 app.js 的事件委托触发 lightbox 全屏放大. 本地路径转 Flask 路由, http URL 原样.
     if output_kind == "image":
         if isinstance(media, list):
             if not media:
                 return "<div style=\"color:var(--text-faint);padding:20px\">等待结果...</div>"
             imgs = "".join(
-                "<img src=\"" + (_local_to_url(str(u)) or str(u)) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:32%;margin:4px;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
+                "<img src=\"" + (_local_to_url(str(u)) or str(u)) + "\" loading=\"lazy\" alt=\"\" class=\"lightboxable\" style=\"max-width:32%;height:auto;cursor:zoom-in;border:1px solid #2a2d33;border-radius:var(--radius-md)\"/>"
                 for u in media if u
             )
-            return "<div style=\"padding:8px\">" + imgs + "</div>"
-        return "<div style=\"padding:8px\"><img src=\"" + (_local_to_url(str(media)) or str(media)) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" style=\"max-width:100%;border-radius:var(--radius-md)\"/></div>"
+            return "<div style=\"padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;\">" + imgs + "</div>"
+        return "<div style=\"padding:8px\"><img src=\"" + (_local_to_url(str(media)) or str(media)) + "\" width=\"100%\" height=\"auto\" loading=\"lazy\" class=\"lightboxable\" style=\"max-width:100%;cursor:zoom-in;border-radius:var(--radius-md)\"/></div>"
 
     # video / audio: 单 URL, 扩展名分桶
     src = media[0] if isinstance(media, list) else media

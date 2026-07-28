@@ -81,17 +81,51 @@ class RunEvent:
 def _output_kind(preset_cfg) -> str:
     """根据 preset 配置推导输出类型: image | video | audio.
 
-    优先级: output_kind 字段 > category 字段 > 默认 video (向后兼容 sca12 类老 preset).
+    薄包装 config.resolve_output_kind (review 2026-07-28 把 5 处重复推导统一到 config).
+    保留模块级符号是因为早期测试 / 外部调用可能直接 import; 行为不变.
     """
-    ok = preset_cfg.get("output_kind")
-    if ok in ("image", "video", "audio"):
-        return ok
-    cat = preset_cfg.get("category")
-    if cat == "image":
-        return "image"
-    if cat == "audio":
-        return "audio"
-    return "video"
+    return config.resolve_output_kind(preset_cfg)
+
+
+# sca12 manifest 段数预估需要的三个 int 参数对应的 spec role.
+# 老 runner 直接硬编码 node_id 367/464/479 取值; review 2026-07-28 改成读 spec 上的
+# manifest_role 字段 (数据驱动), node_id 兜底保留给没迁移的老 preset.
+# 注: 历史 479 (max_segments) 在当前 sca12 definition 里不是 user_facing_input,
+#     所以 max_segments 永远走默认 0 (=不限制), 与旧行为一致.
+_SEGMENT_ROLE_DEFAULTS = {
+    "frames_per_segment": ("367", "value", 81),
+    "pre_drop_frames": ("464", "value", 5),
+    "max_segments": (None, None, 0),
+}
+
+
+def _resolve_segment_meta(inputs_spec, int_by_field):
+    """从 inputs_spec 里按 manifest_role 解析 (fps, pre_drop, max_segments).
+
+    每个 spec 可声明 "manifest_role": "frames_per_segment" | "pre_drop_frames" |
+    "max_segments", runner 据此从 int_by_field 取值. 没声明 manifest_role 的 preset
+    回退到老 node_id 兜底 (367/464), 行为跟重构前完全一致.
+    """
+    by_role = {}
+    for spec in inputs_spec:
+        role = spec.get("manifest_role")
+        if role in _SEGMENT_ROLE_DEFAULTS:
+            nid = str(spec["node_id"])
+            field = spec.get("field", "value")
+            default = _SEGMENT_ROLE_DEFAULTS[role][2]
+            by_role[role] = int_by_field.get((nid, field), default)
+
+    out = []
+    for role in ("frames_per_segment", "pre_drop_frames", "max_segments"):
+        if role in by_role:
+            out.append(by_role[role])
+            continue
+        fallback_nid, fallback_field, default = _SEGMENT_ROLE_DEFAULTS[role]
+        if fallback_nid is not None:
+            out.append(int_by_field.get((fallback_nid, fallback_field), default))
+        else:
+            out.append(default)
+    return out[0], out[1], out[2]
 
 
 # ============================================================
@@ -120,6 +154,7 @@ def run_workflow(preset_name, *component_values):
     text_by_field: dict[tuple[str, str], str] = {}
     file_by_type: dict[str, str] = {}
     int_by_field: dict[tuple[str, str], int] = {}
+    sizes_by_node: dict[str, Any] = {}
     component_idx = 0
     for spec in inputs_spec:
         nid = str(spec["node_id"])
@@ -132,6 +167,12 @@ def run_workflow(preset_name, *component_values):
             file_by_type["image"] = value
         elif typ == "file:video":
             file_by_type["video"] = value
+        elif typ == "file:audio":
+            # VoiceClone 等场景: 参考音频走 file:audio, 复用 ref_name 槽位
+            # (validate_inputs 用 ref_path 校验, 不区分 image/audio, 见 form_schema)
+            file_by_type["audio"] = value
+        elif typ == "image_sizes":
+            sizes_by_node[nid] = value
         elif typ == "int":
             int_by_field[(nid, field)] = int(value) if value is not None else spec.get("default", 1)
         elif typ == "int_random":
@@ -140,7 +181,21 @@ def run_workflow(preset_name, *component_values):
             component_idx += 1
         component_idx += 1
     ref_path = file_by_type.get("image")
+    audio_path = file_by_type.get("audio")
     drive_path = file_by_type.get("video")
+    size_by_node: dict[str, tuple[int, int]] = {}
+    for spec in inputs_spec:
+        if spec.get("type") != "image_sizes":
+            continue
+        parsed = form_schema.parse_sizes(sizes_by_node.get(str(spec["node_id"]), spec.get("default", [])))
+        if not parsed:
+            raise _RunError("尺寸格式无效: 请输入如 768x512 的宽x高")
+        w, h = parsed[0]
+        min_w, max_w = spec.get("min_width", 1), spec.get("max_width", 10000)
+        min_h, max_h = spec.get("min_height", 1), spec.get("max_height", 10000)
+        if not (min_w <= w <= max_w and min_h <= h <= max_h):
+            raise _RunError(f"尺寸超出范围: {w}x{h}")
+        size_by_node[str(spec["node_id"])] = (w, h)
 
     started_at = datetime.now(timezone.utc)
     prompt_id_final: str | None = None
@@ -148,13 +203,14 @@ def run_workflow(preset_name, *component_values):
     final_status = "failure"
     final_error: str | None = None
 
-    err = form_schema.validate_inputs(ref_path, drive_path, preset_cfg)
+    err = form_schema.validate_inputs(ref_path, drive_path, preset_cfg, audio_path=audio_path)
     if err:
         _log.debug(f"validate fail: {err}")
         raise _RunError(err)
     _log.debug("validate pass")
 
     has_image_input = any(s.get("type") == "file:image" for s in inputs_spec)
+    has_audio_input = any(s.get("type") == "file:audio" for s in inputs_spec)
     has_video_input = any(s.get("type") == "file:video" for s in inputs_spec)
 
     if has_image_input:
@@ -164,9 +220,17 @@ def run_workflow(preset_name, *component_values):
             ref_name = form_schema._resolve_upload_name(ref_path, kind="image")
         except (ComfyUIError, FileNotFoundError) as e:
             raise _RunError(str(e))
+    if has_audio_input:
+        # VoiceClone 等场景: 参考音频走 file:audio, 写到 ref_name (复用同一个上传槽位)
+        progress(0.18, desc="上传参考音频…")
+        yield "⏳ [2/5] uploading reference audio…", None
+        try:
+            ref_name = form_schema._resolve_upload_name(audio_path, kind="audio")
+        except (ComfyUIError, FileNotFoundError) as e:
+            raise _RunError(str(e))
     if has_video_input:
         progress(0.20, desc="上传驱动视频…")
-        yield "⏳ [2/5] uploading drive video…", None
+        yield "⏳ [3/5] uploading drive video…", None
         try:
             drive_name = form_schema._resolve_upload_name(drive_path, kind="file")
         except (ComfyUIError, FileNotFoundError) as e:
@@ -200,6 +264,21 @@ def run_workflow(preset_name, *component_values):
                         replacements[_enid][_efield] = drive_name
                     else:
                         replacements[_enid] = {_efield: drive_name}
+            elif typ == "file:audio":
+                # 参考音频: 写到 LoadAudio 节点的 audio 字段 (纯文件名)
+                # ref_name 在 has_audio_input 分支已被上传/解析过
+                if nid in replacements:
+                    replacements[nid][field] = ref_name
+                else:
+                    replacements[nid] = {field: ref_name}
+                # file:audio 也支持 also_patch (例如把同一份音频同时写到别的 LoadAudio 节点)
+                for _extra in (spec.get("also_patch") or []):
+                    _enid = str(_extra["node_id"])
+                    _efield = _extra["field"]
+                    if _enid in replacements:
+                        replacements[_enid][_efield] = ref_name
+                    else:
+                        replacements[_enid] = {_efield: ref_name}
             elif typ in ("text", "prompt_pool", "select"):
                 raw = text_by_field.get((nid, field), "")
                 final = (raw or "").strip() or (spec.get("default") or config.DEFAULT_PROMPT_TEXT)
@@ -214,16 +293,16 @@ def run_workflow(preset_name, *component_values):
                         replacements[_enid][_efield] = final
                     else:
                         replacements[_enid] = {_efield: final}
+            elif typ == "image_sizes":
+                w, h = size_by_node[str(spec["node_id"])]
+                replacements.setdefault(nid, {}).update({"width": w, "height": h, "batch_size": 1})
             elif typ in ("int", "int_random"):
                 default = spec.get("default", 1)
                 val = int_by_field.get((nid, field), default)
-                if nid == "479" and val == 0:
-                    pass
+                if nid in replacements:
+                    replacements[nid][field] = val
                 else:
-                    if nid in replacements:
-                        replacements[nid][field] = val
-                    else:
-                        replacements[nid] = {field: val}
+                    replacements[nid] = {field: val}
         patched = scail2_client.patch_workflow(
             wf, replacements, preset_config=preset_cfg, validate_after=True,
         )
@@ -296,9 +375,7 @@ def run_workflow(preset_name, *component_values):
     finished_at = datetime.now(timezone.utc)
     if prompt_id_final:
         try:
-            fps = int_by_field.get(("367", "value"), 81)
-            pre = int_by_field.get(("464", "value"), 5)
-            mx = int_by_field.get(("479", "int_range_end"), 0)
+            fps, pre, mx = _resolve_segment_meta(inputs_spec, int_by_field)
             video_frames = form_schema.get_video_frames(drive_path) if drive_path else None
             est_seg = form_schema.estimated_segments(video_frames, fps, pre, max_segments=mx) if video_frames else None
             manifest = history.build_manifest(
@@ -397,7 +474,6 @@ def run_image_workflow(preset_name, *component_values):
     yield f"⏳ 准备生成 {len(sizes)} 张图…", None
 
     progress(0.05, desc=f"准备生成 {len(sizes)} 张图…")
-    yield f"⏳ 准备生成 {len(sizes)} 张图…", None
 
     for idx, (w, h) in enumerate(sizes, 1):
         actual_seed = seed_val if seed_val and seed_val > 0 else random.randint(1, 10**12)
@@ -460,7 +536,9 @@ def run_image_workflow(preset_name, *component_values):
             _log.error(f"[run_image] extract failed for {prompt_id}: {e}")
 
         progress(seg_end, desc=f"[{idx}/{len(sizes)}] {w}x{h} 完成")
-        yield f"✅ [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
+        # 单段完成用 🖼 前缀, 不能用 ✅ —— ✅ 会被 stream_events 当成整个 run 成功而提前 break,
+        # 导致多尺寸文生图只跑第一张. 只有最后的 "全部完成" 才用 ✅.
+        yield f"🖼 [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
 
     finished_at = datetime.now(timezone.utc)
     primary = all_outputs[0] if all_outputs else None

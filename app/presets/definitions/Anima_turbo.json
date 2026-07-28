@@ -35,24 +35,6 @@
       "label": "输出尺寸",
       "node_id": "4",
       "node_title": "Empty Latent Image",
-      "presets": [
-        {
-          "label": "1024×1024 ｜ 1:1 正方形",
-          "value": "1024x1024"
-        },
-        {
-          "label": "1280×720 ｜ 16:9 横版",
-          "value": "1280x720"
-        },
-        {
-          "label": "720×1280 ｜ 9:16 竖版",
-          "value": "720x1280"
-        },
-        {
-          "label": "1024×1280 ｜ 4:5 海报",
-          "value": "1024x1280"
-        }
-      ],
       "type": "image_sizes",
       "enabled": true,
       "tier": "basic"

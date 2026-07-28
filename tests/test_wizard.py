@@ -312,13 +312,69 @@ def test_run_workflow_once_uses_client_timeout_sec(monkeypatch):
 
 
 def test_parse_empty_latent_image_merges_width_height():
+    """width/height 同 node 合并成单个 image_sizes spec.
+
+    不再早期代码那样既要 help 又要 presets (preset 现在走全局
+    enrich). 这里只锁“合并” + “default 报保留 workflow 原值” 两条.
+    """
     workflow = {"6": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 768, "batch_size": 1}}}
     result = wizard.parse_workflow_api_json(workflow)
     sizes = [f for f in result["fields"] if f["type"] == "image_sizes"]
     assert len(sizes) == 1
     assert sizes[0]["default"] == ["1024x768"]
     assert sizes[0]["help"]
-    assert sizes[0]["presets"]
+
+def test_parse_image_sizes_keeps_workflow_default():
+    """review 2026-07-27: 向导扫 workflow 时提取 width/height 作为 image_sizes 的 default.
+
+    统一显示 (presets / allow_custom / emoji label) 由 form_schema.enrich_preset_config
+    从 config.IMAGE_SIZE_PRESETS 注入, 不是 wizard 的职责. 这里只锁定
+    "以导入的 workflow 为准" 这一条.
+    """
+    workflow = {"6": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 768, "batch_size": 1}}}
+    result = wizard.parse_workflow_api_json(workflow)
+    sizes = [f for f in result["fields"] if f["type"] == "image_sizes"]
+    assert len(sizes) == 1
+    # 关键契约: default 是 workflow 里的 width/height, 不是任何默认值
+    assert sizes[0]["default"] == ["1024x768"], f"导入的 width/height 应作为 default, 实际: {sizes[0]['default']}"
+    # 向导不再往 spec 里写 presets / allow_custom (type 层统一提供)
+    assert "presets" not in sizes[0], f"wizard 不应写 presets, 实际: {bool(sizes[0].get('presets'))}"
+    assert "allow_custom" not in sizes[0], f"wizard 不应写 allow_custom, 实际: {sizes[0].get('allow_custom')}"
+
+
+def test_enrich_preset_config_injects_image_sizes_display():
+    """review 2026-07-27: form_schema.enrich_preset_config 从 config.IMAGE_SIZE_PRESETS
+    注入统一的 presets + allow_custom, 不需要 preset spec 里重复声明.
+    导入的 wizard preset (只有 default) 和内置 preset (有自己的 default) 都走同一个渲染路径.
+    """
+    from app.services import form_schema
+    from app import config as _cfg
+
+    # 1) 导入的 wizard 货 (minimal spec, 没 presets / allow_custom) 经 enrich 后与全局对齐
+    enriched = form_schema.enrich_preset_config({
+        "user_facing_inputs": [
+            {"node_id": "6", "field": "sizes", "type": "image_sizes", "default": ["1024x768"]}
+        ]
+    })
+    spec = enriched["user_facing_inputs"][0]
+    assert spec["presets"] == list(_cfg.IMAGE_SIZE_PRESETS), "wizard spec 经 enrich 后应拿到全局 presets"
+    assert spec["allow_custom"] is True
+    assert spec["default"] == ["1024x768"], "default 仍以 spec 为准"
+
+    # 2) 保证 preset_config("Anima_turbo") 这一类依赖 wizard 生成的 preset 也能拿到全局 presets
+    cfg = _cfg.preset_config("Anima_turbo")
+    sizes_spec = [s for s in cfg["user_facing_inputs"] if s["type"] == "image_sizes"][0]
+    assert sizes_spec["presets"] == list(_cfg.IMAGE_SIZE_PRESETS)
+    assert sizes_spec["allow_custom"] is True
+    assert sizes_spec["default"] == ["1024x1024"]
+
+    # 3) escape hatch: 某 preset 能不加全局 (spec 里明确写 presets / allow_custom) 优先
+    custom = {"node_id": "x", "field": "sizes", "type": "image_sizes", "default": ["512x512"],
+              "presets": [{"label": "custom", "value": "512x512"}], "allow_custom": False}
+    enriched2 = form_schema.enrich_preset_config({"user_facing_inputs": [custom]})
+    spec2 = enriched2["user_facing_inputs"][0]
+    assert spec2["presets"] == [{"label": "custom", "value": "512x512"}]
+    assert spec2["allow_custom"] is False
 
 
 def test_prepare_example_maps_defaults_and_copies_selected_output(tmp_path, monkeypatch):

@@ -73,8 +73,44 @@ def _file_size_mb(p):
         return 0.0
 
 
-def validate_inputs(ref_path, drive_path, preset_cfg):
-    """校验 user_facing_inputs 里的 file:image / file:video 是否合规。
+def _enrich_image_sizes_spec(spec):
+    """给 type=image_sizes 的 spec 注入全局显示字段 (presets / allow_custom).
+
+    统一约束 (review 2026-07-27):
+      - 所有 image_sizes spec 走 config.IMAGE_SIZE_PRESETS + config.IMAGE_SIZE_ALLOW_CUSTOM
+      - preset spec 自己声明 presets / allow_custom 时仍以 spec 为准 (escape hatch)
+      - per-workflow 数据 (default / min_width / max_width / min_height / max_height) 不动
+    不在原 spec 上 in-place 改, 拷一份避免污染磁盘上的 JSON。
+    """
+    if spec.get("type") != "image_sizes":
+        return spec
+    out = dict(spec)
+    out.setdefault("presets", list(config.IMAGE_SIZE_PRESETS))
+    out.setdefault("allow_custom", config.IMAGE_SIZE_ALLOW_CUSTOM)
+    return out
+
+
+def enrich_preset_config(cfg):
+    """preset_config 出口: 对 user_facing_inputs 里每条 image_sizes spec 做 enrich.
+
+    preset spec 自己声明的 presets / allow_custom 优先, 没写才走 config 全局默认。
+    其它 type 的 spec 原样返回 (无侵入)。
+    """
+    inputs = cfg.get("user_facing_inputs")
+    if not inputs:
+        return cfg
+    enriched = [_enrich_image_sizes_spec(s) for s in inputs]
+    if any(a is not b for a, b in zip(enriched, inputs)):
+        out = dict(cfg)
+        out["user_facing_inputs"] = enriched
+        return out
+    return cfg
+
+
+def validate_inputs(ref_path, drive_path, preset_cfg, audio_path=None):
+    """校验 user_facing_inputs 里的 file:image / file:video / file:audio 是否合规。
+
+    audio_path 是 file:audio 槽位 (VoiceClone 等场景)。
 
     - 只校验 preset 实际声明的 file type (audit by user_facing_inputs)。
       音频类 preset (qwen3_tts / ace_step_15_music) 没有 file inputs, 跳过整段校验。
@@ -82,6 +118,7 @@ def validate_inputs(ref_path, drive_path, preset_cfg):
     """
     has_image_input = any(s.get("type") == "file:image" for s in preset_cfg.get("user_facing_inputs", []))
     has_video_input = any(s.get("type") == "file:video" for s in preset_cfg.get("user_facing_inputs", []))
+    has_audio_input = any(s.get("type") == "file:audio" for s in preset_cfg.get("user_facing_inputs", []))
     if has_image_input:
         if not ref_path:
             return "参考图未上传"
@@ -98,6 +135,14 @@ def validate_inputs(ref_path, drive_path, preset_cfg):
             return f"驱动视频扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_VIDEO_EXT)}）"
         if _file_size_mb(drive_path) > config.MAX_VIDEO_MB:
             return f"驱动视频过大: {_file_size_mb(drive_path):.1f}MB（上限 {config.MAX_VIDEO_MB}MB）"
+    if has_audio_input:
+        if not audio_path:
+            return "参考音频未上传"
+        ext = _file_extension(audio_path)
+        if ext not in config.ALLOWED_AUDIO_EXT:
+            return f"参考音频扩展名不支持: {ext}（允许: {sorted(config.ALLOWED_AUDIO_EXT)}）"
+        if _file_size_mb(audio_path) > config.MAX_AUDIO_MB:
+            return f"参考音频过大: {_file_size_mb(audio_path):.1f}MB（上限 {config.MAX_AUDIO_MB}MB）"
     return None
 
 
@@ -117,11 +162,12 @@ def parse_sizes(value):
     if isinstance(value, (list, tuple)):
         out = []
         for v in value:
-            if v is None:
+            if v is None or not str(v).strip():
                 continue
             m = _SIZE_PAT.fullmatch(str(v).strip())
-            if m:
-                out.append((int(m.group(1)), int(m.group(2))))
+            if not m:
+                return None
+            out.append((int(m.group(1)), int(m.group(2))))
         return out
     m = _SIZE_PAT.fullmatch(str(value).strip())
     if m:
@@ -159,6 +205,9 @@ def example_to_form_values(preset_name):
             values.append(_resolve_example_file(ex.get("reference_image")))
         elif typ == "file:video":
             values.append(_resolve_example_file(ex.get("drive_video")))
+        elif typ == "file:audio":
+            # VoiceClone 等场景: example.ref_audio 写到 ComfyUI input 目录下的纯文件名
+            values.append(_resolve_example_file(ex.get("ref_audio")))
         elif typ == "prompt_pool":
             values.append(ex.get("prompt", spec.get("default", "")))
         elif typ == "image_sizes":
@@ -203,6 +252,8 @@ def _manifest_to_form_values(preset_name, manifest):
             values.append(_resolve_example_file(manifest.get("reference_image", "")))
         elif typ == "file:video":
             values.append(_resolve_example_file(manifest.get("drive_video", "")))
+        elif typ == "file:audio":
+            values.append(_resolve_example_file(manifest.get("ref_audio", "")))
         elif typ == "prompt_pool":
             values.append(manifest.get("prompt_text", spec.get("default", "")))
         elif typ == "image_sizes":
@@ -234,49 +285,64 @@ def _manifest_to_form_values(preset_name, manifest):
 def _resolve_example_file(filename):
     """把 example 里的文件名解析成前端能展示、runner 能上传的值。
 
-    Flask 版: 直接返回 ComfyUI input 目录下的文件**纯文件名** (basename).
-    - 前端通过 /comfy_input/<filename> 路由展示缩略图 (flask_app.comfy_input)
-    - runner 上传时 _resolve_upload_name 识别它在 ComfyUI input 目录, 跳过重复上传
+    review 2026-07-28: 全部 example 资源统一走项目仓库 app/static/examples/, 不再依赖
+    ComfyUI input 目录. 解析顺序:
+      1. 绝对路径 -> 原样返回 (用户可能手填)
+      2. 项目 examples 里 (按 basename 找) -> 命中就返回 "app/static/examples/<name>"
+         (统一返回项目相对路径, 跟 runner 的 project 分支对齐)
+      3. CWD 下的相对路径 -> 原样返回 (历史 staged 兼容)
 
-    返回 None 的情况 (让前端显示空缩略图, 用户自己上传):
-      - filename 为空
-      - 文件在 COMFY_INPUT_DIR 找不到 (也没在绝对路径找到)
+    返回 None: filename 为空 或 找不到源文件
 
-    历史 (Gradio 6 时代): 曾把文件复制到 .examples_cache/ 绕过 gr.File 的安全限制,
-    Gradio 下线后这个 workaround 不需要了 (migrate-to-flask 清理 2026-07-24).
+    注: 不再读 COMFY_INPUT_DIR. 用户上传的本地文件走 /api/upload 上传到 input 后
+    runner 那边会再调 _resolve_upload_name 把 input 里的 basename 复用, 这两条路径
+    互不干扰.
     """
     if not filename:
         return None
-    # 找源文件: 先按绝对路径, 再拼 COMFY_INPUT_DIR
     src = Path(filename)
-    if not src.is_absolute():
-        src = config.COMFY_INPUT_DIR / filename
-    if not src.exists():
-        # 也可能在 CWD 下 (历史 staged 路径)
-        src = Path(filename)
-        if not src.exists():
-            return None
-    return src.name
+    if src.is_absolute():
+        return str(src) if src.exists() else None
+    project_ex = config.REPO_ROOT / "app" / "static" / "examples" / src.name
+    if project_ex.exists():
+        return f"app/static/examples/{src.name}"
+    if src.exists():
+        return str(src)
+    return None
 
 
 def _is_comfy_input_file(filename):
-    """判断文件名是否已存在于 ComfyUI input 目录（example 加载场景，可跳过上传）。"""
+    """判断 basename 是否已存在于 ComfyUI input 目录（用户上传后复用场景, 跳过重复上传）。
+
+    review 2026-07-28: example 资源不再走这里; 只对用户主动上传的本地文件 (basename)
+    返回 True, runner 可直接复用避免重复 POST /upload.
+    """
     if not filename:
         return False
-    # 纯文件名（无路径分隔符）= 用户直接填的 ComfyUI 端文件名
     if "/" in filename or "\\" in filename:
         return False
     return (config.COMFY_INPUT_DIR / filename).exists()
 
 
 def _resolve_upload_name(file_value, kind="image"):
-    """解析上传后的文件名。
+    """解析上传后的文件名 (basename), 供 workflow 节点直接读.
 
-    - 若 file_value 是纯文件名且已在 ComfyUI input 目录（example 场景）→ 直接返回，跳过上传
-    - 否则走 scail2_client.upload 上传，返回上传后的 name
+    三个来源 (review 2026-07-28):
+      1. "app/static/examples/<name>" (项目仓库, example 加载场景) -> 从 REPO_ROOT 读,
+         上传到 COMFY_INPUT_DIR 供 workflow 用
+      2. 已存在 COMFY_INPUT_DIR 的纯 basename (用户自己上传过的文件) -> 直接复用, 跳过 POST
+      3. 其它 (绝对路径 / CWD 相对路径) -> 走 scail2_client.upload 上传
+
+    返回的 basename 一定能在 COMFY_INPUT_DIR 找到 (新上传完 或 复用已有).
     """
     if not file_value:
         return None
+    if file_value.startswith("app/static/"):
+        project_src = config.REPO_ROOT / file_value
+        if not project_src.exists():
+            raise FileNotFoundError(f"_resolve_upload_name: project file not found: {project_src}")
+        from app import scail2_client as _sc
+        return _sc.upload(str(project_src), kind=kind)["name"]
     if _is_comfy_input_file(file_value):
         return file_value
     result = scail2_client.upload(file_value, kind=kind)

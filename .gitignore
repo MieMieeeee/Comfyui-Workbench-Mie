@@ -9,6 +9,8 @@ app/data/gradio_run.log
 app/data/runs/
 # theme 持久化 (用户本机选的主题, 每台机器不同; AGENTS.md 说明)
 app/data/theme_settings.json
+# 用户通过向导保存的输入布局 (label/tier/help 自定义, 每台机器不同)
+app/data/input_layouts/
 # probe 截图子目录 (per-dev 调试 e2e/new_presets/wc_repro 等, 不入库)
 app/data/probe_*/
 .examples_cache/

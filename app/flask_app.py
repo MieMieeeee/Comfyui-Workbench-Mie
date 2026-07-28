@@ -121,9 +121,7 @@ def _workflows_for_nav():
             "category": cat,
             "icon": _category_icon(cat),
             "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
-            "output_kind": cfg.get("output_kind") or (
-                "image" if cat == "image" else "audio" if cat == "audio" else "video"
-            ),
+            "output_kind": config.resolve_output_kind(cfg),
         })
     return out
 
@@ -183,6 +181,28 @@ def comfy_input(filename):
     except FileNotFoundError:
         return jsonify({"error": f"file not found: {filename}"}), 404
 
+@app.route("/example_thumb/<path:filename>")
+def example_thumb(filename):
+    """example 缩略图路由: 只查 app/static/examples/, 不再走 COMFY_INPUT_DIR.
+
+    设计原则 (review 2026-07-28): 所有 example 用的素材 (preview + reference / drive / ref_audio)
+    都打包在项目仓库 app/static/examples/ 下, 不依赖用户机器上 ComfyUI input 目录有什么.
+    - 用户上传的本地文件 -> 走 /comfy_input/ (用户主动行为, 上传到 input 是合理的)
+    - example 用的资源 -> 走 /example_thumb/ (项目自包含, 克隆即用)
+    - 实际运行结果 -> 走 /comfy_output_proxy/ (ComfyUI 跑出来的, 自然在 ComfyUI)
+
+    对 double 资源 (sca12/klein_edit 在 project + ComfyUI input 都有) 也不再有歧义:
+    一律从 project 走, 用户自己新上传的文件不会"撞名"覆盖 example.
+    """
+    from pathlib import Path as _P
+    base = _P(filename).name  # 防目录遍历
+    if not base:
+        return jsonify({"error": "empty filename"}), 400
+    p = config.REPO_ROOT / "app" / "static" / "examples" / base
+    if p.exists():
+        return send_from_directory(str(config.REPO_ROOT / "app" / "static" / "examples"), base)
+    return jsonify({"error": f"file not in project examples: {base}"}), 404
+
 
 @app.route("/")
 def index():
@@ -212,10 +232,7 @@ def index():
             "display_name": cfg.get("display_name", w["name"]),
             "description": cfg.get("description", ""),
             "category": cfg.get("category", "other"),
-            "output_kind": cfg.get("output_kind") or (
-                "image" if cfg.get("category") == "image"
-                else "audio" if cfg.get("category") == "audio" else "video"
-            ),
+            "output_kind": config.resolve_output_kind(cfg),
             "user_facing_inputs": cfg.get("user_facing_inputs", []),
             "preview_url": preview_url,
             "preview_kind": (
@@ -320,6 +337,32 @@ def get_last_run(preset_name):
     return jsonify(_load_last_run(preset_name, cfg["user_facing_inputs"]))
 
 
+@app.route("/api/last_output/<preset_name>")
+def get_last_output(preset_name):
+    """返回该 preset 最近一次成功 run 的首个输出 view URL.
+
+    给"最近输出"按钮用: 从 history manifest 取最近 success 记录的 output/outputs[0],
+    拼 /comfy_output?... 同源代理 URL. 没跑过成功记录则 available=false (按钮隐藏).
+    """
+    from app import history
+    runs = history.list_runs(preset=preset_name, status="success", limit=1)
+    if not runs:
+        return jsonify({"available": False})
+    manifest = runs[0]
+    # 优先 outputs[0] (多图), 其次 output (单图)
+    out = None
+    outputs = manifest.get("outputs") or []
+    if outputs:
+        out = outputs[0]
+    elif manifest.get("output"):
+        out = manifest["output"]
+    if not out or not out.get("filename"):
+        return jsonify({"available": False})
+    url = history.make_view_url(
+        out["filename"], out.get("subfolder", ""), out.get("type", "output"))
+    return jsonify({"available": True, "url": url, "filename": out["filename"]})
+
+
 # ============================================================
 # API 路由 — ComfyUI 连接 / 设置
 # ============================================================
@@ -395,9 +438,7 @@ def workflows():
             "category": cat,
             "icon": _category_icon(cat),
             "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
-            "output_kind": cfg.get("output_kind") or (
-                "image" if cat == "image" else "audio" if cat == "audio" else "video"
-            ),
+            "output_kind": config.resolve_output_kind(cfg),
         })
     return jsonify(out)
 
@@ -473,7 +514,15 @@ def upload_file():
     kind = request.form.get("kind", "image")
     from pathlib import Path as _P
     ext = _P(f.filename).suffix.lower()
-    allowed = config.ALLOWED_IMAGE_EXT if kind == "image" else config.ALLOWED_VIDEO_EXT
+    if kind == "audio":
+        allowed = config.ALLOWED_AUDIO_EXT
+        max_mb = config.MAX_AUDIO_MB
+    elif kind == "video":
+        allowed = config.ALLOWED_VIDEO_EXT
+        max_mb = config.MAX_VIDEO_MB
+    else:
+        allowed = config.ALLOWED_IMAGE_EXT
+        max_mb = config.MAX_IMAGE_MB
     if ext not in allowed:
         return jsonify({
             "error": f"extension {ext} not allowed (allowed: {sorted(allowed)})",
@@ -484,7 +533,6 @@ def upload_file():
     size = f.stream.tell()
     f.stream.seek(0)
     size_mb = size / (1024 * 1024)
-    max_mb = config.MAX_IMAGE_MB if kind == "image" else config.MAX_VIDEO_MB
     if size_mb > max_mb:
         return jsonify({
             "error": f"file too large: {size_mb:.1f}MB > {max_mb}MB",
@@ -520,10 +568,7 @@ def preset_cfg(preset_name):
         "display_name": cfg.get("display_name", preset_name),
         "description": cfg.get("description", ""),
         "category": cfg.get("category", "other"),
-        "output_kind": cfg.get("output_kind") or (
-            "image" if cfg.get("category") == "image"
-            else "audio" if cfg.get("category") == "audio" else "video"
-        ),
+        "output_kind": config.resolve_output_kind(cfg),
         "user_facing_inputs": cfg.get("user_facing_inputs", []),
     })
 
