@@ -5,8 +5,14 @@ import copy
 import json
 import os
 from pathlib import Path
+from typing import Iterable
 
 from app import config
+
+# 保存排序时给每个 preset 分配的 order 步长. 现有 preset 的 order 是
+# 10, 20, ..., 210 (步长 10), 留空间让以后插入新 preset 不用重排老的.
+_ORDER_STEP = 10
+_ORDER_BASE = 10
 
 
 EDITABLE_FIELDS = ("label", "tier", "help")
@@ -73,9 +79,22 @@ def get_editor_definition(name: str) -> dict:
 
 
 def _atomic_write_json(path: Path, data: dict) -> None:
+    # 保留原文件的行尾 (LF / CRLF). 仓库里 definition 文件两种行尾都有, 一律写 LF
+    # 会让 CRLF 的文件整文件重写 (git diff 看着几百行改了实际只改了 1 行 + 行尾).
+    # 注: json.dumps 总是产出 LF, 直接 append newline 只影响最后一处; 整文要替换.
     path.parent.mkdir(parents=True, exist_ok=True)
+    use_crlf = False
+    if path.is_file():
+        with open(path, "rb") as f:
+            sample = f.read(4096)
+        if b"\r\n" in sample and sample.count(b"\r\n") > sample.count(b"\n") - sample.count(b"\r\n"):
+            use_crlf = True
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    if use_crlf:
+        text = text.replace("\n", "\r\n")
     temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    with open(temp, "w", encoding="utf-8", newline="") as f:
+        f.write(text + ("\r\n" if use_crlf else "\n"))
     os.replace(temp, path)
 
 
@@ -121,3 +140,82 @@ def restore_input_layout(name: str) -> bool:
         path.unlink()
         return True
     return False
+
+
+def _params_presets() -> dict:
+    """读 params.json 的 presets dict. 失败时返回空 dict."""
+    try:
+        with config.PARAMS_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    presets = data.get("presets")
+    return presets if isinstance(presets, dict) else {}
+
+
+def _write_params_presets(presets: dict) -> None:
+    """把 presets dict 写回 params.json, 保留顶层 schema_version 等其它字段."""
+    data: dict = {}
+    if config.PARAMS_FILE.is_file():
+        try:
+            data = json.loads(config.PARAMS_FILE.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data["presets"] = presets
+    _atomic_write_json(config.PARAMS_FILE, data)
+
+
+def _set_definition_order(name: str, order: int) -> bool:
+    """把 order 写进 definition 文件. 返回 True 表示有定义并写入."""
+    def_path = _definition_path(name)
+    if not def_path.is_file():
+        return False
+    try:
+        cfg = json.loads(def_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    if not isinstance(cfg, dict):
+        return False
+    cfg["order"] = order
+    _atomic_write_json(def_path, cfg)
+    return True
+
+
+def save_preset_order(ordered_names: Iterable) -> dict:
+    """按 ordered_names 顺序重排工作流. 每个 preset 的 order 用步长 10 分配.
+
+    每个 preset 优先写回 definition 文件 (新工作流通常在这里), 兜底写 params.json
+    (老工作流通常在这里). 这样 list_workflows() 重新读出来的 order 跟用户期望一致.
+    """
+    if not isinstance(ordered_names, (list, tuple)):
+        raise ValueError("order 必须是数组, 不能为空 / 重复 / 包含未知 preset")
+    names = [n for n in ordered_names if isinstance(n, str) and n]
+    if not names or len(names) != len(ordered_names) or len(set(names)) != len(names):
+        raise ValueError("order 必须是数组, 不能为空 / 重复 / 包含未知 preset")
+    known = {row["name"] for row in config.list_workflows()}
+    missing = [n for n in names if n not in known]
+    if missing:
+        raise ValueError(f"未知 preset: {missing}. 已知: {sorted(known)}")
+    # 必须传完整列表: 不在提交里的 preset 也算缺失, 避免误操作把剩下的 order 漏更新
+    not_in_request = sorted(known - set(names))
+    if not_in_request:
+        raise ValueError(
+            f"order 必须包含所有 preset, 漏了: {not_in_request}. 完整列表: {sorted(known)}"
+        )
+    result = []
+    for idx, name in enumerate(names):
+        new_order = _ORDER_BASE + idx * _ORDER_STEP
+        if not _set_definition_order(name, new_order):
+            presets = _params_presets()
+            if name not in presets:
+                # 不太可能: 出现在 list_workflows 但 params 和 definition 都没有
+                # (definition 优先 + params 兜底的双源结构下不会发生, 兜底 raise)
+                raise ValueError(f"preset {name} 没有可写位置 (params 和 definition 都没有)")
+            presets[name]["order"] = new_order
+            _write_params_presets(presets)
+        result.append({"name": name, "order": new_order})
+    return {"order": result}

@@ -636,6 +636,19 @@ def wizard_restore_input_layout(preset_name):
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/wizard/preset-order", methods=["PUT"])
+def wizard_save_preset_order():
+    """按新顺序重排工作流. body: {"order": [name1, name2, ...]}.
+
+    写回 definition (优先) 或 params.json. 10 步长分配 order, 留空间给后续插入.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(workflow_editor.save_preset_order(data.get("order")))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/wizard/parse", methods=["POST"])
 def wizard_parse():
     """步骤 A: 上传 ComfyUI API 格式 workflow JSON → 返回推断后的候选输入字段.

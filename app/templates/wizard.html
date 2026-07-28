@@ -108,6 +108,22 @@
   .wizard-edit-move { display: flex; gap: 4px; justify-content: flex-end; }
   .wizard-edit-status { color: var(--text-secondary); min-height: 1.5em; }
   .wizard-edit-status.dirty { color: var(--color-warning); }
+  /* 排序模式: 复用 .wizard-edit-item / .wizard-drag-handle / .wizard-move-btn 样式 */
+  .wizard-order-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+  .wizard-order-item { display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: center; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+  .wizard-order-item.dragging { opacity: 0.55; border-color: var(--theme-accent-400); }
+  .wizard-order-pos { color: var(--text-muted); font-size: 0.85em; min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+  .wizard-order-meta { min-width: 0; }
+  .wizard-order-meta strong { display: block; color: var(--text-primary); }
+  .wizard-order-meta .wizard-pick-nodeid { color: var(--text-muted); font-size: 0.78em; }
+  .wizard-order-meta .wizard-order-tag { display: inline-block; margin-left: 6px; font-size: 0.7em; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--bg-overlay); color: var(--text-secondary); }
+  .wizard-order-tag.tag-image { color: var(--color-info); }
+  .wizard-order-tag.tag-video { color: var(--theme-accent-400); }
+  .wizard-order-tag.tag-audio { color: var(--color-warning); }
+  .wizard-order-tag.tag-other { color: var(--text-muted); }
+  .wizard-order-status { color: var(--text-secondary); min-height: 1.5em; }
+  .wizard-order-status.dirty { color: var(--color-warning); }
+  @media (max-width: 640px) { .wizard-order-item { grid-template-columns: auto 1fr auto; } .wizard-drag-handle { display: none; } }
   @media (max-width: 640px) {
     .wizard-edit-select { flex-direction: column; align-items: stretch; }
     .wizard-edit-item { grid-template-columns: minmax(0, 1fr) auto; }
@@ -126,6 +142,7 @@
   <div class="wizard-mode-tabs" role="tablist">
     <button type="button" class="btn-secondary" :class="{ active: wizardMode === 'new' }" @click="setWizardMode('new')">自定义工作流</button>
     <button type="button" class="btn-secondary" :class="{ active: wizardMode === 'edit' }" @click="setWizardMode('edit')">编辑已有工作流</button>
+    <button type="button" class="btn-secondary" :class="{ active: wizardMode === 'order' }" @click="setWizardMode('order')">调整顺序</button>
   </div>
 
   <section class="wizard-step" x-show="wizardMode === 'edit'">
@@ -172,6 +189,35 @@
     <button type="button" class="btn-run-primary" x-show="editItems.length" @click="saveEditPreset()" :disabled="editSaving || !editDirty">
       <span x-text="editSaving ? '保存中…' : '保存输入布局'"></span>
     </button>
+  </section>
+
+  <section class="wizard-step" x-show="wizardMode === 'order'">
+    <h3>调整工作流顺序</h3>
+    <p class="wizard-hint">拖动 / 上下按钮调整运行页左侧导航的显示顺序。保存后立即刷新运行页生效。</p>
+    <p x-show="orderLoading" class="wizard-loading">加载中…</p>
+    <div class="wizard-order-list" x-show="orderItems.length">
+      <template x-for="(item, idx) in orderItems" :key="item.name">
+        <div class="wizard-order-item" draggable="true" :class="{ dragging: orderDragIndex === idx }"
+             @dragstart="startOrderDrag(idx)" @dragover.prevent @drop="dropOrderItem(idx)" @dragend="orderDragIndex = null">
+          <span class="wizard-drag-handle" title="拖动排序">⋮⋮</span>
+          <span class="wizard-order-pos" x-text="idx + 1 + '.'"></span>
+          <div class="wizard-order-meta">
+            <strong x-text="item.display_name"></strong>
+            <span class="wizard-pick-nodeid" x-text="'@' + item.name"></span>
+            <span class="wizard-order-tag" :class="'tag-' + (item.category || 'other')" x-text="categoryLabel(item.category)"></span>
+          </div>
+          <div class="wizard-edit-move">
+            <button type="button" class="wizard-move-btn" @click="moveOrderItem(idx, -1)" :disabled="idx === 0" title="上移">▲</button>
+            <button type="button" class="wizard-move-btn" @click="moveOrderItem(idx, 1)" :disabled="idx === orderItems.length - 1" title="下移">▼</button>
+          </div>
+        </div>
+      </template>
+    </div>
+    <p class="wizard-order-status" :class="{ dirty: orderDirty }" x-text="orderStatus"></p>
+    <button type="button" class="btn-run-primary" x-show="orderItems.length" @click="saveOrder()" :disabled="orderSaving || !orderDirty">
+      <span x-text="orderSaving ? '保存中…' : '保存顺序'"></span>
+    </button>
+    <button type="button" class="btn-secondary" x-show="orderItems.length && orderDirty" @click="resetOrder()" :disabled="orderSaving" style="margin-left: 10px;">撤销修改</button>
   </section>
 
   <div x-show="wizardMode === 'new'">

@@ -185,6 +185,7 @@ def test_wizard_save_builds_example_from_selected_run_output(client, monkeypatch
     token = r.get_json()["token"]
     monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
     monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
     (tmp_path / "presets").mkdir()
     (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}), encoding="utf-8")
     expected_example = {"text": "a cat", "preview_image": "app/static/examples/new_wf.png"}
@@ -212,9 +213,125 @@ def test_wizard_save_does_not_write_definition_when_preview_copy_fails(client, m
     token = r.get_json()["token"]
     monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
     monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
     (tmp_path / "presets").mkdir()
     (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}), encoding="utf-8")
     monkeypatch.setattr(flask_app.wizard, "prepare_example", lambda *args: (_ for _ in ()).throw(FileNotFoundError("missing output")))
     r = client.post("/api/wizard/save", json={"token": token, "name": "broken_wf", "fields": [], "selected_output": {"filename": "missing.png"}})
     assert r.status_code == 422
     assert not (tmp_path / "defs" / "broken_wf.json").exists()
+
+
+# ============================================================
+# PUT /api/wizard/preset-order (工作流顺序调整)
+# ============================================================
+
+def test_preset_order_rewrites_params_orders(client, monkeypatch, tmp_path):
+    """按新顺序调整工作流 → params.json 里的 order 字段被重写, 步长 10."""
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    params = {
+        "schema_version": 4,
+        "presets": {
+            "a": {"display_name": "A", "category": "image", "order": 10},
+            "b": {"display_name": "B", "category": "image", "order": 20},
+            "c": {"display_name": "C", "category": "image", "order": 30},
+        },
+    }
+    (tmp_path / "presets" / "params.json").write_text(json.dumps(params), encoding="utf-8")
+
+    r = client.put("/api/wizard/preset-order", json={"order": ["c", "a", "b"]})
+    assert r.status_code == 200
+    data = r.get_json()
+    assert [row["name"] for row in data["order"]] == ["c", "a", "b"]
+    assert [row["order"] for row in data["order"]] == [10, 20, 30]
+
+    after = json.loads((tmp_path / "presets" / "params.json").read_text(encoding="utf-8"))
+    assert after["presets"]["a"]["order"] == 20
+    assert after["presets"]["b"]["order"] == 30
+    assert after["presets"]["c"]["order"] == 10
+
+
+def test_preset_order_writes_definition_when_present(client, monkeypatch, tmp_path):
+    """在 definitions/ 里的 preset → order 写到 definition 文件, 不动 params.json (除了 key 不存在的)."""
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "newly_added.json").write_text(
+        json.dumps({"display_name": "Newly Added", "category": "image", "order": 999}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(
+        json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8"
+    )
+
+    r = client.put("/api/wizard/preset-order", json={"order": ["newly_added"]})
+    assert r.status_code == 200
+    after = json.loads((defs / "newly_added.json").read_text(encoding="utf-8"))
+    assert after["order"] == 10
+    # params.json 没多出这个 key
+    params_after = json.loads((tmp_path / "presets" / "params.json").read_text(encoding="utf-8"))
+    assert "newly_added" not in params_after.get("presets", {})
+
+
+def test_preset_order_rejects_unknown_name(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(
+        json.dumps({"schema_version": 4, "presets": {"a": {"display_name": "A", "order": 10}}}),
+        encoding="utf-8",
+    )
+    r = client.put("/api/wizard/preset-order", json={"order": ["a", "ghost"]})
+    assert r.status_code == 400
+    assert "ghost" in r.get_json()["error"]
+
+
+def test_preset_order_rejects_duplicates(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(
+        json.dumps({"schema_version": 4, "presets": {"a": {"display_name": "A", "order": 10}}}),
+        encoding="utf-8",
+    )
+    r = client.put("/api/wizard/preset-order", json={"order": ["a", "a"]})
+    assert r.status_code == 400
+
+
+def test_preset_order_rejects_empty(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(
+        json.dumps({"schema_version": 4, "presets": {"a": {"display_name": "A", "order": 10}}}),
+        encoding="utf-8",
+    )
+    r = client.put("/api/wizard/preset-order", json={"order": []})
+    assert r.status_code == 400
+
+
+def test_preset_order_refuses_subset(client, monkeypatch, tmp_path):
+    """order 必须是完整列表, 不能只送一部分 (避免误操作覆盖未提交的 preset)."""
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", tmp_path / "defs")
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(
+        json.dumps({"schema_version": 4, "presets": {
+            "a": {"display_name": "A", "order": 10},
+            "b": {"display_name": "B", "order": 20},
+        }}),
+        encoding="utf-8",
+    )
+    r = client.put("/api/wizard/preset-order", json={"order": ["a"]})
+    assert r.status_code == 400
+    assert "ghost" not in r.get_json()["error"]  # 应该是 "未知 preset: ['b']" 之类的

@@ -754,6 +754,15 @@ function wizardTab() {
     editStatus: '',
     editDragIndex: null,
 
+    // 排序模式: editableWorkflows 镜像 (用户拖拽后只动 orderItems, 不动 editableWorkflows,
+    // 这样切回 edit tab 时下拉框还是原始顺序, 避免下拉里出现一份跟列表对不上的 ghost)
+    orderItems: [],
+    orderDirty: false,
+    orderSaving: false,
+    orderLoading: false,
+    orderStatus: '',
+    orderDragIndex: null,
+
     // 步骤 3: 运行 + 输出选择
     running: false,
     runError: '',
@@ -774,10 +783,72 @@ function wizardTab() {
 
     async setWizardMode(mode) {
       this.wizardMode = mode;
-      if (mode === 'edit' && this.editableWorkflows.length === 0) {
+      if ((mode === 'edit' || mode === 'order') && this.editableWorkflows.length === 0) {
         try { this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows'); }
-        catch (e) { this.editStatus = '加载工作流列表失败: ' + e.message; }
+        catch (e) {
+          if (mode === 'edit') this.editStatus = '加载工作流列表失败: ' + e.message;
+          else this.orderStatus = '加载工作流列表失败: ' + e.message;
+        }
       }
+      if (mode === 'order') this.loadOrder();
+    },
+
+    // category 显示名 (跟原 order 一致: image=图, video=视频, audio=音频, 其它=其它)
+    categoryLabel(cat) {
+      return ({ image: '图', video: '视频', audio: '音频' })[cat] || '其它';
+    },
+
+    // 排序模式: 从 editableWorkflows (已按 order 排序) 拉一份镜像
+    async loadOrder() {
+      if (!this.editableWorkflows.length) return;
+      this.orderLoading = true;
+      try {
+        this.orderItems = this.editableWorkflows.map(w => ({ name: w.name, display_name: w.display_name, category: w.category }));
+        this.orderDirty = false;
+        this.orderStatus = '';
+      } finally { this.orderLoading = false; }
+    },
+
+    markOrderDirty() { this.orderDirty = true; this.orderStatus = '有未保存修改'; },
+
+    moveOrderItem(idx, dir) {
+      const next = idx + dir;
+      if (next < 0 || next >= this.orderItems.length) return;
+      const item = this.orderItems.splice(idx, 1)[0];
+      this.orderItems.splice(next, 0, item); this.markOrderDirty();
+    },
+
+    startOrderDrag(idx) { this.orderDragIndex = idx; },
+    dropOrderItem(idx) {
+      const from = this.orderDragIndex; this.orderDragIndex = null;
+      if (from == null || from === idx) return;
+      const item = this.orderItems.splice(from, 1)[0];
+      this.orderItems.splice(from < idx ? idx - 1 : idx, 0, item); this.markOrderDirty();
+    },
+
+    async saveOrder() {
+      if (!this.orderItems.length || !this.orderDirty || this.orderSaving) return;
+      this.orderSaving = true; this.orderStatus = '保存中…';
+      try {
+        await fetchJSON('/api/wizard/preset-order', {
+          method: 'PUT',
+          body: JSON.stringify({ order: this.orderItems.map(i => i.name) }),
+        });
+        this.orderDirty = false;
+        this.orderStatus = '已保存, 运行页刷新后生效';
+        // editableWorkflows 也跟着同步, 这样切回 edit tab 下拉顺序也对
+        this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows');
+        this.orderItems = this.editableWorkflows.map(w => ({ name: w.name, display_name: w.display_name, category: w.category }));
+      } catch (e) { this.orderStatus = '保存失败: ' + e.message; }
+      finally { this.orderSaving = false; }
+    },
+
+    async resetOrder() {
+      // 撤销: 重新拉一份原始顺序
+      this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows');
+      await this.loadOrder();
+      this.orderDirty = false;
+      this.orderStatus = '已撤销修改';
     },
 
     async loadEditPreset() {
