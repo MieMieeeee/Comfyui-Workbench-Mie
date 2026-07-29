@@ -340,8 +340,12 @@
               </template>
             </div>
 
-            <!-- 运行按钮 -->
-            <div class="run-controls">
+          </div>
+
+          <!-- ===== 右栏: 结果展示 (运行按钮 + 状态条 + 日志 + 错误 + 结果) ===== -->
+          <div class="preset-result">
+            <!-- 运行按钮 (review 2026-07-29: 移到结果区上方, 用户不用滚到底也能点) -->
+            <div class="run-controls run-controls-top">
               <button class="btn-run-primary"
                       type="button"
                       @click="runWorkflow(w.name)"
@@ -349,10 +353,6 @@
                 🚀 开始运行
               </button>
             </div>
-          </div>
-
-          <!-- ===== 右栏: 结果展示 (状态条 + 日志 + 错误 + 结果) ===== -->
-          <div class="preset-result">
             <div class="run-status-bar" :class="'status-' + (runState[w.name] || 'idle')"
                  x-show="runState[w.name] && runState[w.name] !== 'idle'">
               <span class="status-icon" x-html="statusIcon(w.name)"></span>
