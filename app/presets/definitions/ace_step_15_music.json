@@ -2,7 +2,7 @@
   "workflow_file": "ace_step_15_music.json",
   "display_name": "音乐生成 (Ace Step 1.5)",
   "category": "audio",
-  "order": 210,
+  "order": 130,
   "description": "Ace Step 1.5 文生音乐：写音乐风格 / 情绪 / 乐器 tags，可选带歌词出歌（纯器乐也行）。BPM / 调性 / 时长都能控。",
   "user_facing_inputs": [
     {
@@ -134,5 +134,6 @@
       "node_id": "104",
       "reason": "SaveAudioMP3: quality 默认 128k,可改 V0 (高质量)。"
     }
-  ]
+  ],
+  "group": "音频"
 }

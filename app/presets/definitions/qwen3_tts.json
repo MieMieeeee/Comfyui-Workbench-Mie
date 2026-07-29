@@ -2,7 +2,7 @@
   "workflow_file": "qwen3_tts.json",
   "display_name": "语音合成 (Qwen3-TTS VoiceDesign)",
   "category": "audio",
-  "order": 200,
+  "order": 110,
   "description": "Qwen3-TTS 语音合成：写文字 + 描述要的声音（'少年音 / 磁性 / 温柔'），出对应音色的 MP3。不用上传参考音频，音色全靠文字描述。",
   "user_facing_inputs": [
     {
@@ -99,5 +99,6 @@
       "node_id": "47",
       "reason": "SaveAudioMP3 输出节点;filename_prefix + quality 影响最终 MP3 路径和码率。"
     }
-  ]
+  ],
+  "group": "音频"
 }

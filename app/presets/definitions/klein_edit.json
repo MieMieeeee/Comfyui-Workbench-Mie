@@ -70,5 +70,6 @@
       "node_id": "166",
       "reason": "VHS_LoadVideo 旁路,只用于 PreviewImage 预览上传视频,主路径用 LoadImage (76)。"
     }
-  ]
+  ],
+  "group": "图像"
 }

@@ -2,7 +2,7 @@
   "workflow_file": "sam3_mat_video.json",
   "display_name": "智能抠视频 (SAM3)",
   "category": "video",
-  "order": 145,
+  "order": 100,
   "description": "SAM3 文本驱动视频抠图：上传视频 + 写'a person'/'the red car'，逐帧出 mask 合成 MP4。",
   "user_facing_inputs": [
     {
@@ -88,5 +88,6 @@
       "node_id": "130",
       "reason": "VHS_VideoCombine: 输出 video/h264-mp4 + pix_fmt=yuv420p, 浏览器可直播"
     }
-  ]
+  ],
+  "group": "视频"
 }

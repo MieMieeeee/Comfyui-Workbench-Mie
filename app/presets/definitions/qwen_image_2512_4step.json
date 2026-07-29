@@ -79,5 +79,6 @@
       "node_id": "66",
       "reason": "ModelSamplingAuraFlow shift=3.1, 与 Qwen Image 推荐配置绑定"
     }
-  ]
+  ],
+  "group": "图像"
 }

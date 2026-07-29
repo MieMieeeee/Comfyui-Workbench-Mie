@@ -2,7 +2,7 @@
   "workflow_file": "t2i_krea2.json",
   "display_name": "文生图（Krea-2）",
   "category": "image",
-  "order": 999,
+  "order": 40,
   "description": "Krea-2 文生图，出图快、风格稳。写实、概念设计、产品图都能用。",
   "user_facing_inputs": [
     {
@@ -54,5 +54,6 @@
       "node_id": "10",
       "reason": "向导标记的最终用户输出节点"
     }
-  ]
+  ],
+  "group": "图像"
 }

@@ -2,7 +2,7 @@
   "workflow_file": "scail2_motion_transfer_final.json",
   "display_name": "角色替换 (SCAIL2)",
   "category": "video",
-  "order": 110,
+  "order": 60,
   "output_kind": "video",
   "description": "SCAIL2 角色替换：把参考图角色'贴'进驱动视频里，保留视频的动作 / 背景 / 运镜。",
   "fixed_patches": {
@@ -141,5 +141,6 @@
       "node_id": "505",
       "reason": "pre-drop 帧数（与 node 464 联动）"
     }
-  ]
+  ],
+  "group": "视频"
 }

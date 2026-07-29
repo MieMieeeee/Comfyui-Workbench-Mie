@@ -2,7 +2,7 @@
   "workflow_file": "liveportrait.json",
   "display_name": "表情迁移 (LivePortrait)",
   "category": "video",
-  "order": 140,
+  "order": 90,
   "description": "LivePortrait 表情迁移：上传正脸参考图 + 驱动视频，把视频里的表情 / 口型 / 头动搬到参考脸上。适合做角色动画、虚拟主播。",
   "user_facing_inputs": [
     {
@@ -43,5 +43,6 @@
       "node_id": "206",
       "reason": "VHS_VideoCombine 输出 video/h264-mp4 + pix_fmt=yuv420p, 浏览器可直播"
     }
-  ]
+  ],
+  "group": "视频"
 }

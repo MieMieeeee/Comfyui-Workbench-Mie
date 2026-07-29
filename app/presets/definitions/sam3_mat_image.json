@@ -2,7 +2,7 @@
   "workflow_file": "sam3_mat_image.json",
   "display_name": "智能抠图 (SAM3)",
   "category": "image",
-  "order": 35,
+  "order": 150,
   "description": "SAM3 文本驱动抠图：上传图、写'the red car'/'a person with a hat'，自动出对应物体的 mask。不用画框、点选区域。",
   "user_facing_inputs": [
     {
@@ -72,5 +72,6 @@
       "node_id": "115",
       "reason": "SAM3_Detect: 文本驱动分割节点, 走 ComfyUI-MieNodes"
     }
-  ]
+  ],
+  "group": "图像"
 }

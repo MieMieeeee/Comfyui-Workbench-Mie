@@ -66,5 +66,6 @@
       "node_id": "18",
       "reason": "CLIP loader: Qwen3-4B, type=lumina2"
     }
-  ]
+  ],
+  "group": "图像"
 }

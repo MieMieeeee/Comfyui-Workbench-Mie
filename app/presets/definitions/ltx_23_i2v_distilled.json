@@ -2,7 +2,7 @@
   "workflow_file": "ltx_23_i2v.json",
   "display_name": "图生视频 (LTX-2.3)",
   "category": "video",
-  "order": 130,
+  "order": 80,
   "description": "LTX-2.3 图生视频：上传起始图 + 描述角色或镜头的动作（人物走动 / 推 / 拉 / 摇 / 移），出从那张图出发的短视频。分辨率跟随输入图。",
   "user_facing_inputs": [
     {
@@ -94,5 +94,6 @@
       "node_id": "208",
       "reason": "LoraLoaderModelOnly: 链上第二段 LoRA (段二升频)"
     }
-  ]
+  ],
+  "group": "视频"
 }

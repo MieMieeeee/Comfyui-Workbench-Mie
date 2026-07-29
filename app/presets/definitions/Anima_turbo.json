@@ -2,7 +2,7 @@
   "workflow_file": "Anima_turbo.json",
   "display_name": "文生图（Anima）",
   "category": "image",
-  "order": 999,
+  "order": 140,
   "description": "Anima 动漫 / 插画风格文生图，线条干净、色彩饱和。",
   "user_facing_inputs": [
     {
@@ -72,5 +72,6 @@
       "node_id": "9",
       "reason": "向导标记的最终用户输出节点"
     }
-  ]
+  ],
+  "group": "图像"
 }
