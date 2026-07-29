@@ -190,6 +190,10 @@
                         <input type="number" x-model="formValues[idx]"
                                :min="spec.min" :max="spec.max" :step="spec.step || 1">
                       </template>
+                      <template x-if="spec.type === 'float'">
+                        <input type="number" x-model="formValues[idx]"
+                               :min="spec.min" :max="spec.max" :step="spec.step || 'any'">
+                      </template>
                       <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
                     </div>
                   </template>
@@ -313,6 +317,10 @@
                           <input type="number" x-model="formValues[idx]"
                                  :min="spec.min" :max="spec.max" :step="spec.step || 1">
                         </template>
+                      <template x-if="spec.type === 'float'">
+                        <input type="number" x-model="formValues[idx]"
+                               :min="spec.min" :max="spec.max" :step="spec.step || 'any'">
+                      </template>
                         <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
                       </div>
                     </template>

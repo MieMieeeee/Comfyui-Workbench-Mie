@@ -336,6 +336,12 @@ def build_replacements(fields: list[dict], values: dict) -> dict:
             except (TypeError, ValueError):
                 num = int(default or 0)
             replacements.setdefault(nid, {})[field] = num
+        elif typ == "float":
+            try:
+                num = float(val) if val is not None else float(default if default is not None else 0.0)
+            except (TypeError, ValueError):
+                num = float(default if default is not None else 0.0)
+            replacements.setdefault(nid, {})[field] = num
         elif typ == "image_sizes":
             # image_sizes 是 ["WxH", ...], 向导只用第一个尺寸跑一次
             sizes = form_schema.parse_sizes(val if val is not None else default)

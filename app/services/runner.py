@@ -175,6 +175,11 @@ def run_workflow(preset_name, *component_values):
             sizes_by_node[nid] = value
         elif typ == "int":
             int_by_field[(nid, field)] = int(value) if value is not None else spec.get("default", 1)
+        elif typ == "float":
+            try:
+                int_by_field[(nid, field)] = float(value) if value is not None else float(spec.get("default", 0.0))
+            except (TypeError, ValueError):
+                int_by_field[(nid, field)] = float(spec.get("default", 0.0))
         elif typ == "int_random":
             number = component_values[component_idx + 1] if component_idx + 1 < len(component_values) else spec.get("default", 0)
             int_by_field[(nid, field)] = random.randint(1, 10**12) if bool(value) else int(number)
@@ -298,6 +303,13 @@ def run_workflow(preset_name, *component_values):
                 replacements.setdefault(nid, {}).update({"width": w, "height": h, "batch_size": 1})
             elif typ in ("int", "int_random"):
                 default = spec.get("default", 1)
+                val = int_by_field.get((nid, field), default)
+                if nid in replacements:
+                    replacements[nid][field] = val
+                else:
+                    replacements[nid] = {field: val}
+            elif typ == "float":
+                default = spec.get("default", 0.0)
                 val = int_by_field.get((nid, field), default)
                 if nid in replacements:
                     replacements[nid][field] = val
@@ -447,6 +459,9 @@ def run_image_workflow(preset_name, *component_values):
         elif typ == "int":
             seed_val = int(component_values[i]) if component_values[i] is not None else spec.get("default", 0)
             seed_node_id = nid
+            i += 1
+        elif typ == "float":
+            # float spec (SAM3 threshold 等) 不进 seed 槽, 直接 pass-through 替换
             i += 1
         else:
             i += 1

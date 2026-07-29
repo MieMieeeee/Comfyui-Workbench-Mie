@@ -48,7 +48,9 @@
       "folder": "checkpoints",
       "workflows": [
         "sca12_replace",
-        "sca12_motion"
+        "sca12_motion",
+        "sam3_mat_image",
+        "sam3_mat_video"
       ]
     },
     {
@@ -697,6 +699,14 @@
       "package": "ComfyUI-Qwen3-TTS",
       "workflows": [
         "qwen3_tts_clone"
+      ]
+    },
+    {
+      "class_type": "SAM3_Detect",
+      "package": "ComfyUI-MieNodes",
+      "workflows": [
+        "sam3_mat_image",
+        "sam3_mat_video"
       ]
     }
   ]

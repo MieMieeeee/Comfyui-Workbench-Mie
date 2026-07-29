@@ -1,0 +1,91 @@
+{
+  "workflow_file": "sam3_mat_video.json",
+  "display_name": "智能抠视频 (SAM3)",
+  "category": "video",
+  "order": 145,
+  "description": "用 SAM3 提示词抠视频: 上传视频 + 写要抠的物体, 自动逐帧出 mask 合成 MP4。",
+  "user_facing_inputs": [
+    {
+      "node_id": "132",
+      "field": "video",
+      "label": "原视频",
+      "type": "file:video",
+      "tier": "basic",
+      "help": "上传要抠的视频 (mp4 / mov / webm)。输出 mp4 + h264, 浏览器可播。"
+    },
+    {
+      "node_id": "125",
+      "field": "text",
+      "label": "要抠的物体 (提示词)",
+      "type": "text",
+      "max_chars": 500,
+      "default": "a person",
+      "help": "用自然语言描述要抠的物体, e.g. \"a person\", \"the red car\"。SAM3 文本驱动检测。"
+    },
+    {
+      "node_id": "126",
+      "field": "threshold",
+      "label": "置信度阈值",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.5,
+      "tier": "basic",
+      "help": "检测置信度阈值。越低越敏感 (可能误检), 越高越严格 (可能漏检)。"
+    },
+    {
+      "node_id": "126",
+      "field": "individual_masks",
+      "label": "每个检测一个 mask",
+      "type": "bool",
+      "default": false,
+      "tier": "advanced",
+      "help": "勾上后每个检测到的物体单独出图, 不勾则合并成一张 mask。"
+    },
+    {
+      "node_id": "132",
+      "field": "frame_load_cap",
+      "label": "最大帧数",
+      "type": "int",
+      "min": 0,
+      "max": 9999,
+      "step": 1,
+      "default": 0,
+      "tier": "advanced",
+      "help": "0 = 全部帧; 设 N = 只处理前 N 帧 (试跑用, 跑完能调大)。"
+    },
+    {
+      "node_id": "132",
+      "field": "skip_first_frames",
+      "label": "跳过前 N 帧",
+      "type": "int",
+      "min": 0,
+      "max": 9999,
+      "step": 1,
+      "default": 0,
+      "tier": "advanced",
+      "help": "跳过视频开头的 N 帧 (跳过片头/黑场用)。"
+    }
+  ],
+  "example": {
+    "prompt": "a person",
+    "drive_video": "app/static/examples/liveportrait_drive.mp4",
+    "contract_sha256": "b5595327aef0415cfe68748a4301f026f51a88d8fbb776b7f43994c04889b3be"
+  },
+  "output_kind": "video",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "127",
+      "reason": "CheckpointLoaderSimple: sam3.1_multiplex_fp16.safetensors (SAM3 分割模型), 走 models/checkpoints/"
+    },
+    {
+      "node_id": "126",
+      "reason": "SAM3_Detect: 文本驱动分割节点, 走 ComfyUI-MieNodes"
+    },
+    {
+      "node_id": "130",
+      "reason": "VHS_VideoCombine: 输出 video/h264-mp4 + pix_fmt=yuv420p, 浏览器可直播"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "workflow_file": "sam3_mat_image.json",
+  "display_name": "智能抠图 (SAM3)",
+  "category": "image",
+  "order": 35,
+  "description": "用 SAM3 提示词抠图: 上传原图, 写要抠的物体 (e.g. \"the red car\"), 自动出 mask 图。",
+  "user_facing_inputs": [
+    {
+      "node_id": "79",
+      "field": "image",
+      "label": "原图",
+      "type": "file:image",
+      "tier": "basic",
+      "help": "上传要抠图的图片。"
+    },
+    {
+      "node_id": "114",
+      "field": "text",
+      "label": "要抠的物体 (提示词)",
+      "type": "text",
+      "max_chars": 500,
+      "default": "a person",
+      "help": "用自然语言描述要抠的物体, e.g. \"a person\", \"the red car\", \"a dog wearing a hat\"。SAM3 文本驱动检测。"
+    },
+    {
+      "node_id": "115",
+      "field": "threshold",
+      "label": "置信度阈值",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.5,
+      "tier": "basic",
+      "help": "检测置信度阈值。越低越敏感 (可能误检), 越高越严格 (可能漏检)。"
+    },
+    {
+      "node_id": "115",
+      "field": "refine_iterations",
+      "label": "Mask 精炼次数",
+      "type": "int",
+      "min": 0,
+      "max": 10,
+      "step": 1,
+      "default": 2,
+      "tier": "advanced",
+      "help": "Mask 边缘精炼迭代次数。0 = 不精炼; 2 是默认; 越大 mask 越细但更慢。"
+    },
+    {
+      "node_id": "115",
+      "field": "individual_masks",
+      "label": "每个检测一个 mask",
+      "type": "bool",
+      "default": false,
+      "tier": "advanced",
+      "help": "勾上后每个检测到的物体单独出图, 不勾则合并成一张 mask。"
+    }
+  ],
+  "example": {
+    "prompt": "a person",
+    "reference_image": "app/static/examples/person.png",
+    "contract_sha256": "279632260ddf9e4d08c29d128f031df1ba19d9d343fe9b32c4ecbffeecd76959"
+  },
+  "output_kind": "image",
+  "do_not_modify_warnings": [
+    {
+      "node_id": "116",
+      "reason": "CheckpointLoaderSimple: sam3.1_multiplex_fp16.safetensors (SAM3 分割模型), 走 models/checkpoints/"
+    },
+    {
+      "node_id": "115",
+      "reason": "SAM3_Detect: 文本驱动分割节点, 走 ComfyUI-MieNodes"
+    }
+  ]
+}
