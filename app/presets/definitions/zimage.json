@@ -3,7 +3,7 @@
   "display_name": "文生图 (Z-Image-Turbo)",
   "category": "image",
   "order": 10,
-  "description": "Z-Image-Turbo 文生图，正向提示词加多尺寸输出。",
+  "description": "Z-Image-Turbo 文生图，Turbo 蒸馏版出图快、画质稳。一次运行同时输出多个尺寸（横 / 竖 / 方），适合要一套主图 + 多个变体的场景（社媒封面、缩略图、详情页）。",
   "user_facing_inputs": [
     {
       "node_id": "6",

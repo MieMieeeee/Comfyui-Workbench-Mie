@@ -258,8 +258,8 @@ code {
               color var(--duration-fast) var(--ease-out);
 }
 /* nav 标签里有两个子元素: .wf-icon (emoji) 在上, .wf-text (名称) 在下 */
-:is(.workflow-list, .nav-group-list) .wf-icon { font-size: 1.1em; line-height: 1; }
-:is(.workflow-list, .nav-group-list) .wf-text { font-size: var(--text-sm); line-height: 1.3; word-break: break-word; }
+:is(.workflow-list, .nav-group-list) .wf-icon { font-size: 1.25em; line-height: 1; }
+:is(.workflow-list, .nav-group-list) .wf-text { font-size: var(--text-base); line-height: 1.3; word-break: break-word; }
 :is(.workflow-list, .nav-group-list) label:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-default);
@@ -276,11 +276,11 @@ code {
 /* nav 按组折叠: 组头 + 子 list (组内 item 复用 workflow-list label 的卡片样式) */
 .nav-groups { display: flex; flex-direction: column; gap: 4px; }
 .nav-group { display: flex; flex-direction: column; }
-.nav-group-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-top: 6px; cursor: pointer; user-select: none; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; border-radius: var(--radius-sm); }
+.nav-group-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-top: 6px; cursor: pointer; user-select: none; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; border-radius: var(--radius-sm); }
 .nav-group-header:hover { background: var(--bg-card-hover); color: var(--text-primary); }
-.nav-group-header .nav-group-toggle { color: var(--text-muted); font-size: 0.7em; width: 10px; text-align: center; flex: 0 0 10px; }
+.nav-group-header .nav-group-toggle { color: var(--text-muted); font-size: 0.8em; width: 12px; text-align: center; flex: 0 0 12px; }
 .nav-group-header .nav-group-name { flex: 1; }
-.nav-group-header .nav-group-count { color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.nav-group-header .nav-group-count { color: var(--text-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .nav-group-list { list-style: none; padding: 0; margin: 0; }
 /* 让 .nav-group-list 里的 li 跟 .workflow-list 一样作为卡片 */
 .nav-group-list li { display: block; }
@@ -923,7 +923,7 @@ body[data-theme="forest-island"] .run-status-bar {
 .creator-meta { min-width: 0; }
 .creator-title { margin: 0; font-size: 1.4rem; color: var(--text-primary); font-weight: 700; line-height: 1.2; }
 .creator-handle { margin: 2px 0 0; color: var(--text-muted); font-size: 0.85rem; font-family: var(--font-mono); }
-.creator-bio { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: 0.88rem; line-height: var(--leading-normal); }
+.creator-bio { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: 0.88rem; line-height: var(--leading-normal); min-height: 4.2em; }
 .creator-socials { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
 .creator-socials .creator-stagger { animation: creator-rise 0.45s var(--ease-out) both; }
 .creator-socials .creator-stagger:nth-child(1) { animation-delay: 0.05s; }

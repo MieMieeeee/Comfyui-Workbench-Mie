@@ -4,7 +4,7 @@
   "category": "video",
   "order": 110,
   "output_kind": "video",
-  "description": "把参考图角色替换到驱动视频中。",
+  "description": "SCAIL2 角色替换：把参考图角色'贴'进驱动视频里，保留视频的动作 / 背景 / 运镜。",
   "fixed_patches": {
     "353": {
       "value": true

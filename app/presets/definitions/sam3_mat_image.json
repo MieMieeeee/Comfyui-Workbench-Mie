@@ -3,7 +3,7 @@
   "display_name": "智能抠图 (SAM3)",
   "category": "image",
   "order": 35,
-  "description": "用 SAM3 提示词抠图: 上传原图, 写要抠的物体 (e.g. \"the red car\"), 自动出 mask 图。",
+  "description": "SAM3 文本驱动抠图：上传图、写'the red car'/'a person with a hat'，自动出对应物体的 mask。不用画框、点选区域。",
   "user_facing_inputs": [
     {
       "node_id": "79",

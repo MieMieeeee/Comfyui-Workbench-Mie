@@ -3,7 +3,7 @@
   "display_name": "图生图编辑 (Flux2 Klein Edit)",
   "category": "image",
   "order": 30,
-  "description": "Flux2-Klein 图生图编辑，保留原图姿态改局部。",
+  "description": "Flux2-Klein 图生图编辑，按自然语言指令改原图。改装、换发型、换背景、加减元素、换风格都行。提示词里明确写保留什么（pose / face / composition / background）、要改什么，效果最稳。",
   "user_facing_inputs": [
     {
       "node_id": "76",

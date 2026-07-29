@@ -3,7 +3,7 @@
   "display_name": "智能抠视频 (SAM3)",
   "category": "video",
   "order": 145,
-  "description": "用 SAM3 提示词抠视频: 上传视频 + 写要抠的物体, 自动逐帧出 mask 合成 MP4。",
+  "description": "SAM3 文本驱动视频抠图：上传视频 + 写'a person'/'the red car'，逐帧出 mask 合成 MP4。",
   "user_facing_inputs": [
     {
       "node_id": "132",

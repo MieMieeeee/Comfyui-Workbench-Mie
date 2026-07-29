@@ -3,7 +3,7 @@
   "display_name": "文生图 (Qwen Image 2512)",
   "category": "image",
   "order": 20,
-  "description": "Qwen Image 2512 文生图，擅中文海报与带字图。",
+  "description": "Qwen Image 2512 文生图，中文渲染业内最强。AI 写的中文标题、对联、产品名、宣传语、海报大字都能精准落到画面上。",
   "user_facing_inputs": [
     {
       "node_id": "6",

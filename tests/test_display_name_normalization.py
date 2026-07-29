@@ -133,23 +133,33 @@ def test_description_has_no_internal_tokens():
     )
 
 
-def test_description_under_30_chars():
-    """description 必须 ≤30 字符 (review 2026-07-14).
+def test_description_within_reasonable_length():
+    """description 长度有上限但比 review 2026-07-14 当时宽 (review 2026-07-28 草稿后).
 
-    原因: description 显示在跨两栏的标题区 Markdown 里, 字数多会在 380px 左栏
-    宽度下换行 2-3 行, 导致切换 preset 时标题区高度跳变 → 下方两栏起始 Y 坐标
-    不一致. 统一限制 ≤30 字符确保单行显示, 标题区高度固定.
+    review 2026-07-14 那笔写 description <=30 字符是为了标题区单行 (避免切换 preset 高度跳变).
+    review 2026-07-28 那波草稿后, 标题区改成 min-height: 4.2em (3 行余量, .creator-bio CSS),
+    长度放宽到 200 字以内都 OK (足够说明工作流, 不至于挤满整个面板).
+
+    约束:
+      - <= 200 字符: 防止 description 无限长把标题区撑爆
+      - 不为空: 有 description 才能在标题区显示
+      - min-height CSS 存在: 锁住高度, 切换 preset 不抖
     """
     failures = []
     for name, cfg in _all_preset_cfgs():
         desc = cfg.get("description", "")
-        if len(desc) > 30:
+        if not desc:
+            failures.append((name, 0, "为空"))
+        elif len(desc) > 200:
             failures.append((name, len(desc), desc))
+    # CSS 上锁住 .creator-bio 的 min-height, 切换 preset 不抖
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "app-flask.css").read_text(encoding="utf-8")
+    if "min-height" not in css.split(".creator-bio {", 1)[1].split("}", 1)[0]:
+        failures.append(("__css__", 0, ".creator-bio 缺 min-height, 切换 preset 会抖"))
     assert not failures, (
-        "description 超过 30 字符 (会导致标题区换行 + 切换 preset 时高度跳变):\n"
-        + "\n".join(f"  {name}: {n}字 -> {desc!r}" for name, n, desc in failures)
+        "description 不合规:\n"
+        + "\n".join(f"  {name}: {n}字 {info!r}" for name, n, info in failures)
     )
-
 
 # ===== example_key 显式声明 =====
 # 注: basic text spec 必须有 example_key 的契约由

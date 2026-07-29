@@ -3,7 +3,7 @@
   "display_name": "语音克隆 (Qwen3-TTS VoiceClone)",
   "category": "audio",
   "order": 205,
-  "description": "上传参考音频, 用目标文本克隆音色。",
+  "description": "Qwen3-TTS 语音克隆：上传 3-10 秒参考音频 + 音频里实际念的文字 + 想用克隆音色念的新文本，输出克隆音色的新 MP3。参考音频文字跟实际念的差太多会显著降相似度。",
   "user_facing_inputs": [
     {
       "node_id": "24",

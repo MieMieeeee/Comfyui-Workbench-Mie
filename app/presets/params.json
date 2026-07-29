@@ -6,7 +6,7 @@
       "display_name": "文生图 (Z-Image-Turbo)",
       "category": "image",
       "order": 10,
-      "description": "Z-Image-Turbo 文生图，正向提示词加多尺寸输出。",
+      "description": "Z-Image-Turbo 文生图，Turbo 蒸馏版出图快、画质稳。一次运行同时输出多个尺寸（横 / 竖 / 方），适合要一套主图 + 多个变体的场景（社媒封面、缩略图、详情页）。",
       "user_facing_inputs": [
         {
           "node_id": "6",
@@ -99,7 +99,7 @@
       "display_name": "文生图 (Qwen Image 2512)",
       "category": "image",
       "order": 20,
-      "description": "Qwen Image 2512 文生图，擅中文海报与带字图。",
+      "description": "Qwen Image 2512 文生图，中文渲染业内最强。AI 写的中文标题、对联、产品名、宣传语、海报大字都能精准落到画面上。",
       "user_facing_inputs": [
         {
           "node_id": "6",
@@ -204,7 +204,7 @@
       "display_name": "图生图编辑 (Flux2 Klein Edit)",
       "category": "image",
       "order": 30,
-      "description": "Flux2-Klein 图生图编辑，保留原图姿态改局部。",
+      "description": "Flux2-Klein 图生图编辑，按自然语言指令改原图。改装、换发型、换背景、加减元素、换风格都行。提示词里明确写保留什么（pose / face / composition / background）、要改什么，效果最稳。",
       "user_facing_inputs": [
         {
           "node_id": "76",
@@ -279,7 +279,7 @@
       "category": "video",
       "order": 100,
       "output_kind": "video",
-      "description": "把驱动视频的动作迁移到参考图角色上。",
+      "description": "SCAIL2 动作迁移：上传参考图角色 + 驱动视频，把视频里人物的动作 / 表情搬到参考图角色上。换舞蹈、表情、走位都行。",
       "fixed_patches": {
         "353": {
           "value": false
@@ -425,7 +425,7 @@
       "category": "video",
       "order": 110,
       "output_kind": "video",
-      "description": "把参考图角色替换到驱动视频中。",
+      "description": "SCAIL2 角色替换：把参考图角色'贴'进驱动视频里，保留视频的动作 / 背景 / 运镜。",
       "fixed_patches": {
         "353": {
           "value": true
@@ -569,7 +569,7 @@
       "display_name": "文生视频 (LTX-2.3)",
       "category": "video",
       "order": 120,
-      "description": "LTX-2.3 文生视频，适合 768x512 短视频。",
+      "description": "LTX-2.3 文生视频：写主体 + 镜头运动 + 氛围，97 帧 @24fps ≈ 4 秒。最大 1088 高。",
       "user_facing_inputs": [
         {
           "node_id": "121",
@@ -695,7 +695,7 @@
       "display_name": "图生视频 (LTX-2.3)",
       "category": "video",
       "order": 130,
-      "description": "LTX-2.3 图生视频，分辨率跟随上传图。",
+      "description": "LTX-2.3 图生视频：上传起始图 + 描述角色或镜头的动作（人物走动 / 推 / 拉 / 摇 / 移），出从那张图出发的短视频。分辨率跟随输入图。",
       "user_facing_inputs": [
         {
           "node_id": "180",
@@ -793,7 +793,7 @@
       "display_name": "表情迁移 (LivePortrait)",
       "category": "video",
       "order": 140,
-      "description": "把驱动视频的动作迁移到参考脸表情。",
+      "description": "LivePortrait 表情迁移：上传正脸参考图 + 驱动视频，把视频里的表情 / 口型 / 头动搬到参考脸上。适合做角色动画、虚拟主播。",
       "user_facing_inputs": [
         {
           "node_id": "196",
@@ -840,7 +840,7 @@
       "display_name": "语音合成 (Qwen3-TTS VoiceDesign)",
       "category": "audio",
       "order": 200,
-      "description": "Qwen3-TTS 语音合成，文本加风格指令出 MP3。",
+      "description": "Qwen3-TTS 语音合成：写文字 + 描述要的声音（'少年音 / 磁性 / 温柔'），出对应音色的 MP3。不用上传参考音频，音色全靠文字描述。",
       "user_facing_inputs": [
         {
           "node_id": "38",
@@ -943,7 +943,7 @@
       "display_name": "音乐生成 (Ace Step 1.5)",
       "category": "audio",
       "order": 210,
-      "description": "Ace Step 文生音乐，tags 加歌词出 MP3。",
+      "description": "Ace Step 1.5 文生音乐：写音乐风格 / 情绪 / 乐器 tags，可选带歌词出歌（纯器乐也行）。BPM / 调性 / 时长都能控。",
       "user_facing_inputs": [
         {
           "node_id": "94",
@@ -1081,7 +1081,7 @@
       "display_name": "语音克隆 (Qwen3-TTS VoiceClone)",
       "category": "audio",
       "order": 205,
-      "description": "上传参考音频, 用目标文本克隆音色。",
+      "description": "Qwen3-TTS 语音克隆：上传 3-10 秒参考音频 + 音频里实际念的文字 + 想用克隆音色念的新文本，输出克隆音色的新 MP3。参考音频文字跟实际念的差太多会显著降相似度。",
       "user_facing_inputs": [
         {
           "node_id": "24",

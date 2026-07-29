@@ -3,7 +3,7 @@
   "display_name": "语音合成 (Qwen3-TTS VoiceDesign)",
   "category": "audio",
   "order": 200,
-  "description": "Qwen3-TTS 语音合成，文本加风格指令出 MP3。",
+  "description": "Qwen3-TTS 语音合成：写文字 + 描述要的声音（'少年音 / 磁性 / 温柔'），出对应音色的 MP3。不用上传参考音频，音色全靠文字描述。",
   "user_facing_inputs": [
     {
       "node_id": "38",

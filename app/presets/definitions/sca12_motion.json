@@ -4,7 +4,7 @@
   "category": "video",
   "order": 100,
   "output_kind": "video",
-  "description": "把驱动视频的动作迁移到参考图角色上。",
+  "description": "SCAIL2 动作迁移：上传参考图角色 + 驱动视频，把视频里人物的动作 / 表情搬到参考图角色上。换舞蹈、表情、走位都行。",
   "fixed_patches": {
     "353": {
       "value": false

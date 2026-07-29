@@ -3,7 +3,7 @@
   "display_name": "文生视频 (LTX-2.3)",
   "category": "video",
   "order": 120,
-  "description": "LTX-2.3 文生视频，适合 768x512 短视频。",
+  "description": "LTX-2.3 文生视频：写主体 + 镜头运动 + 氛围，97 帧 @24fps ≈ 4 秒。最大 1088 高。",
   "user_facing_inputs": [
     {
       "node_id": "121",

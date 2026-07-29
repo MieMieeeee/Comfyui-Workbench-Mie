@@ -3,7 +3,7 @@
   "display_name": "表情迁移 (LivePortrait)",
   "category": "video",
   "order": 140,
-  "description": "把驱动视频的动作迁移到参考脸表情。",
+  "description": "LivePortrait 表情迁移：上传正脸参考图 + 驱动视频，把视频里的表情 / 口型 / 头动搬到参考脸上。适合做角色动画、虚拟主播。",
   "user_facing_inputs": [
     {
       "node_id": "196",
