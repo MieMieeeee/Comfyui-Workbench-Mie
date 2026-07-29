@@ -43,13 +43,26 @@ def test_workflow_list_label_uses_column_layout():
     assert "align-items: center" in block
 
 
-def test_run_html_splits_icon_and_text_into_two_spans():
-    """run.html 里每个项目是两个独立的 span (.wf-icon + .wf-text), 不是一个含 emoji 的长 span."""
-    assert "wf-icon" in RUN and "wf-text" in RUN
-    assert "w.nav_label" not in RUN, (
+def test_run_html_moves_icon_from_workflow_to_group_header():
+    """review 2026-07-29: 图标从工作流名挪到组头 (🎬 视频 / 🖼️ 图像 这种).
 
+    之前是每个工作流名有 .wf-icon, 现在:
+    - 工作流名只有 .wf-text (没图标)
+    - 组头 .nav-group-name 里多一个 .nav-group-icon span
+    """
+    assert "wf-icon" not in RUN, (
+        "工作流名前不应再有 .wf-icon, 图标挪到组头了"
+    )
+    assert "wf-text" in RUN, "工作流名仍应有 .wf-text"
+    assert "nav-group-icon" in RUN, "组头应有 .nav-group-icon (icon span)"
+    assert "nav-group-name" in RUN, "组头应有 .nav-group-name"
+    assert "w.nav_label" not in RUN, (
         "还在用 w.nav_label, 这是不一致的原因: emoji 和文本拿在一个字符串里."
     )
+    js = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "groupIcons" in js, "app.js 应有 groupIcons 映射"
+    for g in ("图像", "视频", "音频", "通用", "其他"):
+        assert g in js, f"app.js groupIcons 应覆盖 {g}"
 
 
 def test_base_html_status_pill_inside_main_tabs():

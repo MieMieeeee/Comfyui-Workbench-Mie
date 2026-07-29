@@ -22,7 +22,7 @@
           <div class="nav-group">
             <div class="nav-group-header" @click="toggleNavGroup(g.group)">
               <span class="nav-group-toggle" x-text="(searchQuery && searchQuery.trim()) || _userCollapsed[g.group] === false && navGroupExpanded[g.group] ? '\u25bc' : '\u25b6'"></span>
-              <span class="nav-group-name" x-text="g.group"></span>
+              <span class="nav-group-name"><span class="nav-group-icon" x-text="g.icon"></span><span x-text="g.group"></span></span>
               <span class="nav-group-count" x-text="'(' + g.count + ')'"></span>
             </div>
             <ul class="nav-group-list" x-show="(searchQuery && searchQuery.trim()) || navGroupExpanded[g.group] || isGroupForcedExpanded(g.group)">
@@ -33,7 +33,6 @@
                     <input type="radio" name="preset"
                            :value="w.name"
                            x-model="currentPreset">
-                    <span class="wf-icon" x-text="w.icon"></span>
                     <span class="wf-text" x-text="w.display_name"></span>
                   </label>
                 </li>

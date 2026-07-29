@@ -32,11 +32,6 @@ from app.services import workflow_editor
 from app.services.persistence import _save_last_run, _load_last_run
 
 
-def _category_icon(cat: str) -> str:
-    return {
-        "video": "🎬", "image": "🖼️", "audio": "🔊",
-        "3d": "🧺", "other": "📦",
-    }.get(cat, "📦")
 # ============================================================
 # Flask app 构造
 # ============================================================
@@ -151,8 +146,6 @@ def _workflows_for_nav():
             "description": cfg.get("description", ""),
             "category": cat,
             "group": grp,
-            "icon": _category_icon(cat),
-            "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
             "output_kind": config.resolve_output_kind(cfg),
         })
     return out
@@ -469,8 +462,6 @@ def workflows():
             "display_name": cfg.get("display_name", w["name"]),
             "description": cfg.get("description", ""),
             "category": cat,
-            "icon": _category_icon(cat),
-            "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
             "output_kind": config.resolve_output_kind(cfg),
         })
     return jsonify(out)

@@ -151,6 +151,8 @@ function runTab(workflows, presetCfgs) {
     searchQuery: '',
     // nav 按组折叠: 5 个固定组, 跟 wizard 调整顺序 tab _GROUP_ORDER 对齐.
     navGroups: ['图像', '视频', '音频', '通用', '其他'],
+    // review 2026-07-29: 图标从工作流名挪到组名, 图像/视频 这种.
+    groupIcons: { '图像': '🖼️', '视频': '🎬', '音频': '🔊', '通用': '🧩', '其他': '📦' },
     navGroupExpanded: { '图像': true, '视频': true, '音频': true, '通用': true, '其他': true },
     // 当 selectedPreset 所在 group 被用户手动折叠, 强制展开 (避免用户看不到当前选了啥)
     _userCollapsed: { '图像': false, '视频': false, '音频': false, '通用': false, '其他': false },
@@ -258,7 +260,7 @@ function runTab(workflows, presetCfgs) {
         // 搜索时强制展开, 选中 preset 所在 group 也强制展开
         const autoExpand = (q && filtered.length > 0) || (this.currentPreset && filtered.some(w => w.name === this.currentPreset));
         const expanded = q ? true : (this._userCollapsed[g] ? false : this.navGroupExpanded[g]);
-        result.push({ group: g, items: filtered, count: items.length, autoExpand, expanded });
+        result.push({ group: g, icon: this.groupIcons[g] || '', items: filtered, count: items.length, autoExpand, expanded });
       }
       return result;
     },
