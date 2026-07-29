@@ -59,7 +59,8 @@
   "example": {
     "prompt": "a person",
     "reference_image": "app/static/examples/person.png",
-    "contract_sha256": "279632260ddf9e4d08c29d128f031df1ba19d9d343fe9b32c4ecbffeecd76959"
+    "contract_sha256": "6567dc5be573c5181b108a641abcc14eca67595475660ecee444a39adfcf7914",
+    "preview_image": "app/static/examples/sam3_mat_image.png"
   },
   "output_kind": "image",
   "do_not_modify_warnings": [
