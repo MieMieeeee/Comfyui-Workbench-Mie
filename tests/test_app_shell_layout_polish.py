@@ -71,10 +71,11 @@ def test_base_html_status_pill_inside_main_tabs():
     assert "main-tabs-status" in BASE, "main-tabs 里应有 .main-tabs-status 块"
     # 顺序: .main-tabs-status 应在 3 个 nav <a> 之后
     nav_status_idx = BASE.index("main-tabs-status")
-    nav_run_idx = BASE.index(">\u25b6 \u8fd0\u884c<", 0)  # first nav link has the emoji+text
+    # review 2026-07-29: "▶ 运行" 改成 "🎬 工作流", 标签更准确 (这里是浏览/选择工作流, 不是即时执行)
+    nav_run_idx = BASE.index(">\U0001F3AC \u5de5\u4f5c\u6d41<", 0)  # first nav link "🎬 工作流"
     if nav_run_idx < 0:
-        # fallback: search for the nav links by attribute marker
-        nav_run_idx = BASE.index("\u8fd0\u884c")
+        nav_run_idx = BASE.index("\u5de5\u4f5c\u6d41")  # fallback: 工作流 anywhere
+    assert nav_run_idx >= 0, "main-tabs-nav 里第一个链接应还是工作流 tab"
     assert nav_run_idx < nav_status_idx, "status pill 应在 nav 链接之后"
     # 不再有独立的 .system-bar 行
     assert "class=\"system-bar\"" not in BASE, "system-bar 行已并入 main-tabs, 不应再出现"
