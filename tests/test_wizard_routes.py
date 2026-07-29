@@ -335,3 +335,110 @@ def test_preset_order_refuses_subset(client, monkeypatch, tmp_path):
     r = client.put("/api/wizard/preset-order", json={"order": ["a"]})
     assert r.status_code == 400
     assert "ghost" not in r.get_json()["error"]  # 应该是 "未知 preset: ['b']" 之类的
+
+def test_preset_order_writes_group_field(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "a.json").write_text(json.dumps({"display_name": "A", "category": "image", "order": 10}), encoding="utf-8")
+    (defs / "b.json").write_text(json.dumps({"display_name": "B", "category": "video", "order": 20}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.put("/api/wizard/preset-order", json={"order": [
+        {"name": "a", "group": "图像"},
+        {"name": "b", "group": "通用"},
+    ]})
+    assert r.status_code == 200
+    a_after = json.loads((defs / "a.json").read_text(encoding="utf-8"))
+    b_after = json.loads((defs / "b.json").read_text(encoding="utf-8"))
+    assert a_after["group"] == "图像"
+    assert b_after["group"] == "通用"
+    assert a_after["order"] == 10
+    assert b_after["order"] == 20
+
+
+def test_preset_order_group_none_keeps_existing(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "a.json").write_text(json.dumps({"display_name": "A", "category": "image", "order": 10, "group": "图像"}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.put("/api/wizard/preset-order", json={"order": [{"name": "a", "group": None}]})
+    assert r.status_code == 200
+    a_after = json.loads((defs / "a.json").read_text(encoding="utf-8"))
+    assert a_after["group"] == "图像"
+
+
+def test_preset_order_rejects_invalid_group(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "a.json").write_text(json.dumps({"display_name": "A", "category": "image", "order": 10}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.put("/api/wizard/preset-order", json={"order": [{"name": "a", "group": "不存在"}]})
+    assert r.status_code == 400
+
+
+def test_preset_order_legacy_string_format_still_works(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "a.json").write_text(json.dumps({"display_name": "A", "category": "image", "order": 10, "group": "图像"}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.put("/api/wizard/preset-order", json={"order": ["a"]})
+    assert r.status_code == 200
+    a_after = json.loads((defs / "a.json").read_text(encoding="utf-8"))
+    assert a_after["order"] == 10
+    assert a_after["group"] == "图像"
+
+
+def test_editable_workflows_includes_group(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "img.json").write_text(json.dumps({"display_name": "Img", "category": "image", "order": 10}), encoding="utf-8")
+    (defs / "vid.json").write_text(json.dumps({"display_name": "Vid", "category": "video", "order": 20}), encoding="utf-8")
+    (defs / "no_cat.json").write_text(json.dumps({"display_name": "Other", "category": "other", "order": 30}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.get("/api/wizard/editable-workflows")
+    assert r.status_code == 200
+    data = r.get_json()
+    by_name = {row["name"]: row for row in data}
+    assert by_name["img"]["group"] == "图像"
+    assert by_name["vid"]["group"] == "视频"
+    assert by_name["no_cat"]["group"] == "其他"
+
+
+def test_editable_workflows_explicit_group_overrides_category(client, monkeypatch, tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "x.json").write_text(json.dumps({"display_name": "X", "category": "image", "order": 10, "group": "通用"}), encoding="utf-8")
+    monkeypatch.setattr(flask_app.config, "DEFINITIONS_DIR", defs)
+    monkeypatch.setattr(flask_app.config, "PRESETS_DIR", tmp_path / "presets")
+    monkeypatch.setattr(flask_app.config, "PARAMS_FILE", tmp_path / "presets" / "params.json")
+    (tmp_path / "presets").mkdir()
+    (tmp_path / "presets" / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {}}, ensure_ascii=False), encoding="utf-8")
+
+    r = client.get("/api/wizard/editable-workflows")
+    data = r.get_json()
+    by_name = {row["name"]: row for row in data}
+    assert by_name["x"]["group"] == "通用"

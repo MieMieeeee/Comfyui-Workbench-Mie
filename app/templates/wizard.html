@@ -123,6 +123,22 @@
   .wizard-order-tag.tag-other { color: var(--text-muted); }
   .wizard-order-status { color: var(--text-secondary); min-height: 1.5em; }
   .wizard-order-status.dirty { color: var(--color-warning); }
+  /* 调整顺序 tab: 按组分组的折叠区 */
+  .wizard-order-groups { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+  .wizard-order-group { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+  .wizard-order-group-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; background: var(--bg-overlay); border-bottom: 1px solid var(--border-subtle); }
+  .wizard-order-group-header:hover { background: var(--bg-card-hover); }
+  .wizard-order-group-toggle { color: var(--text-muted); font-size: 0.75em; width: 14px; text-align: center; }
+  .wizard-order-group-header strong { color: var(--text-primary); font-size: 0.95em; }
+  .wizard-order-group-count { color: var(--text-muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+  .wizard-order-group-header .wizard-order-group-add { margin-left: auto; }
+  .wizard-order-list { display: flex; flex-direction: column; gap: 6px; padding: 10px; }
+  .wizard-order-list:empty { display: none; }
+  .wizard-order-item { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; background: var(--bg-input); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+  .wizard-order-empty { color: var(--text-muted); font-size: 0.85em; padding: 10px; text-align: center; font-style: italic; }
+  .wizard-order-actions { display: flex; gap: 8px; align-items: center; }
+  .wizard-group-select { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 4px 6px; font-size: 0.85em; cursor: pointer; }
+  .wizard-group-select:hover { color: var(--text-primary); border-color: var(--text-muted); }
   @media (max-width: 640px) { .wizard-order-item { grid-template-columns: auto 1fr auto; } .wizard-drag-handle { display: none; } }
   @media (max-width: 640px) {
     .wizard-edit-select { flex-direction: column; align-items: stretch; }
@@ -193,22 +209,51 @@
 
   <section class="wizard-step" x-show="wizardMode === 'order'">
     <h3>调整工作流顺序</h3>
-    <p class="wizard-hint">拖动 / 上下按钮调整运行页左侧导航的显示顺序。保存后立即刷新运行页生效。</p>
+    <p class="wizard-hint">上下按钮 / 拖动改同组内顺序, "组"下拉框把工作流挪到别的组。保存后立即刷新运行页生效。</p>
     <p x-show="orderLoading" class="wizard-loading">加载中…</p>
-    <div class="wizard-order-list" x-show="orderItems.length">
-      <template x-for="(item, idx) in orderItems" :key="item.name">
-        <div class="wizard-order-item" draggable="true" :class="{ dragging: orderDragIndex === idx }"
-             @dragstart="startOrderDrag(idx)" @dragover.prevent @drop="dropOrderItem(idx)" @dragend="orderDragIndex = null">
-          <span class="wizard-drag-handle" title="拖动排序">⋮⋮</span>
-          <span class="wizard-order-pos" x-text="idx + 1 + '.'"></span>
-          <div class="wizard-order-meta">
-            <strong x-text="item.display_name"></strong>
-            <span class="wizard-pick-nodeid" x-text="'@' + item.name"></span>
-            <span class="wizard-order-tag" :class="'tag-' + (item.category || 'other')" x-text="categoryLabel(item.category)"></span>
+    <div class="wizard-order-groups" x-show="orderItems.length">
+      <template x-for="groupName in orderGroups" :key="groupName">
+        <div class="wizard-order-group">
+          <div class="wizard-order-group-header" @click="orderGroupExpanded[groupName] = !orderGroupExpanded[groupName]">
+            <span class="wizard-order-group-toggle" x-text="orderGroupExpanded[groupName] ? '\u25bc' : '\u25b6'"></span>
+            <strong x-text="groupName"></strong>
+            <span class="wizard-order-group-count" x-text="'(' + itemsInGroup(groupName).length + ')'"></span>
           </div>
-          <div class="wizard-edit-move">
-            <button type="button" class="wizard-move-btn" @click="moveOrderItem(idx, -1)" :disabled="idx === 0" title="上移">▲</button>
-            <button type="button" class="wizard-move-btn" @click="moveOrderItem(idx, 1)" :disabled="idx === orderItems.length - 1" title="下移">▼</button>
+          <div class="wizard-order-list" x-show="orderGroupExpanded[groupName]">
+            <template x-for="item in itemsInGroup(groupName)" :key="item.name">
+              <div class="wizard-order-item" draggable="true"
+                   :class="{ dragging: orderDragIndex === orderItems.indexOf(item) }"
+                   @dragstart="startOrderDrag(orderItems.indexOf(item))"
+                   @dragover.prevent
+                   @drop="dropOrderItem(orderItems.indexOf(item))"
+                   @dragend="orderDragIndex = null">
+                <span class="wizard-drag-handle" title="拖动同组内排序">⋮⋮</span>
+                <span class="wizard-order-pos" x-text="(orderItems.indexOf(item) + 1) + '.'"></span>
+                <div class="wizard-order-meta">
+                  <strong x-text="item.display_name"></strong>
+                  <span class="wizard-pick-nodeid" x-text="'@' + item.name"></span>
+                  <span class="wizard-order-tag" :class="'tag-' + (item.category || 'other')" x-text="categoryLabel(item.category)"></span>
+                </div>
+                <div class="wizard-order-actions">
+                  <select class="wizard-group-select" :value="itemGroup(item)"
+                          @change="setItemGroup(orderItems.indexOf(item), $event.target.value)"
+                          :aria-label="'设置 ' + item.display_name + ' 的组'">
+                    <template x-for="g in orderGroups" :key="g">
+                      <option :value="g" x-text="g" :selected="itemGroup(item) === g"></option>
+                    </template>
+                  </select>
+                  <div class="wizard-edit-move">
+                    <button type="button" class="wizard-move-btn"
+                            @click="moveOrderItem(orderItems.indexOf(item), -1)"
+                            :disabled="orderMoveDisabled(orderItems.indexOf(item), -1)" title="组内上移">▲</button>
+                    <button type="button" class="wizard-move-btn"
+                            @click="moveOrderItem(orderItems.indexOf(item), 1)"
+                            :disabled="orderMoveDisabled(orderItems.indexOf(item), 1)" title="组内下移">▼</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <p class="wizard-order-empty" x-show="itemsInGroup(groupName).length === 0">空 — 可以从别的组移过来</p>
           </div>
         </div>
       </template>

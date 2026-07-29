@@ -47,11 +47,35 @@ def _source_info(name: str) -> tuple[str, bool]:
     return source, _layout_path(name).is_file()
 
 
+# group 字段: 把 category 映射到中文显示组, 跟 wizard 调整顺序 tab 的 5 个固定组对齐.
+# 缺省时按 category 推 (image→图像, video→视频, audio→音频, 其它→其它), 用户在
+# wizard 里改 group 后写到 definition 文件, 后续优先用文件里的值.
+_GROUP_BY_CATEGORY = {
+    "image": "图像",
+    "video": "视频",
+    "audio": "音频",
+    "other": "其他",
+    # "通用" 不从 category 推, 必须用户主动设
+}
+# 组的固定顺序 (wizard 调整顺序 tab 渲染用)
+_GROUP_ORDER = ("图像", "视频", "音频", "通用", "其他")
+
+
+def _workflow_group(name: str, row: dict) -> str:
+    """读 preset 的 group, 缺省从 category 推."""
+    cfg = config.preset_config(name) if hasattr(config, "preset_config") else None
+    if cfg and cfg.get("group"):
+        return cfg["group"]
+    cat = row.get("category", "other")
+    return _GROUP_BY_CATEGORY.get(cat, "其他")
+
+
 def list_editable_workflows() -> list[dict]:
     rows = []
     for row in config.list_workflows():
         source, can_restore = _source_info(row["name"])
-        rows.append({**row, "source": source, "can_restore": can_restore})
+        grp = _workflow_group(row["name"], row)
+        rows.append({**row, "source": source, "can_restore": can_restore, "group": grp})
     return rows
 
 
@@ -185,37 +209,77 @@ def _set_definition_order(name: str, order: int) -> bool:
     return True
 
 
-def save_preset_order(ordered_names: Iterable) -> dict:
-    """按 ordered_names 顺序重排工作流. 每个 preset 的 order 用步长 10 分配.
+def _set_definition_group(name: str, group: str) -> bool:
+    """把 group 写进 definition 文件. 返回 True 表示有定义并写入."""
+    def_path = _definition_path(name)
+    if not def_path.is_file():
+        return False
+    try:
+        cfg = json.loads(def_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    if not isinstance(cfg, dict):
+        return False
+    cfg["group"] = group
+    _atomic_write_json(def_path, cfg)
+    return True
 
-    每个 preset 优先写回 definition 文件 (新工作流通常在这里), 兜底写 params.json
-    (老工作流通常在这里). 这样 list_workflows() 重新读出来的 order 跟用户期望一致.
+
+def save_preset_order(ordered_items: Iterable) -> dict:
+    """保存工作流的顺序 + 分组.
+
+    入参是 list[{name, group}], 顺序按 list 里的位置决定. 每个 preset 拿步长 10
+    分配 order (跟历史一致, 留插入空间); 跟原 group 不同时写 definition 文件.
+    写回优先 definition 文件, 兜底 params.json.
+
+    向后兼容: 旧前端如果传 list[str] (只有 name), group 走缺省 (按 category 推),
+    行为跟 review 2026-07-28 那笔一致.
     """
-    if not isinstance(ordered_names, (list, tuple)):
+    if not isinstance(ordered_items, (list, tuple)):
         raise ValueError("order 必须是数组, 不能为空 / 重复 / 包含未知 preset")
-    names = [n for n in ordered_names if isinstance(n, str) and n]
-    if not names or len(names) != len(ordered_names) or len(set(names)) != len(names):
+    # 归一化: 接受 list[str] (老格式) 或 list[{name, group}] (新格式)
+    normalized: list[dict] = []
+    for it in ordered_items:
+        if isinstance(it, str):
+            normalized.append({"name": it, "group": None})
+        elif isinstance(it, dict) and isinstance(it.get("name"), str):
+            normalized.append({"name": it["name"], "group": it.get("group")})
+        else:
+            raise ValueError("order 元素必须是字符串 name 或 {name, group} dict")
+    if not normalized or len({n["name"] for n in normalized}) != len(normalized):
         raise ValueError("order 必须是数组, 不能为空 / 重复 / 包含未知 preset")
     known = {row["name"] for row in config.list_workflows()}
-    missing = [n for n in names if n not in known]
+    missing = [n["name"] for n in normalized if n["name"] not in known]
     if missing:
         raise ValueError(f"未知 preset: {missing}. 已知: {sorted(known)}")
-    # 必须传完整列表: 不在提交里的 preset 也算缺失, 避免误操作把剩下的 order 漏更新
-    not_in_request = sorted(known - set(names))
+    # 必须传完整列表: 不在提交里的 preset 也算缺失, 避免误操作把剩下的 order/group 漏更新
+    not_in_request = sorted(known - {n["name"] for n in normalized})
     if not_in_request:
         raise ValueError(
             f"order 必须包含所有 preset, 漏了: {not_in_request}. 完整列表: {sorted(known)}"
         )
+    # group 必须是 _GROUP_ORDER 里的合法值
+    valid_groups = set(_GROUP_ORDER)
     result = []
-    for idx, name in enumerate(names):
+    for idx, item in enumerate(normalized):
+        name = item["name"]
         new_order = _ORDER_BASE + idx * _ORDER_STEP
         if not _set_definition_order(name, new_order):
             presets = _params_presets()
             if name not in presets:
-                # 不太可能: 出现在 list_workflows 但 params 和 definition 都没有
-                # (definition 优先 + params 兜底的双源结构下不会发生, 兜底 raise)
                 raise ValueError(f"preset {name} 没有可写位置 (params 和 definition 都没有)")
             presets[name]["order"] = new_order
             _write_params_presets(presets)
-        result.append({"name": name, "order": new_order})
+        # 写 group: 缺省 None 跳过 (保持原 group, 让 _workflow_group 继续从 category 推)
+        new_group = item.get("group")
+        if new_group is not None:
+            if new_group not in valid_groups:
+                raise ValueError(f"未知 group: {new_group!r}. 合法: {list(_GROUP_ORDER)}")
+            if not _set_definition_group(name, new_group):
+                presets = _params_presets()
+                if name not in presets:
+                    raise ValueError(f"preset {name} 没有可写位置 (params 和 definition 都没有)")
+                presets[name]["group"] = new_group
+                _write_params_presets(presets)
+        result.append({"name": name, "order": new_order, "group": new_group})
     return {"order": result}

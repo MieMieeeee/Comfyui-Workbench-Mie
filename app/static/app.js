@@ -767,6 +767,9 @@ function wizardTab() {
     orderLoading: false,
     orderStatus: '',
     orderDragIndex: null,
+    // 固定 5 个组 (跟后端 _GROUP_ORDER 对齐). 顺序就是显示顺序.
+    orderGroups: ['图像', '视频', '音频', '通用', '其他'],
+    orderGroupExpanded: { '图像': true, '视频': true, '音频': true, '通用': true, '其他': true },
 
     // 步骤 3: 运行 + 输出选择
     running: false,
@@ -808,27 +811,81 @@ function wizardTab() {
       if (!this.editableWorkflows.length) return;
       this.orderLoading = true;
       try {
-        this.orderItems = this.editableWorkflows.map(w => ({ name: w.name, display_name: w.display_name, category: w.category }));
+        this.orderItems = this.editableWorkflows.map(w => ({
+          name: w.name, display_name: w.display_name, category: w.category, group: w.group,
+        }));
         this.orderDirty = false;
         this.orderStatus = '';
       } finally { this.orderLoading = false; }
     },
+    // 同一组里的 item (按当前 orderItems 顺序)
+    itemsInGroup(groupName) {
+      return this.orderItems.filter(i => (i.group || this._defaultGroup(i.category)) === groupName);
+    },
+    // item 当前的 group: 优先用 item.group (用户在 UI 上设了), 缺省从 category 推.
+    // 加防御性检查防 Alpine 在过渡渲染时传 undefined (itemGroup(item) 在 x-for 重渲染
+    // 中可能被调用, 此时 item 引用可能短暂为 undefined).
+    itemGroup(item) {
+      if (!item) return "其他";
+      return item.group || this._defaultGroup(item.category);
+    },
+    _defaultGroup(category) {
+      return ({ image: '图像', video: '视频', audio: '音频' })[category] || '其他';
+    },
+    // 切换 group 下拉框时: 把它从原位置删掉, 追加到目标组的末尾, 触发 dirty
+    setItemGroup(idx, newGroup) {
+      const item = this.orderItems[idx];
+      const curGroup = this.itemGroup(item);
+      if (curGroup === newGroup) return;
+      item.group = newGroup;
+      // 从 orderItems 里挪位置: 删掉再加到目标组末尾.
+      // 简单实现: 删掉, 追加到末尾. 用户可以再用上下移在组内排序.
+      this.orderItems.splice(idx, 1);
+      this.orderItems.push(item);
+      this.markOrderDirty();
+    },
 
     markOrderDirty() { this.orderDirty = true; this.orderStatus = '有未保存修改'; },
 
-    moveOrderItem(idx, dir) {
-      const next = idx + dir;
-      if (next < 0 || next >= this.orderItems.length) return;
-      const item = this.orderItems.splice(idx, 1)[0];
-      this.orderItems.splice(next, 0, item); this.markOrderDirty();
+    // 上下移只在本组内: 找 idx 所在 group 的兄弟节点, 在兄弟节点里上下移.
+    // (跨组移动走 setItemGroup 下拉框, 跨组拖动 v1 不做.)
+    moveOrderItem(globalIdx, dir) {
+      const item = this.orderItems[globalIdx];
+      const myGroup = this.itemGroup(item);
+      const brothers = this.orderItems.filter(i => this.itemGroup(i) === myGroup);
+      const localIdx = brothers.indexOf(item);
+      const localNext = localIdx + dir;
+      if (localNext < 0 || localNext >= brothers.length) return;
+      const target = brothers[localNext];
+      // 交换两个在 orderItems 里的位置
+      const gi = this.orderItems.indexOf(item);
+      const ti = this.orderItems.indexOf(target);
+      this.orderItems[gi] = target;
+      this.orderItems[ti] = item;
+      this.markOrderDirty();
+    },
+    // disabled 状态: 在组内已经最前/最后时禁用按钮
+    orderMoveDisabled(globalIdx, dir) {
+      const item = this.orderItems[globalIdx];
+      const myGroup = this.itemGroup(item);
+      const brothers = this.orderItems.filter(i => this.itemGroup(i) === myGroup);
+      const localIdx = brothers.indexOf(item);
+      if (dir === -1) return localIdx === 0;
+      return localIdx === brothers.length - 1;
     },
 
     startOrderDrag(idx) { this.orderDragIndex = idx; },
-    dropOrderItem(idx) {
+    // 拖放 v1: 限制同组, 跨组拖放忽略.
+    dropOrderItem(globalIdx) {
       const from = this.orderDragIndex; this.orderDragIndex = null;
-      if (from == null || from === idx) return;
-      const item = this.orderItems.splice(from, 1)[0];
-      this.orderItems.splice(from < idx ? idx - 1 : idx, 0, item); this.markOrderDirty();
+      if (from == null || from === globalIdx) return;
+      const fromItem = this.orderItems[from];
+      const toItem = this.orderItems[globalIdx];
+      if (this.itemGroup(fromItem) !== this.itemGroup(toItem)) return;
+      // 交换
+      this.orderItems[from] = toItem;
+      this.orderItems[globalIdx] = fromItem;
+      this.markOrderDirty();
     },
 
     async saveOrder() {
@@ -837,13 +894,20 @@ function wizardTab() {
       try {
         await fetchJSON('/api/wizard/preset-order', {
           method: 'PUT',
-          body: JSON.stringify({ order: this.orderItems.map(i => i.name) }),
+          body: JSON.stringify({
+            order: this.orderItems.map(i => ({
+              name: i.name,
+              group: this.itemGroup(i),
+            })),
+          }),
         });
         this.orderDirty = false;
         this.orderStatus = '已保存, 运行页刷新后生效';
         // editableWorkflows 也跟着同步, 这样切回 edit tab 下拉顺序也对
         this.editableWorkflows = await fetchJSON('/api/wizard/editable-workflows');
-        this.orderItems = this.editableWorkflows.map(w => ({ name: w.name, display_name: w.display_name, category: w.category }));
+        this.orderItems = this.editableWorkflows.map(w => ({
+          name: w.name, display_name: w.display_name, category: w.category, group: w.group,
+        }));
       } catch (e) { this.orderStatus = '保存失败: ' + e.message; }
       finally { this.orderSaving = false; }
     },
