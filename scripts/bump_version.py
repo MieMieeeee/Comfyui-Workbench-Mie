@@ -13,7 +13,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-CONFIG = Path(__file__).resolve().parent.parent / "app" / "config.py"
+# 默认从 cwd 找 app/config.py (在 repo 根目录跑就行).
+# __file__ 模式仅作 fallback (兼容 IDE 直接 Run 整个文件的情况).
+import os as _os
+_CONFIG_FROM_FILE = Path(__file__).resolve().parent.parent / "app" / "config.py"
+_CONFIG_FROM_CWD = Path(_os.getcwd()) / "app" / "config.py"
+CONFIG = _CONFIG_FROM_CWD if _CONFIG_FROM_CWD.exists() else _CONFIG_FROM_FILE
 
 # 匹配 WORKBENCH_VERSION: str = "..."
 # group 2 = semver 部分 (e.g. "1.0.0"), 不含 +timestamp
