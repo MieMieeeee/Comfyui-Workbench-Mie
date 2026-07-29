@@ -65,7 +65,6 @@
           <div class="creator-socials" aria-label="快捷动作">
             <button class="btn-secondary creator-stagger" type="button" @click="loadExample(w.name)">📥 加载示例</button>
             <button class="btn-secondary creator-stagger" type="button" @click="loadLastRun(w.name)" x-show="hasLastRun[w.name]">📂 加载上次</button>
-            <a class="btn-secondary creator-stagger" href="/comfy_input" target="_blank" rel="noopener">👁️ 输入目录</a>
             <a class="btn-secondary creator-stagger" :href="lastOutputUrl[w.name] || '#'"
                x-show="lastOutputUrl[w.name]"
                target="_blank" rel="noopener">📖 最近输出</a>
