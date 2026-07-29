@@ -273,10 +273,12 @@ function runTab(workflows, presetCfgs) {
 
     getExampleThumbUrl(presetName, specIdx) {
       // 从 panel 的 formValues[specIdx] 提取缩略图 URL.
-      // form_schema.example_to_form_values 返回 "app/static/examples/<name>" (review 2026-07-28
-      // 起统一从项目仓库读, 不再去 ComfyUI input 翻), 前端通过 /example_thumb/<basename>
-      // 路由读取本地文件展示. 该路由只查 app/static/examples/, 见 flask_app.example_thumb.
-      // 历史 manifest 侧车里可能存的是绝对路径或裸 basename, 也取 basename 兼容.
+      // formValues 有两种来源 (review 2026-07-29 修):
+      //   1. example 路径 ("app/static/examples/<name>") -> 走 /example_thumb/<name>
+      //      (项目仓库自包含, 不依赖 ComfyUI input 目录)
+      //   2. 用户上传的 basename (onFileSelect 拿到 /api/upload 返回的 name) ->
+      //      走 /comfy_input/<name> (上传落 ComfyUI input 目录)
+      // 之前统一走 example_thumb, 用户上传的预览就 404 了.
       const panel = document.querySelector("[data-preset=\"" + presetName + "\"]");
       if (!panel) return "";
       const data = Alpine.$data(panel);
@@ -284,7 +286,10 @@ function runTab(workflows, presetCfgs) {
       if (!v) return "";
       const basename = v.replace(/\\/g, "/").split("/").pop();
       if (!basename) return "";
-      return "/example_thumb/" + encodeURIComponent(basename);
+      const norm = v.replace(/\\/g, "/");
+      const isExample = norm.includes("/app/static/examples/") || norm.includes("/static/examples/");
+      const route = isExample ? "/example_thumb/" : "/comfy_input/";
+      return route + encodeURIComponent(basename);
     },
 
     async onFileSelect(event, presetName, specIdx, kind) {
