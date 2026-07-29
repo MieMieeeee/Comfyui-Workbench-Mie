@@ -395,7 +395,8 @@
   -->
   <dialog class="lightbox-dialog" @close="closeLightbox()" @click="if ($event.target === $event.currentTarget) closeLightbox()">
     <button class="lightbox-close" @click="closeLightbox" aria-label="关闭放大预览 (Esc)">×</button>
-    <img :src="lightboxSrc" alt="放大预览" />
+    <img x-show="lightboxKind === 'image' && lightboxSrc" :src="lightboxSrc" alt="放大预览" />
+    <video x-show="lightboxKind === 'video' && lightboxSrc" :src="lightboxSrc" controls autoplay preload="metadata" style="max-width:100%;max-height:90vh;display:block;margin:0 auto;"></video>
   </dialog>
 </div>
 {% endblock %}

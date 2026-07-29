@@ -67,6 +67,40 @@ function appShell() {
     async init() {
       await this.refreshStatus();
       setInterval(() => this.refreshStatus(), 30000);
+      this._wireLightbox();
+    },
+    // lightboxSrc: 当前放大的 src (从 .lightboxable 元素拿), null = 关
+    lightboxSrc: null,
+    lightboxKind: "image",  // image / video, 决定 <img> 还是 <video>
+    _wireLightbox() {
+      // 事件委托: 全局点 .lightboxable 时打开 lightbox.
+      // review 2026-07-29 之前是空方法, 用户报"图片没法点击放大"才发现.
+      document.addEventListener("click", (e) => {
+        const el = e.target.closest(".lightboxable");
+        if (!el) return;
+        // 取 src (img 用 src, video 用 <source> 的 src)
+        let src = el.getAttribute("src");
+        if (!src && el.tagName === "VIDEO") {
+          const source = el.querySelector("source");
+          if (source) src = source.getAttribute("src");
+        }
+        if (!src) return;
+        // 区分 image / video 走不同元素 (video 不写 src 也能播, lightbox img 不会播)
+        this.lightboxKind = el.tagName === "VIDEO" ? "video" : "image";
+        this.lightboxSrc = src;
+        const dlg = document.querySelector(".lightbox-dialog");
+        if (dlg && typeof dlg.showModal === "function") {
+          dlg.showModal();
+          document.body.style.overflow = "hidden";
+        }
+      });
+    },
+    closeLightbox() {
+      this.lightboxSrc = null;
+      this.lightboxKind = "image";
+      const dlg = document.querySelector(".lightbox-dialog");
+      if (dlg && dlg.open) dlg.close();
+      document.body.style.overflow = "";
     },
 
     async refreshStatus() {
