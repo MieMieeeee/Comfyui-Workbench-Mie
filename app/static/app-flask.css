@@ -924,6 +924,8 @@ body[data-theme="forest-island"] .run-status-bar {
 .creator-meta { min-width: 0; }
 .creator-title { margin: 0; font-size: 1.4rem; color: var(--text-primary); font-weight: 700; line-height: 1.2; }
 .creator-handle { margin: 2px 0 0; color: var(--text-muted); font-size: 0.85rem; font-family: var(--font-mono); }
+.creator-version { margin: 6px 0 0; color: var(--text-muted); font-size: 0.82rem; }
+.creator-version code { background: var(--bg-overlay); color: var(--theme-accent-400); padding: 2px 8px; border-radius: var(--radius-sm); font-family: var(--font-mono); }
 .creator-bio { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: 0.88rem; line-height: var(--leading-normal); min-height: 4.2em; }
 .creator-socials { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
 .creator-socials .creator-stagger { animation: creator-rise 0.45s var(--ease-out) both; }

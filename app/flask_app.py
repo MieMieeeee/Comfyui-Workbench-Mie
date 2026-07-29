@@ -229,6 +229,12 @@ def example_thumb(filename):
     return jsonify({"error": f"file not in project examples: {base}"}), 404
 
 
+# 全局 context processor — 所有模板都能用 workbench_version
+@app.context_processor
+def _inject_globals():
+    return {"workbench_version": config.WORKBENCH_VERSION}
+
+
 @app.route("/")
 def index():
     """运行页."""

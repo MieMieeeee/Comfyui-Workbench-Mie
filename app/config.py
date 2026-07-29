@@ -13,6 +13,11 @@ import os
 from pathlib import Path
 
 
+# --- 项目版本 (开源首发版本) ---
+# 更新规则: 用户每次合并大改动手动 bump.
+# 形式: MAJOR.MINOR.PATCH (semver).
+WORKBENCH_VERSION: str = "1.0.0"
+
 # --- 仓库根 ---
 
 REPO_ROOT: Path = Path(__file__).resolve().parent.parent
