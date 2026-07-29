@@ -22,17 +22,14 @@
         <p class="creator-handle">@MieMieeeee</p>
         <p class="creator-bio">未觉池塘春草梦，阶前梧叶已秋声</p>
       </div>
-      <div class="creator-socials" aria-label="个人主页">
-        <a class="btn-secondary creator-stagger" href="https://space.bilibili.com/449342345" target="_blank" rel="noopener" title="访问哔哩哔哩主页">
-          🎬 B站
-        </a>
-        <a class="btn-secondary creator-stagger" href="https://www.youtube.com/@SweetValberry" target="_blank" rel="noopener" title="访问 YouTube 频道">
-          🎬 YouTube
+      <div class="creator-socials" aria-label="作者链接">
+        <a class="btn-secondary creator-stagger" href="https://github.com/MieMieeeee" target="_blank" rel="noopener" title="访问 GitHub 主页">
+          🐙 GitHub
         </a>
       </div>
     </header>
 
-    <!-- 6 张信息卡 (2 列 grid), 跟 launcher AboutMe 一致 -->
+    <!-- 5 张信息卡 (2 列 grid), 跟 launcher AboutMe 一致 -->
     <div class="about-cards-grid">
       <!-- 主页 -->
       <article class="info-card">
@@ -100,48 +97,10 @@
           包成一套带表单的网页。
         </p>
       </div>
-      <div class="creator-socials" aria-label="项目链接">
-        <a class="btn-secondary creator-stagger" href="https://github.com/MieMieeeee/comfyui-workbench-mie" target="_blank" rel="noopener" title="GitHub 仓库">
-          🐙 GitHub
-        </a>
-        <a class="btn-secondary creator-stagger" href="/docs/ARCHITECTURE.md" target="_blank" rel="noopener" title="架构文档">
-          📐 架构
-        </a>
-      </div>
     </header>
 
-    <!-- 功能列表 + 技术栈 + 跟 launcher 关系 -->
+    <!-- 技术栈 + 文档 (2 张卡) -->
     <div class="about-cards-grid">
-      <article class="info-card about-info-wide">
-        <h3 class="info-card-title">🧩 已支持的工作流 (15 个)</h3>
-        <div class="info-card-grid-3col">
-          <div>
-            <h4>图像</h4>
-            <ul>
-              <li>文生图 (Z-Image-Turbo / Qwen Image 2512 / Anima / Krea-2)</li>
-              <li>图生图编辑 (Flux2 Klein Edit)</li>
-              <li>智能抠图 (SAM3)</li>
-            </ul>
-          </div>
-          <div>
-            <h4>视频</h4>
-            <ul>
-              <li>文生视频 / 图生视频 (LTX-2.3)</li>
-              <li>动作迁移 / 角色替换 (SCAIL2)</li>
-              <li>表情迁移 (LivePortrait)</li>
-              <li>智能抠视频 (SAM3)</li>
-            </ul>
-          </div>
-          <div>
-            <h4>音频</h4>
-            <ul>
-              <li>语音合成 / 语音克隆 (Qwen3-TTS)</li>
-              <li>音乐生成 (Ace Step 1.5)</li>
-            </ul>
-          </div>
-        </div>
-      </article>
-
       <article class="info-card">
         <h3 class="info-card-title">🛠️ 技术栈</h3>
         <ul class="info-card-list">
@@ -150,20 +109,6 @@
           <li><b>配置:</b> JSON schema 驱动表单</li>
           <li><b>ComfyUI:</b> HTTP API (upload / prompt / history / view)</li>
           <li><b>运行:</b> 本地端口 8199, 需 ComfyUI 8188</li>
-        </ul>
-      </article>
-
-      <article class="info-card">
-        <h3 class="info-card-title">🎯 跟 ComfyUI-Mie-Package-Launcher 的关系</h3>
-        <p class="info-card-text">
-          本工作台是 <a href="https://github.com/MieMieeeee/ComfyUI-Mie-Package-Launcher" target="_blank" rel="noopener">ComfyUI-Mie-Package-Launcher</a>
-          的配套 Web 前端。
-        </p>
-        <ul class="info-card-list">
-          <li>Launcher 是 PyQt5 桌面启动器，包整个 ComfyUI 环境</li>
-          <li>Workbench 是 Web 前端，把 15 个 curated workflow 装到一个界面</li>
-          <li>两者共享同一套 workflow JSON 资产，跨平台覆盖 (桌面 + 浏览器)</li>
-          <li>Workbench 可以独立运行，依赖只有 Python + Flask + 一个 ComfyUI 实例</li>
         </ul>
       </article>
 
