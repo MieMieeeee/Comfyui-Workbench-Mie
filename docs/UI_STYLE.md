@@ -39,7 +39,7 @@ SaaS / 着陆页式的装饰（hero 卡 / gradient / SVG illustration）一律�
 
 ### 2.1.1 `display_name` 命名规范（review 2026-07-14）
 
-`params.json` 每个 preset 的 `display_name` 必须统一成 **「中文任务类型 (模型名)」** 格式。
+`definitions/<name>.json` 每个 preset 的 `display_name` 必须统一成 **「中文任务类型 (模型名)」** 格式。
 
 | 规则 | 正例 | 反例 |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ patch / cache_hit），由 `app/history.py` 写入。这是历史记录 tab 的�
 
 ### 5.1 `image_sizes` 预设的「用途标签化」（第四阶段 §B）
 
-`params.json` 里 `image_sizes` 类型的 `presets` 数组支持两种条目形式：
+`definition` 里 `image_sizes` 类型的 `presets` 数组支持两种条目形式：
 
 | 形式 | 示例 | 用途 |
 | --- | --- | --- |

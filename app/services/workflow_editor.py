@@ -22,14 +22,6 @@ def stable_input_id(spec: dict) -> str:
     return f"{spec.get('node_id')}::{spec.get('field')}"
 
 
-def _builtin_presets() -> dict[str, dict]:
-    try:
-        raw = json.loads(config.PARAMS_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    return raw.get("presets", {}) if isinstance(raw, dict) else {}
-
-
 def _definition_path(name: str) -> Path:
     return config.DEFINITIONS_DIR / f"{name}.json"
 
@@ -39,12 +31,15 @@ def _layout_path(name: str) -> Path:
 
 
 def _source_info(name: str) -> tuple[str, bool]:
-    builtin = name in _builtin_presets()
+    """检查 preset 的 definition 文件 + 是否存在用户布局.
+
+    单源后所有 preset 都在 definitions/, source 永远是 "definition".
+    保留 builtin 分支以兼容 wizard 模板里写死的标签.
+    """
     has_definition = _definition_path(name).is_file()
-    if not builtin and not has_definition:
-        raise KeyError(f"unknown preset: {name}")
-    source = "definition" if has_definition else "builtin"
-    return source, _layout_path(name).is_file()
+    if not has_definition:
+        raise KeyError(f"unknown preset: {name} (no definition at {_definition_path(name)})")
+    return "definition", _layout_path(name).is_file()
 
 
 # group 字段: 把 category 映射到中文显示组, 跟 wizard 调整顺序 tab 的 5 个固定组对齐.
@@ -166,33 +161,6 @@ def restore_input_layout(name: str) -> bool:
     return False
 
 
-def _params_presets() -> dict:
-    """读 params.json 的 presets dict. 失败时返回空 dict."""
-    try:
-        with config.PARAMS_FILE.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    presets = data.get("presets")
-    return presets if isinstance(presets, dict) else {}
-
-
-def _write_params_presets(presets: dict) -> None:
-    """把 presets dict 写回 params.json, 保留顶层 schema_version 等其它字段."""
-    data: dict = {}
-    if config.PARAMS_FILE.is_file():
-        try:
-            data = json.loads(config.PARAMS_FILE.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            data = {}
-    if not isinstance(data, dict):
-        data = {}
-    data["presets"] = presets
-    _atomic_write_json(config.PARAMS_FILE, data)
-
-
 def _set_definition_order(name: str, order: int) -> bool:
     """把 order 写进 definition 文件. 返回 True 表示有定义并写入."""
     def_path = _definition_path(name)
@@ -230,7 +198,7 @@ def save_preset_order(ordered_items: Iterable) -> dict:
 
     入参是 list[{name, group}], 顺序按 list 里的位置决定. 每个 preset 拿步长 10
     分配 order (跟历史一致, 留插入空间); 跟原 group 不同时写 definition 文件.
-    写回优先 definition 文件, 兜底 params.json.
+    写回 definition 文件 (单源, 没有 params.json 兜底).
 
     向后兼容: 旧前端如果传 list[str] (只有 name), group 走缺省 (按 category 推),
     行为跟 review 2026-07-28 那笔一致.
@@ -264,22 +232,15 @@ def save_preset_order(ordered_items: Iterable) -> dict:
     for idx, item in enumerate(normalized):
         name = item["name"]
         new_order = _ORDER_BASE + idx * _ORDER_STEP
+        # 写 order (单源: definition)
         if not _set_definition_order(name, new_order):
-            presets = _params_presets()
-            if name not in presets:
-                raise ValueError(f"preset {name} 没有可写位置 (params 和 definition 都没有)")
-            presets[name]["order"] = new_order
-            _write_params_presets(presets)
+            raise ValueError(f"preset {name} 没有 definition 文件, 无法写 order")
         # 写 group: 缺省 None 跳过 (保持原 group, 让 _workflow_group 继续从 category 推)
         new_group = item.get("group")
         if new_group is not None:
             if new_group not in valid_groups:
                 raise ValueError(f"未知 group: {new_group!r}. 合法: {list(_GROUP_ORDER)}")
             if not _set_definition_group(name, new_group):
-                presets = _params_presets()
-                if name not in presets:
-                    raise ValueError(f"preset {name} 没有可写位置 (params 和 definition 都没有)")
-                presets[name]["group"] = new_group
-                _write_params_presets(presets)
+                raise ValueError(f"preset {name} 没有 definition 文件, 无法写 group")
         result.append({"name": name, "order": new_order, "group": new_group})
     return {"order": result}

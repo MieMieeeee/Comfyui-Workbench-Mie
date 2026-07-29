@@ -35,13 +35,13 @@ def test_qwen3_tts_clone_loaded_with_correct_metadata():
     cfg = config.preset_config("qwen3_tts_clone")
     assert cfg["display_name"] == "\u8bed\u97f3\u514b\u9686 (Qwen3-TTS VoiceClone)"
     assert cfg["category"] == "audio"
-    assert cfg["order"] == 205
+    assert cfg["order"] == 120
     assert cfg["output_kind"] == "audio"
     assert cfg["workflow_file"] == "qwen3_tts_clone.json"
 
 
 def test_qwen3_tts_clone_in_list_between_qwen3_tts_and_music():
-    """qwen3_tts_clone (205) 必须夹在 qwen3_tts (200) 与 ace_step_15_music (210) 之间."""
+    """qwen3_tts_clone 必须夹在 qwen3_tts 与 ace_step_15_music 之间 (definitions 单源后的新 order)."""
     wfs = config.list_workflows()
     audio = [w["name"] for w in wfs if w["category"] == "audio"]
     assert audio.index("qwen3_tts") < audio.index("qwen3_tts_clone") < audio.index("ace_step_15_music")

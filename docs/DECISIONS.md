@@ -199,7 +199,7 @@ t28 笔记确认 cache 版在二次同输入跑时从 660s 降到 60s。
 
 **理由**：
 1. 现有 `_build_form` / `_build_input_component` 已是 schema 驱动（从 `params.json` 读），加新 workflow 零代码改动 —— 这是最重要的复用。
-2. `params.json` 本来就是多 preset 容器（`presets.{name}`），给它加 `display_name`/`category`/`order` 元数据即可驱动左侧列表。
+2. definitions/<name>.json 现在是多 preset 容器 (单源)（`presets.{name}`），给它加 `display_name`/`category`/`order` 元数据即可驱动左侧列表。
 3. `@gr.render(inputs=[radio])` 在 Gradio 6 是稳定 API，选不同 workflow 时右侧自动重建表单。
 4. plugin 式感觉：扩展只动数据（params.json + workflow JSON），不碰代码，符合"胶水项目"的低维护诉求。
 

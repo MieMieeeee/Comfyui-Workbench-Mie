@@ -18,7 +18,7 @@
 
 **内建 workflow 是已知能跑的。**
 
-- 不要假设 workflow 在运行时缺插件 / 缺节点。`app/workflow_validator.py` 只做 **config drift 体检**（`params.json` 跟 workflow JSON 不一致），不是 plugin-availability 闸门。
+- 不要假设 workflow 在运行时缺插件 / 缺节点。`app/workflow_validator.py` 只做 **config drift 体检**（`definitions/<name>.json` 跟 workflow JSON 不一致），不是 plugin-availability 闸门。
 - `app/health_check.py` L2/L3（模型 / custom nodes）检查的是**用户部署环境**（这台机器的 ComfyUI 缺什么），不是 workflow 本身的可信度。报错文案要写「你的 ComfyUI 实例缺 X」，不是「workflow 需要 X，我们没装」。
 - 排错优先级（决定 debug 路径）：
   1. 用户输入（参数 / 文件大小 / 提示词长度）
@@ -35,10 +35,10 @@
 | 文件 | 改什么 |
 |---|---|
 | `app/presets/definitions/<name>.json` | workflow 模板本身 |
-| `app/presets/params.json` | preset 配置（display_name / category / description / user_facing_inputs / example） |
+| `app/presets/definitions/<name>.json` | preset 配置（display_name / category / group / description / user_facing_inputs / example） |
 | `app/presets/health_requirements.json` | 只有 workflow 加了新模型 / 自定义节点时才动 |
 
-**新 type 不在已有 schema 范围内**：先在 `_build_input_component` 扩展类型支持，再让作者在 params.json 里用。**不要**为一个 workflow 写一次性 bypass 路径。
+**新 type 不在已有 schema 范围内**：先在 `_build_input_component` 扩展类型支持，再让作者在 definition 里用。**不要**为一个 workflow 写一次性 bypass 路径。
 
 `example` 字段每个 preset 都必须有 —— 它是用户打开工作流后**第一眼看到**的参数，也是切到该 preset 时的默认值。这条由 `tests/test_preset_must_have_example.py` 锁住。
 
@@ -48,7 +48,7 @@ workflow 有多个 image / video 输出节点时，runner 要挑一个显示在�
 
 **默认协议**：打开 workflow JSON，找出所有 output-capable 节点，看 `_meta.title`（`SaveImage` / `PreviewImage` / `VHS_VideoCombine` 等）、是否写 `output/`（`type="output"`）还是 `temp/`、是中间 mask 还是最终 render。
 
-- 答案能从 title + storage type 推出来 → 直接在 params.json 里标（比如 `do_not_modify_warnings` 写明「node N = 最终用户输出」）
+- 答案能从 title + storage type 推出来 → 直接在 definition 里标（比如 `do_not_modify_warnings` 写明「node N = 最终用户输出」）
 - 不确定（比如一个 workflow 有 3 个 PreviewImage + 1 个 SaveImage 分不清哪个是结果）→ **停，问作者**
 
 写明具体问题：
@@ -87,13 +87,13 @@ workflow 有多个 image / video 输出节点时，runner 要挑一个显示在�
 
 | 模块 | 守的 |
 |---|---|
-| `app/workflow_validator.py` | config drift（params.json 跟 workflow JSON 不一致） |
+| `app/workflow_validator.py` | config drift（definition 跟 workflow JSON 不一致） |
 | `app/health_check.py` | 用户部署环境诊断（L0 连接 / L1 系统 / L2 模型 / L3 节点） |
 | `app/history.py` | 每次运行 manifest sidecar（审计 / 历史 tab 数据源） |
 | `app/services/runner.py` | 运行编排 + 多输出节点选择 |
 | `app/services/form_schema.py` | 表单 schema 渲染 + example → form values 映射 |
 | `app/services/media.py` | 文件 / 视频 / 音频 HTML 渲染（覆盖 ComfyUI /view URL 这种带 query 的） |
-| `app/services/workflow_editor.py` | wizard 编辑工作流（保存 → 重排 → 写 params.json） |
+| `app/services/workflow_editor.py` | wizard 编辑工作流（保存 → 重排 → 写 definition） |
 | `app/services/persistence.py` | `last_run.json` / 用户输入布局持久化 |
 
 ## UI 约定

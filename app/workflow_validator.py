@@ -1,7 +1,7 @@
 """workflow 模板加载后做契约校验 — 阶段 0.3。
 
 校验点：
-1. params.json user_facing_inputs 里的 4 个 node 都存在
+1. definitions/<name>.json user_facing_inputs 里的 4 个 node 都存在
 2. 4 个 field 都在对应 node.inputs 里
 3. 至少一个 node 的 class_type 是 VIDEO_OUTPUT_CLASS_TYPES 之一（会产出视频）
 
@@ -54,7 +54,7 @@ def validate(workflow: dict[str, Any], preset_config: dict[str, Any]) -> None:
 
     Args:
         workflow: ComfyUI API 格式 workflow（顶层 node_id → node dict）
-        preset_config: params.json 里单个 preset 的配置（含 user_facing_inputs）
+        preset_config: definition 文件里单个 preset 的配置（含 user_facing_inputs）
 
     Raises:
         WorkflowValidationError: 校验失败时抛出，**不**返回 False

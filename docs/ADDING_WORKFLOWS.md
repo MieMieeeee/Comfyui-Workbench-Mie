@@ -19,7 +19,7 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 | B | 用默认参数跑一次 → 看所有输出 node 的产物 → 点选"最终结果" | 确定 output_kind + output_node |
 | C | 点"保存" | 自动生成 `definitions/<name>.json` + 存 example + 复制 preview 资产 |
 
-向导覆盖了下面方式 B 的步骤 2-5，不需要手动查 node_id、手填 params.json、手动复制 preview。
+向导覆盖了下面方式 B 的步骤 2-5，不需要手动查 node_id、手填 definition、手动复制 preview。
 
 ### 方式 B：手工编辑（向导不够用时的回退）
 
@@ -35,7 +35,7 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 
 **不动代码**。 加新 type 时才动 `run.html` 的 spec 渲染分支，但 99% 的工作流复用现有 type 即可。
 
-> **文件结构变更 (2026-07-24)**：preset 配置从单一的 `params.json` 拆成了每个 preset 一个独立文件 `app/presets/definitions/<name>.json`。`config.preset_config` 优先读 definition 文件，找不到回退 `params.json`（迁移期兼容）。`params.json` 仍保留作为旧源/索引，新工作流一律走 `definitions/`。
+> **文件结构变更 (2026-07-24)**：preset 配置改为每个 preset 一个独立文件 `app/presets/definitions/<name>.json`。单源, `config.preset_config` 只读 definition; 不再有 `params.json`。加新工作流一律写 `definitions/<name>.json`。
 
 ---
 
@@ -54,14 +54,14 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 **作者** (本仓库维护者) 做：
 
 - 把 workflow JSON 落到 `app/presets/`
-- 在 params.json 加 preset 配置
+- 在 definitions/<name>.json 加 preset 配置
 - 跑一次示例生成 preview 资产
 - (可选) 更新 health_requirements.json
 - 跑测试 + 手动验证
 
 **程序**自动做 (不用手动)：
 
-- 根据 params.json schema 自动生成表单 UI (basic / advanced 分层)
+- 根据 definitions/<name>.json schema 自动生成表单 UI (basic / advanced 分层)
 - 自动从 `config.COMFY_INPUT_DIR` 找 example 引用的文件 → stage 到 `.examples_cache/` → 喂给 gr.File
 - 自动从 ComfyUI history.outputs 里抓 image / video 输出 (按 node_id 顺序) → 渲染到 output_box
 - 自动把 preset 加载到"运行" tab、显示在左侧导航
@@ -78,11 +78,11 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 
 ---
 
-## 步骤 2 — 用户给的节点分类 → 翻译成 params.json 字段
+## 步骤 2 — 用户给的节点分类 → 翻译成 definition 字段
 
 用户给的"节点清单"翻译成 schema 的映射表：
 
-| 用户说的 | params.json 字段 | 例子 |
+| 用户说的 | definition 字段 | 例子 |
 |---|---|---|
 | "节点 30 是参考图上传 (LoadImage)" | `user_facing_inputs` 里 `{node_id: "30", field: "image", type: "file:image", tier: "basic", label: "参考图"}` | sca12_motion |
 | "节点 367 是段长度 (PrimitiveInt)" | `user_facing_inputs` 里 `{node_id: "367", type: "int", tier: "advanced", min: 1, max: 100, default: 81}` | sca12_motion |
@@ -96,9 +96,9 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 
 ---
 
-## 步骤 3 — params.json 里加 preset 的完整 schema
+## 步骤 3 — definitions/<name>.json 里加 preset 的完整 schema
 
-在 `app/presets/params.json` 的 `presets` 字典里加一个新 key。
+新建 `app/presets/definitions/<name>.json`。
 
 ```jsonc
 {
@@ -203,7 +203,7 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 
 **输出节点不需要 user_facing_input**（例如 `SaveImage`、`VHS_VideoCombine`、`PreviewImage`）。它们的 role 通过 `output_kind` 体现。
 
-推断不出来 → 先在 `_build_input_component` 里加这个 type，再在 params.json 用。**不要**加"半工作"的 type 后留下走不到的分支。
+推断不出来 → 先在 `_build_input_component` 里加这个 type，再在 definition 用。**不要**加"半工作"的 type 后留下走不到的分支。
 
 ### 3.2 `tier` 怎么选 —— basic vs advanced
 
@@ -285,7 +285,7 @@ example 字段拆成两半：
 
 | 字段 | 含义 | 怎么准备 |
 |---|---|---|
-| **input 部分** | 表单默认值（reference_image / drive_video / prompt / seed / ...） | 作者把文件放进 `config.COMFY_INPUT_DIR`、在 params.json 里写文件名 |
+| **input 部分** | 表单默认值（reference_image / drive_video / prompt / seed / ...） | 作者把文件放进 `config.COMFY_INPUT_DIR`、在 definition 的 example 块里写文件名 |
 | **preview 部分** | 跑完的实际产物（preview_image / preview_video） | **用 example 参数跑一次 workflow** → 把输出复制到 `app/static/examples/` |
 
 ### 4.1 准备 example 输入文件
@@ -300,7 +300,7 @@ example 字段拆成两半：
 
 ### 4.2 写 example 的 input 字段
 
-params.json 的 `example` 块里只填**文件名**（不带路径），`_resolve_example_file` 会自动从 `COMFY_INPUT_DIR` 找并 stage 到 `.examples_cache/`：
+definition 的 `example` 块里可以填文件名或项目相对路径 (如 `app/static/examples/xxx.png`)（不带路径），`_resolve_example_file` 会自动从 `COMFY_INPUT_DIR` 找并 stage 到 `.examples_cache/`：
 
 ```jsonc
 "example": {
@@ -376,7 +376,7 @@ Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
 
 ### 4.5 把 preview 路径写进 example
 
-把 §4.4 复制出来的相对路径写进 params.json：
+把 §4.4 复制出来的相对路径写进 definition：
 
 ```jsonc
 "example": {
@@ -392,7 +392,7 @@ Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
 - `preview_video` 优先渲染（视频控件）
 - `preview_image` 是 video 的 poster / fallback（视频加载失败时显示）
 
-**测试**：保存 params.json 后切到 WebUI 该 preset，右栏"生成结果"应该立刻显示这张图 / 这段视频，**不需要**先点运行。
+**测试**：保存 definition 后切到 WebUI 该 preset，右栏"生成结果"应该立刻显示这张图 / 这段视频，**不需要**先点运行。
 
 ### 4.6 给 example 参数与素材签名
 
@@ -447,7 +447,7 @@ Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
 
 三轮检查：
 
-1. `python -m pytest tests/ -q` —— 应全绿。报错意味着 params.json 与 workflow 存在契约漂移，按报错修。
+1. `python -m pytest tests/ -q` —— 应全绿。报错意味着 definition 与 workflow JSON 存在契约漂移，按报错修。
 2. `python app/scail2_app.py` —— 启动日志里的 preflight 会打印 preset 状态。三个 preset 都"OK"才算过。
 3. 手动：浏览器开 `http://127.0.0.1:8199`：
    - 左侧应出现你加的 workflow（按 `order` 排序）
@@ -462,7 +462,7 @@ Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
 3. 资源（VRAM、磁盘、文件大小上限）
 4. **最后才怀疑 workflow 本身**
 
-"最后怀疑" = workflow 在你环境能跑通、只是某个表单字段传错了类型在 user_facing_inputs 里。修 params.json，**不动代码**。
+"最后怀疑" = workflow 在你环境能跑通、只是某个表单字段传错了类型在 user_facing_inputs 里。修 definition，**不动代码**。
 
 ---
 

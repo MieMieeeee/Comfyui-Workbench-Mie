@@ -35,10 +35,10 @@ def sources(tmp_path, monkeypatch):
         ],
         "example": {"drive_video": "demo.mp4", "seed": 7}, "output_kind": "video",
     }
-    (presets / "params.json").write_text(json.dumps({"schema_version": 4, "presets": {"builtin": builtin}}), encoding="utf-8")
+    # 单源: builtin + custom 都写到 definitions/, 不再有 params.json
+    (defs / "builtin.json").write_text(json.dumps(builtin), encoding="utf-8")
     (defs / "custom.json").write_text(json.dumps(custom), encoding="utf-8")
     monkeypatch.setattr(config, "PRESETS_DIR", presets)
-    monkeypatch.setattr(config, "PARAMS_FILE", presets / "params.json")
     monkeypatch.setattr(config, "DEFINITIONS_DIR", defs)
     monkeypatch.setattr(config, "INPUT_LAYOUTS_DIR", tmp_path / "input_layouts")
     return presets, defs, builtin, custom
@@ -47,14 +47,14 @@ def sources(tmp_path, monkeypatch):
 def test_list_editable_workflows_includes_builtin_and_custom(sources):
     rows = workflow_editor.list_editable_workflows()
     assert [(r["name"], r["source"], r["can_restore"]) for r in rows] == [
-        ("builtin", "builtin", False), ("custom", "definition", False),
+        ("builtin", "definition", False), ("custom", "definition", False),
     ]
 
 
 def test_get_editor_definition_exposes_stable_ids(sources):
     data = workflow_editor.get_editor_definition("builtin")
     assert [i["stable_id"] for i in data["inputs"]] == ["1::text", "6::width", "6::height"]
-    assert data["source"] == "builtin"
+    assert data["source"] == "definition"
 
 
 def test_save_builtin_creates_layout_override(sources):
@@ -67,7 +67,7 @@ def test_save_builtin_creates_layout_override(sources):
     result = workflow_editor.save_input_layout("builtin", payload)
     layout = json.loads((config.INPUT_LAYOUTS_DIR / "builtin.json").read_text(encoding="utf-8"))
     assert result["can_restore"] is True
-    assert not (defs / "builtin.json").exists()
+    assert (defs / "builtin.json").exists()  # 单源后 builtin 也在 definitions/
     assert [x["stable_id"] for x in layout["inputs"]] == ["6::height", "1::text", "6::width"]
     effective = config.preset_config("builtin")
     assert effective["workflow_file"] == builtin["workflow_file"]
@@ -131,7 +131,7 @@ def test_editor_routes_list_and_read_both_sources(client):
     listed = client.get("/api/wizard/editable-workflows")
     assert listed.status_code == 200
     assert {x["name"] for x in listed.get_json()} == {"builtin", "custom"}
-    assert client.get("/api/wizard/definition/builtin").get_json()["source"] == "builtin"
+    assert client.get("/api/wizard/definition/builtin").get_json()["source"] == "definition"  # 单源后所有 preset 都来自 definition
     assert client.get("/api/wizard/definition/custom").get_json()["source"] == "definition"
 
 

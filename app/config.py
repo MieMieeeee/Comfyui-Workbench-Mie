@@ -42,10 +42,9 @@ COMFY_CACHE_DIR: Path = COMFY_INSTALL_DIR / "mie_nodes_cache"
 # --- 我们仓库内 ---
 
 PRESETS_DIR: Path = REPO_ROOT / "app" / "presets"
-PARAMS_FILE: Path = PRESETS_DIR / "params.json"
 # 每个 preset 一个独立 definition.json (workflow-decouple 2026-07-24).
-# preset_config 先读这里, 找不到回退 PARAMS_FILE (迁移期 + 老测试兼容).
-# 引导向导 save_definition() 写到这里, 新增工作流不碰 params.json.
+# 现在 definitions/*.json 是唯一权威源: 加新工作流就是加一个 definition 文件,
+# wizard 引导也写到这里, 不再维护 params.json.
 DEFINITIONS_DIR: Path = PRESETS_DIR / "definitions"
 INPUT_LAYOUTS_DIR: Path = REPO_ROOT / "app" / "data" / "input_layouts"
 
@@ -125,18 +124,18 @@ def workflow_path(preset_name: str) -> Path:
 
 
 def preset_config(preset_name: str) -> dict:
-    """读取 definition/params 主配置，再叠加用户输入布局。"""
+    """读 definition 主配置 (单源), 再叠加用户输入布局.
+
+    找不到 definition 时抛 KeyError, 让调用方决定怎么提示.
+    之前有 params.json 兜底, 已下线.
+    """
     import json
     def_path = DEFINITIONS_DIR / f"{preset_name}.json"
-    if def_path.exists():
-        with def_path.open("r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        return _enrich_after_layout(preset_name, cfg)
-    with PARAMS_FILE.open("r", encoding="utf-8") as f:
-        all_presets = json.load(f)["presets"]
-    if preset_name not in all_presets:
-        raise KeyError(f"unknown preset: {preset_name}. known: {list(all_presets)}")
-    return _enrich_after_layout(preset_name, all_presets[preset_name])
+    if not def_path.exists():
+        raise KeyError(f"unknown preset: {preset_name} (no definition at {def_path})")
+    with def_path.open("r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    return _enrich_after_layout(preset_name, cfg)
 
 
 def resolve_output_kind(preset_cfg: dict) -> str:
@@ -188,35 +187,25 @@ def _apply_input_layout(preset_name: str, cfg: dict) -> dict:
 
 
 def list_workflows() -> list[dict]:
-    """列出所有 workflow preset，按 order 排序，供 UI 渲染左侧列表。
+    """列出所有 workflow preset, 按 order 排序, 供 UI 渲染左侧列表.
 
-    每项含：name / display_name / category / description / order。
-    缺失字段用默认值兜底，保证调用方拿到统一 schema。
-
-    双源: 合并 DEFINITIONS_DIR/*.json + PARAMS_FILE.presets, 同名 definition 优先
-    (迁移期允许两边都有同名 preset, definition 覆盖 params.json).
+    单源: 扫 DEFINITIONS_DIR/*.json. 每项含 name / display_name / category /
+    description / order / group. 缺失字段用默认值兜底, 保证调用方拿到统一 schema.
     """
     import json
-    merged: dict[str, dict] = {}
-    # 1. 先读旧源 (params.json), 作为底
-    with PARAMS_FILE.open("r", encoding="utf-8") as f:
-        for name, cfg in json.load(f)["presets"].items():
-            merged[name] = cfg
-    # 2. definition 文件覆盖 (新源优先)
+    rows = []
     if DEFINITIONS_DIR.is_dir():
         for def_path in sorted(DEFINITIONS_DIR.glob("*.json")):
-            name = def_path.stem
             with def_path.open("r", encoding="utf-8") as f:
-                merged[name] = json.load(f)
-    rows = []
-    for name, cfg in merged.items():
-        rows.append({
-            "name": name,
-            "display_name": cfg.get("display_name", name),
-            "category": cfg.get("category", "other"),
-            "description": cfg.get("description", ""),
-            "order": cfg.get("order", 999),
-        })
+                cfg = json.load(f)
+            rows.append({
+                "name": def_path.stem,
+                "display_name": cfg.get("display_name", def_path.stem),
+                "category": cfg.get("category", "other"),
+                "description": cfg.get("description", ""),
+                "order": cfg.get("order", 999),
+                "group": cfg.get("group"),
+            })
     rows.sort(key=lambda r: r["order"])
     return rows
 

@@ -12,7 +12,7 @@
 
 - **用户视角**：左侧按组（图像 / 视频 / 音频）列工作流 + 描述，右侧动态表单（上传素材 / 填提示词 / 调参数 / 运行 / 看结果）。不需要看 ComfyUI 节点图。
 - **背后**：本地 Flask 服务（端口 `8199`）+ Alpine.js 前端 + SSE 流式进度，通过 HTTP API 调本地 ComfyUI 实例（端口 `8188`）。
-- **数据驱动**：表单完全从 `app/presets/params.json` 自动生成。加新工作流只动三个数据文件，**不动代码**。
+- **数据驱动**：表单完全从 `app/presets/definitions/<name>.json` 自动生成。加新工作流只动 definition JSON + workflow JSON + example 资产，**不动代码**。
 
 ## 快速开始
 
@@ -54,7 +54,7 @@ python -m app.flask_app
 │   ├── workflow_validator.py       workflow 契约校验
 │   ├── prompts.py                  提示词池
 │   ├── presets/
-│   │   ├── params.json             所有 preset 的 schema（表单 + 节点映射 + example）
+│   │   └── definitions/           每 preset 一个 JSON: workflow 模板 + schema + example
 │   │   ├── definitions/*.json      workflow 模板
 │   │   └── health_requirements.json
 │   ├── services/                   业务逻辑子模块（runner / form_schema / media / wizard / persistence / theme）
@@ -66,7 +66,7 @@ python -m app.flask_app
 
 ## 已支持的工作流
 
-完整列表见 `app/presets/params.json`，分类速览：
+完整列表见 `app/presets/definitions/*.json`，分类速览：
 
 **图像**
 - 文生图 (Z-Image-Turbo / Qwen Image 2512 / Anima / Krea-2)
@@ -88,9 +88,9 @@ python -m app.flask_app
 ## 添加新工作流
 
 1. 把 workflow JSON 拷到 `app/presets/definitions/<name>.json`
-2. 在 `app/presets/params.json` 加 preset 配置（display_name / category / description / user_facing_inputs / example / preview）
+2. 在 `app/presets/definitions/<name>.json` 加 preset 配置（display_name / category / description / user_facing_inputs / example / preview）
 3. 必要时改 `app/presets/health_requirements.json`（新模型 / 新自定义节点）
-4. 跑一次 preset 生成 preview 图 / 视频，放到 `app/static/examples/<name>.*`，把路径写进 `params.json` 的 `preview_url`
+4. 跑一次 preset 生成 preview 图 / 视频，放到 `app/static/examples/<name>.*`，把路径写进 `definitions/<name>.json` 的 `preview_url`
 
 完整字段表、调试项、example 写法见 [`docs/ADDING_WORKFLOWS.md`](./docs/ADDING_WORKFLOWS.md)。
 

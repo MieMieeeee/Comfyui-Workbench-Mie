@@ -8,9 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFINITIONS = ROOT / "app" / "presets" / "definitions"
-PARAMS = ROOT / "app" / "presets" / "params.json"
-
-
 def _load_definitions():
     """读取所有 definitions/*.json 文件 (新格式定义)."""
     out = {}
@@ -36,21 +33,6 @@ def test_only_zimage_has_prompt_pool_in_definitions():
                 bad.append((name, spec.get("label", spec.get("node_id"))))
     assert not bad, (
         f"以下定义还在用 prompt_pool (会在表单里出现“随机提示词”按钮), 应改成 text: {bad}"
-    )
-
-
-def test_only_zimage_has_prompt_pool_in_params_json():
-    """params.json (老格式, 老预设) 里只能是 zimage 使用 prompt_pool."""
-    data = json.loads(PARAMS.read_text(encoding="utf-8"))
-    bad = []
-    for preset_name, preset in data.get("presets", {}).items():
-        if preset_name == "zimage":
-            continue
-        for spec in preset.get("user_facing_inputs", []):
-            if spec.get("type") == "prompt_pool":
-                bad.append((preset_name, spec.get("label", spec.get("node_id"))))
-    assert not bad, (
-        f"params.json 中以下 preset 还在用 prompt_pool: {bad}"
     )
 
 

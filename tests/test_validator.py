@@ -6,7 +6,7 @@
 - 缺 inputs 字段
 - inputs 非 dict
 - 没有 video 输出节点
-- params.json 两个真实 preset 都能通过
+- definitions/ 两个真实 preset 都能通过
 """
 from __future__ import annotations
 

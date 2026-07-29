@@ -105,7 +105,7 @@ def _failure_hint(msg):
     if 'timeout' in low or '超时' in msg or 'timed out' in low:
         return '下一步: 通常是显存/磁盘不足或模型加载慢, 可缩小尺经 / 段数后重试。'
     if 'patch' in low or 'workflow' in low or 'node' in low or 'validator' in low:
-        return '下一步: workflow JSON 与 params.json 不一致, 检查最近是否手动改过 preset 配置。'
+        return '下一步: workflow JSON 与 definition 不一致, 检查最近是否手动改过 preset 配置。'
     if 'cuda' in low or 'out of memory' in low or 'vram' in low or 'memory' in low:
         return '下一步: 显存不足, 缩小输出尺经 / 段数, 或关闭其他占用 GPU 的程序。'
     if 'file' in low and ('too large' in low or 'size' in low or 'big' in low):

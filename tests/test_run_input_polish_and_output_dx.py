@@ -9,7 +9,6 @@ import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PARAMS = (ROOT / "app" / "presets" / "params.json").read_text(encoding="utf-8")
 DEF_KLEIN = (ROOT / "app" / "presets" / "definitions" / "klein_edit.json").read_text(encoding="utf-8")
 RUN = (ROOT / "app" / "templates" / "run.html").read_text(encoding="utf-8")
 FLASK = (ROOT / "app" / "flask_app.py").read_text(encoding="utf-8")
@@ -18,17 +17,11 @@ APP_JS = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
 
 def test_klein_edit_prompt_is_text_not_prompt_pool():
     """Klein Edit 的编辑提示词不应该是 prompt_pool (不要随机按钮)."""
-    # 两个 klein_edit 定义都要课: params.json 和 definitions/klein_edit.json
-    for src_name, src in (("params.json", PARAMS), ("definitions/klein_edit.json", DEF_KLEIN)):
-        # 找编辑提示词 出现位置
-        editor_idx = src.find("编辑提示词")
-        assert editor_idx != -1, f"{src_name} 找不到编辑提示词"
-        assert editor_idx != -1, f"{src_name} 找不到编辑提示词"
-        # 该区域里的 type 不能是 prompt_pool
-        # 找 editor_idx 后面的 type
-        after = src[editor_idx:editor_idx + 500]
-        assert '"type": "prompt_pool"' not in after, f"{src_name} 编辑提示词仍是 prompt_pool"
-        assert '"type": "text"' in after, f"{src_name} 编辑提示词不是 text"
+    editor_idx = DEF_KLEIN.find("编辑提示词")
+    assert editor_idx != -1, "definitions/klein_edit.json 找不到编辑提示词"
+    after = DEF_KLEIN[editor_idx:editor_idx + 500]
+    assert '"type": "prompt_pool"' not in after, "Klein Edit 编辑提示词仍是 prompt_pool"
+    assert '"type": "text"' in after, "Klein Edit 编辑提示词不是 text"
 
 
 def test_run_html_no_random_3_button():

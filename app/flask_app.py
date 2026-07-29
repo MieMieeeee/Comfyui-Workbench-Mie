@@ -649,7 +649,7 @@ def wizard_restore_input_layout(preset_name):
 def wizard_save_preset_order():
     """按新顺序重排工作流. body: {"order": [name1, name2, ...]}.
 
-    写回 definition (优先) 或 params.json. 10 步长分配 order, 留空间给后续插入.
+    写回 definition 文件. 10 步长分配 order, 留空间给后续插入.
     """
     data = request.get_json(silent=True) or {}
     try:

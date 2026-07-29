@@ -185,11 +185,11 @@ def example_to_form_values(preset_name):
     - prompt_pool → example["prompt"]
     - image_sizes → example["sizes"]
     - int_random → example["seed"]（拆成 [Checkbox, Number] 两个值）
-    - 其它 → spec 的 example_key 字段（在 params.json 该 spec 上显式声明）
+    - 其它 → spec 的 example_key 字段（在 definition 该 spec 上显式声明）
             找不到时退 spec.default
 
     数据驱动契约 (review 2026-07-14):
-      text 类 spec 必须在 params.json 上显式写 "example_key": "<example 字典里的 key>",
+      text 类 spec 必须在 definition 上显式写 "example_key": "<example 字典里的 key>",
       不再靠 node_id 隐式兜底。
 
     文件槽位返回 ComfyUI input 目录下的**纯文件名** (basename). 前端通过
