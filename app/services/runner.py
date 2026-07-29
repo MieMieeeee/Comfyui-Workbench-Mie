@@ -431,20 +431,27 @@ def run_image_workflow(preset_name, *component_values):
     preset_cfg = config.preset_config(preset_name)
     inputs_spec = preset_cfg["user_facing_inputs"]
 
-    prompt_text = ""
+    prompt_text = None
     sizes_raw = None
     seed_val = 0
     prompt_target: tuple[str, str] | None = None
     sizes_node_id = None
     seed_node_id = None
+    # 收集所有 text / prompt_pool / select 字段, 避免多 text preset (e.g. QwenImage 的
+    # positive + negative) 只 patch 最后一个, 前面那个被吞掉. 修 review 2026-07-29.
+    text_patches: dict[tuple[str, str], str] = {}
     i = 0
     while i < len(inputs_spec):
         spec = inputs_spec[i]
         typ = spec["type"]
         nid = str(spec["node_id"])
-        if typ in ("text", "prompt_pool"):
-            prompt_text = component_values[i] or ""
-            prompt_target = (nid, spec["field"])
+        if typ in ("text", "prompt_pool", "select"):
+            value = component_values[i] if i < len(component_values) else None
+            text_patches[(nid, spec["field"])] = value or ""
+            # 第一个 text / prompt_pool 当主 prompt 喂 size loop, 其它的从 text_patches 出
+            if typ in ("text", "prompt_pool") and prompt_target is None:
+                prompt_text = value or ""
+                prompt_target = (nid, spec["field"])
             i += 1
         elif typ == "image_sizes":
             sizes_raw = component_values[i]
@@ -466,7 +473,17 @@ def run_image_workflow(preset_name, *component_values):
         else:
             i += 1
 
-    prompt_text = (prompt_text or "").strip() or preset_cfg.get("user_facing_inputs", [{}])[0].get("default", "Photorealistic, ultra-detailed.")
+    # 主 prompt 缺省: 优先用 text_patches 里第一个非空值, 都没有再用 spec[0].default
+    # (老逻辑直接抓 spec[0].default, 在多 text preset + user 给空 negative 的场景下
+    # 会把空 positive fallback 成 example positive, 用户看到的输出是 example 的图)
+    if not (prompt_text or "").strip():
+        for (nid, field), val in text_patches.items():
+            if val.strip():
+                prompt_text = val
+                prompt_target = (nid, field)
+                break
+        else:
+            prompt_text = preset_cfg.get("user_facing_inputs", [{}])[0].get("default", "Photorealistic, ultra-detailed.")
 
     sizes = form_schema.parse_sizes(sizes_raw)
     if not sizes:
@@ -493,9 +510,12 @@ def run_image_workflow(preset_name, *component_values):
     for idx, (w, h) in enumerate(sizes, 1):
         actual_seed = seed_val if seed_val and seed_val > 0 else random.randint(1, 10**12)
         replacements = {}
-        if prompt_target:
-            prompt_node_id, prompt_field = prompt_target
-            replacements[prompt_node_id] = {prompt_field: prompt_text}
+        # 把所有 text / prompt_pool / select 字段 patch 进去 (review 2026-07-29 修多 text 支持)
+        for (nid, field), val in text_patches.items():
+            if nid in replacements:
+                replacements[nid][field] = val
+            else:
+                replacements[nid] = {field: val}
         if seed_node_id:
             replacements[seed_node_id] = {"seed": actual_seed}
         if sizes_node_id:
