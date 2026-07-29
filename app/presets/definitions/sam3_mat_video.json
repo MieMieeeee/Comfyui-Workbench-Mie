@@ -70,8 +70,8 @@
   ],
   "example": {
     "prompt": "a person",
-    "drive_video": "app/static/examples/liveportrait_drive.mp4",
-    "contract_sha256": "b5595327aef0415cfe68748a4301f026f51a88d8fbb776b7f43994c04889b3be"
+    "drive_video": "app/static/examples/coffee.mp4",
+    "contract_sha256": "d912a434fdd6c72a8cd29303c0c07bc7dd61b7f75cf4b8651f83d796979b943d"
   },
   "output_kind": "video",
   "do_not_modify_warnings": [
