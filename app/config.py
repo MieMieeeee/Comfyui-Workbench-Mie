@@ -25,9 +25,12 @@ COMFY_BASE_URL: str = os.environ.get("COMFY_BASE_URL", "http://127.0.0.1:8188")
 
 # --- ComfyUI 端文件系统 ---
 
+# 默认路径: 标准 ComfyUI Windows 安装位置 (C:/ComfyUI).
+# 用户在自己的机器上跑, 应该通过环境变量 COMFY_INSTALL_DIR 覆盖,
+# 或在启动后去系统设置 tab 配 ComfyUI URL (HTTP API 不依赖文件系统路径).
 COMFY_INSTALL_DIR: Path = Path(os.environ.get(
     "COMFY_INSTALL_DIR",
-    r"E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI",
+    "C:/ComfyUI",
 ))
 COMFY_INPUT_DIR: Path = COMFY_INSTALL_DIR / "input"
 # ComfyUI 输出根目录 (不写死 SCAIL-2 子目录 — 不同 preset 输出到不同 subfolder,
