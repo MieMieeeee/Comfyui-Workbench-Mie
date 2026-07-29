@@ -213,11 +213,11 @@ function runTab(workflows, presetCfgs) {
         const k = cfg.preview_kind || 'image';
         const caption = '<p class="result-placeholder" style="margin-top:8px">📸 示例效果 (默认参数对应的结果)</p>';
         if (k === 'video') {
-          scope.defaultResultHtml = `<div style="padding:8px"><video controls preload="metadata" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto""><source src="${cfg.preview_url}"/></video></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><video controls preload="metadata" class="lightboxable" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto""><source src="${cfg.preview_url}"/></video></div>${caption}`;
         } else if (k === 'audio') {
-          scope.defaultResultHtml = `<div style="padding:8px"><audio controls preload="metadata" style="width:100%;max-width:480px"><source src="${cfg.preview_url}"/></audio></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><audio controls preload="metadata" class="lightboxable" style="width:100%;max-width:480px;cursor:zoom-in"><source src="${cfg.preview_url}"/></audio></div>${caption}`;
         } else {
-          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-md);display:block;margin:0 auto" /></div>${caption}`;
+          scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" class="lightboxable" style="max-width:100%;max-height:70vh;object-fit:contain;cursor:zoom-in;border-radius:var(--radius-md);display:block;margin:0 auto" /></div>${caption}`;
         }
       }
     },
