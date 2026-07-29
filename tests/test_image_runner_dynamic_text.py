@@ -35,7 +35,7 @@ def test_stream_events_does_not_stop_at_segment_internal_success(monkeypatch):
         yield "✅ [1/1] 1024x1024 done", ["http://comfy/view?filename=new.png&type=output"]
         yield "✅ 全部完成，共 1 张图", ["http://comfy/view?filename=new.png&type=output"]
     monkeypatch.setattr(runner, "run_image_workflow", fake_image_run)
-    monkeypatch.setattr(runner.config, "preset_config", lambda name: {"output_kind": "image"})
+    monkeypatch.setattr(runner.config, "preset_config", lambda name: {"output_kind": "image", "user_facing_inputs": [{"type": "image_sizes"}]})
     events = list(runner.stream_events("Anima_turbo", ["new prompt"]))
     assert any(e.media_html and "new.png" in e.media_html for e in events)
     assert events[-1].type == "done"

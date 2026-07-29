@@ -602,7 +602,15 @@ def stream_events(
     """
     preset_cfg = config.preset_config(preset_name)
     output_kind = _output_kind(preset_cfg)
-    run_fn = run_image_workflow if output_kind == "image" else run_workflow
+    # run_image_workflow 是 zimage 那种多尺寸循环专用, 只支持 text / image_sizes / int_random
+    # 三种类型, 其它类型 (file:image / file:video / float / bool) 会被忽略. 通用 run_workflow
+    # 已经支持 image output_kind (见 wait_for_completion 后 extract_all_image_outputs 分支)
+    # + 所有 user_facing_inputs 类型, 所以非多尺寸的 image preset 也走 run_workflow.
+    has_image_sizes = any(
+        s.get("type") == "image_sizes"
+        for s in preset_cfg.get("user_facing_inputs", [])
+    )
+    run_fn = run_image_workflow if (output_kind == "image" and has_image_sizes) else run_workflow
 
     log_lines: list[str] = []
     last_media = None
