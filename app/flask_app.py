@@ -301,6 +301,18 @@ def wizard_page():
     )
 
 
+@app.route("/about")
+def about_page():
+    """关于页: 作者 + 工作台两个 section."""
+    tid = theme._load_saved_theme()
+    return render_template(
+        "about.html",
+        theme_css_content=theme._strip_style_tag(theme._apply_theme(tid)),
+        page_bg_color=theme._theme_page_bg_color(tid),
+        theme_id=tid,
+    )
+
+
 # ============================================================
 # API 路由 — 主题
 # ============================================================

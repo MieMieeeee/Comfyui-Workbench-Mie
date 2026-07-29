@@ -42,6 +42,7 @@ function appShell() {
   return {
     currentTab: window.location.pathname.startsWith('/settings') ? 'settings'
              : window.location.pathname.startsWith('/wizard') ? 'wizard'
+             : window.location.pathname.startsWith('/about') ? 'about'
              : 'run',
     comfyStatusHtml: '',         // 兼容旧调用方 (systemStatusHtml getter 还在)
     pending: false,
@@ -796,6 +797,32 @@ function settingsTab() {
       } catch (e) {
         this.statusMsg = '主题切换失败: ' + e.message;
       }
+    },
+  };
+}
+
+
+// ============================================================
+// aboutTab — 关于 (作者 + 工作台)
+// ============================================================
+
+function aboutTab() {
+  return {
+    section: (window.location.hash || '#me').replace('#', '') || 'me',
+    goto(name) {
+      this.section = name;
+      // 更新 hash (避免页面跳, 只动 history)
+      history.replaceState(null, '', '#' + name);
+      // 滚到 section 顶部
+      const el = document.getElementById(name);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    init() {
+      // 监听 hash 变化 (用户点浏览器后退 / 直接进 #workbench)
+      window.addEventListener('hashchange', () => {
+        const h = (window.location.hash || '#me').replace('#', '');
+        if (h === 'me' || h === 'workbench') this.section = h;
+      });
     },
   };
 }
