@@ -67,6 +67,31 @@ workflow 有多个 image / video 输出节点时，runner 要挑一个显示在�
 - `do_not_modify_warnings` 是给未来维护者的备忘，不是用户配置 —— 保持轻量。
 - `fixed_patches` 是 preset 级硬 patch（比如 SCAIL2 两种模式共用一个 workflow JSON，只在 node 353 不同）。这个复用机制很好，鼓励新 workflow 用。
 
+## 版本管理 —— `WORKBENCH_VERSION`
+
+版本号在 `app/config.py`, 格式 `MAJOR.MINOR.PATCH+YYYYMMDDHHMMSS` (semver + UTC build metadata).
+
+- **semver 部分** (`MAJOR.MINOR.PATCH`) — 手动 bump, 大改动合并前手动改.
+- **时间戳后缀** (`+YYYYMMDDHHMMSS`) — 每次 commit 自动更新到 UTC 当前时间.
+
+**自动更新 (推荐)**:
+
+```sh
+git config core.hooksPath .githooks   # 一次性启用 pre-commit hook
+```
+
+启用后, 每次 `git commit` 会自动跑 `scripts/bump_version.py` 更新时间戳 + 自动 stage 进当前 commit. 一个 commit 就包含新版时间戳, history 干净.
+
+**手动更新 (备选)**:
+
+```sh
+python scripts/bump_version.py        # 仅更新时间戳
+python scripts/bump_version.py 2.1.0 # 顺便 bump semver
+git add app/config.py && git commit -m "..."
+```
+
+展示位置: `app/templates/about.html` 关于工作台 ProfileCard (`当前版本 v{{ workbench_version }}`). 通过 `@app.context_processor` 自动注入, 模板里直接用就行.
+
 ## 本地开发环境 —— `.venv`
 
 项目用本地 `.venv/` (Python 3.12.10)，不能依赖系统 pip。

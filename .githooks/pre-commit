@@ -1,0 +1,14 @@
+#!/bin/sh
+# pre-commit hook: 更新 WORKBENCH_VERSION 时间戳后缀, 自动 stage 进 commit.
+#
+# 启用方法 (一次性):
+#   git config core.hooksPath .githooks
+#
+# 也可以手动跑:
+#   python scripts/bump_version.py
+#   git add app/config.py && git commit -m "..."
+
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+python "$ROOT/scripts/bump_version.py"
+git add "$ROOT/app/config.py"
