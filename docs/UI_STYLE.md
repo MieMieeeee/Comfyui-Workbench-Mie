@@ -5,7 +5,7 @@
 
 ## 1. 设计取向
 
-WebUI 是一个**工作流运行器**，不是产品官网。每次发版都会有新 preset 进来，所以 UI
+WebUI 是一个 **ComfyUI 工作台**，不是产品官网。每次发版都会有新 preset 进来，所以 UI
 必须对"工作流数量持续增长"友好。具体表现：
 
 - 左侧用 Radio + 搜索框列出所有 workflow，按 `order` 升序、按 `category` 加 emoji 前缀。

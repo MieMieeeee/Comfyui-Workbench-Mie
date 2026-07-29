@@ -1,4 +1,4 @@
-# AGENTS.md -- ComfyUIWebToRunWorkflow
+# AGENTS.md -- comfyui-workbench-mie
 
 > 给贡献者 / AI agent 的项目级指引。
 > 工具层 (shell / 转义 / 排查) 见顶层 `~/.codex/AGENTS.md`；

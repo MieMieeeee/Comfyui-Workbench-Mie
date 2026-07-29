@@ -1,6 +1,6 @@
 /*
  * app/static/tokens.css
- * ComfyUIWebToRunWorkflow 设计 token —— 方案 B 的单一来源。
+ * comfyui-workbench-mie 设计 token —— 方案 B 的单一来源。
  *
  * 架构:
  *   :root 顶部声明 --theme-accent-* 等品牌色变量,值取自 coral-orange 主题,

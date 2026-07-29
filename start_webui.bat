@@ -2,7 +2,7 @@
 setlocal enableextensions enabledelayedexpansion
 
 REM ============================================================
-REM  ComfyUI Web Workflow 启动脚本（与 ComfyUI 解耦）
+REM  ComfyUI Workbench 启动脚本（与 ComfyUI 解耦）
 REM  - 先清理占用 8199 端口的旧进程
 REM  - 首次运行自动 pip install -r requirements.txt
 REM  - 启动 Flask WebUI (8199) 并打开浏览器
@@ -23,7 +23,7 @@ set "HF_HUB_OFFLINE=1"
 set "TRANSFORMERS_OFFLINE=1"
 
 echo ============================================================
-echo   ComfyUI Web Workflow 启动器
+echo   ComfyUI Workbench 启动器
 echo ============================================================
 echo.
 

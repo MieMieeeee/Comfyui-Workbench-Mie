@@ -1,4 +1,4 @@
-# ComfyUIWebToRunWorkflow
+# comfyui-workbench-mie
 
 > 一个统一的多工作流 Web 前端 —— 把多个 ComfyUI workflow（文生图 / 图生图编辑 / 视频生成 / 表情迁移 / 语音克隆 / 音乐生成 等）包成一套带表单的网页。
 

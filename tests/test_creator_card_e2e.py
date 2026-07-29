@@ -33,7 +33,7 @@ def test_creator_card_renders_and_animates():
                     };
                 }""")
                 print(w, data)
-                page.screenshot(path=f"F:/ComfyUIWebToRunWorkflow/_ui_shots/creator-{w}.png", full_page=True)
+                page.screenshot(path=f"<REPO>/_ui_shots/creator-{w}.png", full_page=True)
                 ctx.close()
             ctx = b.new_context(viewport={"width": 1280, "height": 900}, reduced_motion="reduce")
             page = ctx.new_page()

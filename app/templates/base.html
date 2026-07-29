@@ -6,7 +6,7 @@
   <!-- Web Interface Guidelines: theme-color + color-scheme 让浏览器原生控件走暗 variant -->
   <meta name="theme-color" content="{{ page_bg_color }}">
   <meta name="color-scheme" content="dark">
-  <title>{% block title %}ComfyUI 工作流运行器{% endblock %}</title>
+  <title>{% block title %}ComfyUI 工作台 by 黎黎原上咩{% endblock %}</title>
 
   <!-- 主题 CSS: tokens.css (:root 变量 + 共享组件) + app-flask.css (Flask 布局) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
@@ -20,7 +20,7 @@
 <body data-theme="{{ theme_id }}" x-data="appShell()" :class="{ 'theme-pending': pending }">
   <!-- 应用头部 -->
   <header class="app-shell-header">
-    <h1>🎬 ComfyUI 工作流运行器</h1>
+    <h1>🎬 ComfyUI 工作台 by 黎黎原上咩</h1>
   </header>
 
   <!-- 主导航 + 系统状态合并: nav 居中 (子 flex group), 状态 pill 靠右. -->
@@ -32,6 +32,8 @@
          :class="{ active: currentTab === 'wizard' }">🪄 自定义工作流</a>
       <a href="{{ url_for('settings_page') }}"
          :class="{ active: currentTab === 'settings' }">⚙️ 系统设置</a>
+      <a href="{{ url_for('about_page') }}"
+         :class="{ active: currentTab === 'about' }">ℹ️ 关于</a>
     </div>
     <div class="main-tabs-status" x-data="{}">
       <span class="status-pill" :class="comfyStatusClass" :title="comfyStatusTitle">

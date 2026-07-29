@@ -25,7 +25,7 @@ def test_page_centering_layout():
                     };
                 }""")
                 print("run", w, run)
-                page.screenshot(path=f"F:/ComfyUIWebToRunWorkflow/_ui_shots/centered-run-{w}.png", full_page=True)
+                page.screenshot(path=f"<REPO>/_ui_shots/centered-run-{w}.png", full_page=True)
                 page.goto("http://127.0.0.1:8199/settings", wait_until="domcontentloaded")
                 try:
                     page.wait_for_selector(".theme-options label", timeout=5000)
@@ -40,7 +40,7 @@ def test_page_centering_layout():
                     return {frame: r(f), settings: r(sp), section: r(sec)};
                 }""")
                 print("settings", w, settings)
-                page.screenshot(path=f"F:/ComfyUIWebToRunWorkflow/_ui_shots/centered-settings-{w}.png", full_page=True)
+                page.screenshot(path=f"<REPO>/_ui_shots/centered-settings-{w}.png", full_page=True)
                 ctx.close()
         finally:
             b.close()
