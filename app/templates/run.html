@@ -7,7 +7,7 @@
   window.__WORKFLOWS__ = {{ workflows | tojson }};
   window.__PRESET_CFGS__ = {{ preset_cfgs | tojson }};
 </script>
-<div class="workflow-workbench" x-data="runTab(window.__WORKFLOWS__, window.__PRESET_CFGS__)" x-init="init()">
+<div class="workflow-workbench" x-data="runTab(window.__WORKFLOWS__, window.__PRESET_CFGS__)">
 
   <!-- 左侧导航栏 -->
   <aside class="workflow-nav-rail">

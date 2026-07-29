@@ -17,7 +17,7 @@
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   <script defer src="{{ url_for('static', filename='alpine.min.js') }}"></script>
 </head>
-<body data-theme="{{ theme_id }}" x-data="appShell()" x-init="init()" :class="{ 'theme-pending': pending }">
+<body data-theme="{{ theme_id }}" x-data="appShell()" :class="{ 'theme-pending': pending }">
   <!-- 应用头部 -->
   <header class="app-shell-header">
     <h1>🎬 ComfyUI 工作流运行器</h1>
