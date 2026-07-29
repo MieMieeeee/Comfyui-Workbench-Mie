@@ -115,6 +115,11 @@ function runTab(workflows, presetCfgs) {
     presetCfgs: presetCfgs || {},
     currentPreset: workflows[0]?.name || '',
     searchQuery: '',
+    // nav 按组折叠: 5 个固定组, 跟 wizard 调整顺序 tab _GROUP_ORDER 对齐.
+    navGroups: ['图像', '视频', '音频', '通用', '其他'],
+    navGroupExpanded: { '图像': true, '视频': true, '音频': true, '通用': true, '其他': true },
+    // 当 selectedPreset 所在 group 被用户手动折叠, 强制展开 (避免用户看不到当前选了啥)
+    _userCollapsed: { '图像': false, '视频': false, '音频': false, '通用': false, '其他': false },
     statusHtml: '',
     openDirMsg: '',
     hasLastRun: {},
@@ -204,13 +209,40 @@ function runTab(workflows, presetCfgs) {
       data.formValues = formValues;
     },
 
-    get filteredWorkflows() {
-      if (!this.searchQuery) return this.workflows;
-      const q = this.searchQuery.toLowerCase();
-      return this.workflows.filter(w =>
-        w.display_name.toLowerCase().includes(q) ||
-        w.name.toLowerCase().includes(q)
-      );
+    // 按 group 分组的 nav 数据, 搜索时自动展开含匹配的 group.
+    // 返回数组 [{group, items, expanded}], 顺序按 navGroups 固定.
+    get groupedWorkflows() {
+      const q = (this.searchQuery || '').toLowerCase().trim();
+      const result = [];
+      for (const g of this.navGroups) {
+        const items = this.workflows.filter(w => (w.group || '其他') === g);
+        const filtered = q
+          ? items.filter(w => w.display_name.toLowerCase().includes(q) || w.name.toLowerCase().includes(q))
+          : items;
+        if (q && filtered.length === 0) continue; // 搜索时空 group 不显示
+        if (!q && items.length === 0) continue; // 无搜索时, 空的 group 不显示
+        // 搜索时强制展开, 选中 preset 所在 group 也强制展开
+        const autoExpand = (q && filtered.length > 0) || (this.currentPreset && filtered.some(w => w.name === this.currentPreset));
+        const expanded = q ? true : (this._userCollapsed[g] ? false : this.navGroupExpanded[g]);
+        result.push({ group: g, items: filtered, count: items.length, autoExpand, expanded });
+      }
+      return result;
+    },
+    toggleNavGroup(g) {
+      // 翻转展开状态. _userCollapsed 跟 navGroupExpanded 同步 (语义: 用户是否手动折叠过)
+      const next = !this.navGroupExpanded[g];
+      this.navGroupExpanded[g] = next;
+      this._userCollapsed[g] = !next;
+    },
+    isGroupForcedExpanded(g) {
+      // 用户没手动折叠过, 且 (搜索中 或 当前选中的 preset 在这组) -> 强制展开
+      if (this._userCollapsed[g]) return false;
+      if (this.searchQuery && this.searchQuery.trim()) return true;
+      if (this.currentPreset) {
+        const w = (this.workflows || []).find(w => w.name === this.currentPreset);
+        if (w && (w.group || '其他') === g) return true;
+      }
+      return false;
     },
 
     selectPreset(name) {

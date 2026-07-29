@@ -28,11 +28,17 @@ def test_main_tabs_has_border_and_radius():
 
 
 def test_workflow_list_label_uses_column_layout():
-    """为了 emoji 上 + 文本下的一致布局, label 起码要是 flex-direction: column."""
-    block = CSS.split(".workflow-list label {", 1)[1].split("}", 1)[0]
-    assert "flex-direction: column" in block, (
+    """为了 emoji 上 + 文本下的一致布局, label 起码要是 flex-direction: column.
 
-        ".workflow-list label 还不是 column 布局, emoji 和文本会复合在同一行"
+    review 2026-07-29: nav 改成 .nav-group-list (review 加组概念后),
+    跟 .workflow-list 走同一个 :is() 选择器, 都走 flex-direction: column.
+    """
+    import re
+    m = re.search(r":is\(\.workflow-list,\s*\.nav-group-list\)\s+label\s*\{([^}]*)\}", CSS)
+    assert m, "没找到 :is(.workflow-list, .nav-group-list) label 块"
+    block = m.group(1)
+    assert "flex-direction: column" in block, (
+        "label 还不是 column 布局, emoji 和文本会复合在同一行"
     )
     assert "align-items: center" in block
 

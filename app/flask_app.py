@@ -122,17 +122,35 @@ def _update_est_markdown(drive_path, per_seg=81, pre_drop=5, max_segments=0) -> 
     return f"**预估段数**: {est} (无限制)  \n(驱动视频 {frames} 帧 / 每段 {per_seg} / pre-drop {pre_drop} / 净每段 {net})"
 
 
+# nav 用的 5 个固定组, 跟 wizard 调整顺序 tab 的 _GROUP_ORDER 对齐
+# (顺序就是显示顺序, 跟 group field 走)
+_NAV_GROUPS = ("图像", "视频", "音频", "通用", "其他")
+_NAV_GROUP_BY_CATEGORY = {
+    "image": "图像", "video": "视频", "audio": "音频", "other": "其他",
+    # "通用" 不从 category 推, 必须 definition 文件里显式写
+}
+
+
+def _workflow_group(name: str, cfg: dict) -> str:
+    """读 preset 的 group, 缺省从 category 推."""
+    if cfg.get("group"):
+        return cfg["group"]
+    return _NAV_GROUP_BY_CATEGORY.get(cfg.get("category", "other"), "其他")
+
+
 def _workflows_for_nav():
     """返回前端 nav 用的工作流元信息列表 (跟 /api/workflows 一致)."""
     out = []
     for w in config.list_workflows():
         cfg = config.preset_config(w["name"])
         cat = cfg.get("category", "other")
+        grp = _workflow_group(w["name"], cfg)
         out.append({
             "name": w["name"],
             "display_name": cfg.get("display_name", w["name"]),
             "description": cfg.get("description", ""),
             "category": cat,
+            "group": grp,
             "icon": _category_icon(cat),
             "nav_label": f"{_category_icon(cat)} {cfg.get('display_name', w['name'])}",
             "output_kind": config.resolve_output_kind(cfg),
