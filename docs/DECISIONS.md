@@ -8,7 +8,7 @@
 **状态**：✅ 采纳
 
 **背景**：
-ComfyUI 0.24 自带 "Blueprint" 机制，可以把复杂 workflow 包成"单节点 + label 化 widget"，已经在 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\blueprints\` 下有 80+ 现成 blueprint，包括一个 `Character Replacement (SCAIL-2 Base).json`。
+ComfyUI 0.24 自带 "Blueprint" 机制，可以把复杂 workflow 包成"单节点 + label 化 widget"，已经在 `<COMFY_BLUEPRINTS_DIR>\` 下有 80+ 现成 blueprint，包括一个 `Character Replacement (SCAIL-2 Base).json`。
 
 **评估过的选项**：
 
@@ -34,7 +34,7 @@ ComfyUI 0.24 自带 "Blueprint" 机制，可以把复杂 workflow 包成"单节�
 
 **参考截图**：
 - 现状 79 节点铺满画布: `E:\cc\data\scail2\workflows\wan21_scail2_loop_fixed_canvas_cached_final.json` 加载后的样子
-- Blueprint 形态（已验证可工作）: `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\blueprints\Character Replacement (SCAIL-2 Base).json`
+- Blueprint 形态（已验证可工作）: `<COMFY_BLUEPRINTS_DIR>\Character Replacement (SCAIL-2 Base).json`
 
 ---
 
@@ -92,7 +92,7 @@ t28 笔记确认 cache 版在二次同输入跑时从 660s 降到 60s。
 **状态**：✅ 采纳
 
 **背景**：
-另一个方案是 Gradio 端直接把文件写到 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\input\`，绕过上传 API。
+另一个方案是 Gradio 端直接把文件写到 `<COMFY_INPUT_DIR>\`，绕过上传 API。
 
 **决定**：
 走 `POST /upload/image` 和 `POST /upload/file` 上传，不用文件系统直写。
@@ -215,7 +215,7 @@ t28 笔记确认 cache 版在二次同输入跑时从 660s 降到 60s。
 **状态**：✅ 采纳
 
 **背景**：
-FollowThisImage（`C:\Users\administered\PycharmProjects\FollowThisImage`）有成熟的文生图链路（Z-Image-Turbo），但它的 ComfyUI 客户端用 WebSocket 等待（`comfy_api_simplified/`），本项目用轮询（`wait_for_completion`）。
+FollowThisImage（`<USER_HOME>\PycharmProjects\FollowThisImage`）有成熟的文生图链路（Z-Image-Turbo），但它的 ComfyUI 客户端用 WebSocket 等待（`comfy_api_simplified/`），本项目用轮询（`wait_for_completion`）。
 
 **决定**：只移植 workflow JSON（`zzz.json` → `zimage.json`）和 UI 设计思路（多尺寸 + 随机种子），**不**移植它的 WS 客户端。
 

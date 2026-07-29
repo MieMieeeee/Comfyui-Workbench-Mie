@@ -290,7 +290,7 @@ example 字段拆成两半：
 
 ### 4.1 准备 example 输入文件
 
-把要喂给 example 的文件（参考图、驱动视频）放到 `config.COMFY_INPUT_DIR`（默认 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\input`）。命名建议：
+把要喂给 example 的文件（参考图、驱动视频）放到 `config.COMFY_INPUT_DIR`（默认 `<COMFY_INPUT_DIR>`）。命名建议：
 
 ```
 <preset_slug>_<descriptor>.<ext>
@@ -336,7 +336,7 @@ from app import scail2_client as c
 import json
 
 # 1) 跑 prompt
-prompt_id = c.queue_prompt("E:\\FF\\ComfyUI_Mie_2026_V8.0\\ComfyUI\\input\\my_workflow_api.json", wait=True)
+prompt_id = c.queue_prompt("<COMFY_INPUT_DIR>/my_workflow_api.json", wait=True)
 # 2) 拉 history
 history = c.get_history(prompt_id)
 # 3) 提取 output
@@ -345,7 +345,7 @@ url = c.get_output_url(out)
 # 4) 下载到本地
 import urllib.request
 data = urllib.request.urlopen(url).read()
-with open(r"F:\ComfyUIWebToRunWorkflow\app\static\examples\my_preset_0001.png", "wb") as f:
+with open(r"<REPO>/app/static/examples\my_preset_0001.png", "wb") as f:
     f.write(data)
 ```
 
@@ -353,17 +353,17 @@ with open(r"F:\ComfyUIWebToRunWorkflow\app\static\examples\my_preset_0001.png", 
 
 无论方式 A 还是 B，最终从 ComfyUI 拿到的产物是：
 
-- **图片类**：在 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\` 下的 `xxx_00001.png`
-- **视频类**：在 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\<prefix>\` 下的 `xxx_00001.mp4`
+- **图片类**：在 `<COMFY_OUTPUT_DIR>\` 下的 `xxx_00001.png`
+- **视频类**：在 `<COMFY_OUTPUT_DIR>\<prefix>\` 下的 `xxx_00001.mp4`
 
 把文件复制到项目内：
 
 ```bash
 # PowerShell 例
-Copy-Item "E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\my_preset_00001.png" `
-          "F:\ComfyUIWebToRunWorkflow\app\static\examples\my_preset_0001.png"
-Copy-Item "E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\output\MyPrefix\my_preset_00001-audio.mp4" `
-          "F:\ComfyUIWebToRunWorkflow\app\static\examples\my_preset_3seg.mp4"
+Copy-Item "<COMFY_OUTPUT_DIR>\my_preset_00001.png" `
+          "<REPO>/app/static/examples\my_preset_0001.png"
+Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
+          "<REPO>/app/static/examples\my_preset_3seg.mp4"
 ```
 
 **命名约定**：

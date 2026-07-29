@@ -63,7 +63,7 @@ scail2_motion_transfer_final.json (SCAIL-2 workflow 模板, 动作迁移/角色�
 
 ## ComfyUI HTTP API 契约
 
-我们用到的 5 个端点（来自 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\script_examples\basic_api_example.py`）：
+我们用到的 5 个端点（来自 `<COMFY_INSTALL>/script_examples/basic_api_example.py`）：
 
 ### 1. `POST /upload/image` — 上传图片
 
@@ -253,7 +253,7 @@ def run(...):
 | 参考图超 5MB | "❌ Reference image too large (max 5MB)" | 客户端先校验 |
 | ComfyUI 跑超时 (30 min) | "⏰ Timeout, partial output in output/SCAIL-2/" | 看 ComfyUI 控制台 |
 | Out of memory | "❌ ComfyUI: CUDA OOM" | 降低段数 / 启用 fp8 |
-| Wrong model file | "❌ Missing model: wan2.1_14B_SCAIL_2_fp16.safetensors" | 检查 `E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI\models\` |
+| Wrong model file | "❌ Missing model: wan2.1_14B_SCAIL_2_fp16.safetensors" | 检查 `<COMFY_MODELS_DIR>\` |
 
 ---
 
@@ -262,10 +262,10 @@ def run(...):
 **本地开发**（本项目当前阶段）：
 ```bash
 # 终端 1：ComfyUI（已存在，不动）
-"E:\FF\ComfyUI_Mie_2026_V8.0\ComfyUI启动器.exe"
+"<COMFY_INSTALL_DIR>/启动器.exe"
 
 # 终端 2：Gradio Web（待开发）
-cd F:\ComfyUIWebToRunWorkflow\app
+cd <REPO>/app
 python scail2_app.py
 # 浏览器自动开 http://localhost:8199
 ```
