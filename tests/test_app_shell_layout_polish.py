@@ -70,13 +70,13 @@ def test_base_html_status_pill_inside_main_tabs():
     少占一行垂直空间, 状态在 nav 旁边常驻可见, 不再需要独立的 .system-bar 行."""
     assert "main-tabs-status" in BASE, "main-tabs 里应有 .main-tabs-status 块"
     # 顺序: .main-tabs-status 应在 3 个 nav <a> 之后
+    # review 2026-07-29: 菜单栏 '▶ 运行' -> '🎬 工作流' -> '🏠 首页' (标签跟具体内容无关, 只要是主页 tab 就行)
+    # 用 url_for('index') 链接作为锚点, 不再绑死文案
+    nav_run_idx = BASE.index("url_for('index')")  # 第一个 <a href="{{ url_for('index') }}"> 链接
+    assert nav_run_idx >= 0, "main-tabs-nav 里应有指向 / (index) 的链接 (即首页/工作流 tab)"
+    # 锚点应在 status pill 之前
     nav_status_idx = BASE.index("main-tabs-status")
-    # review 2026-07-29: "▶ 运行" 改成 "🎬 工作流", 标签更准确 (这里是浏览/选择工作流, 不是即时执行)
-    nav_run_idx = BASE.index(">\U0001F3AC \u5de5\u4f5c\u6d41<", 0)  # first nav link "🎬 工作流"
-    if nav_run_idx < 0:
-        nav_run_idx = BASE.index("\u5de5\u4f5c\u6d41")  # fallback: 工作流 anywhere
-    assert nav_run_idx >= 0, "main-tabs-nav 里第一个链接应还是工作流 tab"
-    assert nav_run_idx < nav_status_idx, "status pill 应在 nav 链接之后"
+    assert nav_run_idx < nav_status_idx, "首页 tab 应在 status pill 之前"
     # 不再有独立的 .system-bar 行
     assert "class=\"system-bar\"" not in BASE, "system-bar 行已并入 main-tabs, 不应再出现"
 
