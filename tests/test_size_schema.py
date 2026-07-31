@@ -225,7 +225,7 @@ def test_image_runner_multi_size_runs_all_segments(monkeypatch):
     monkeypatch.setattr(runner.scail2_client, "start_progress_listener",
                         lambda cid: type("Q", (), {"put": lambda self, value: None})())
     monkeypatch.setattr(runner.scail2_client, "wait_for_completion",
-                        lambda *a, **kw: iter(["✅ done in 00:01"]))
+                        lambda *a, **kw: iter([f"📸 segment done"]))
     monkeypatch.setattr(runner.scail2_client, "get_history", fake_history)
     monkeypatch.setattr(runner.scail2_client, "extract_all_image_outputs",
                         lambda h: [v for node in h.get("outputs", {}).values()

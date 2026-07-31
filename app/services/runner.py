@@ -560,20 +560,21 @@ def run_image_workflow(preset_name, *component_values):
         finally:
             _seg_pq.put(None)
 
-        try:
-            hist = scail2_client.get_history(prompt_id)
-            outs = scail2_client.extract_all_image_outputs(hist or {})
-            for o in outs:
-                all_outputs.append(o)
-                gallery_urls.append(scail2_client.get_output_url(
-                    o["filename"], o.get("subfolder", ""), o.get("type", "output")))
-        except Exception as e:
-            _log.error(f"[run_image] extract failed for {prompt_id}: {e}")
+        if kind in ("failure", "timeout"):
+            aborted = True
+        else:
+            try:
+                hist = scail2_client.get_history(prompt_id)
+                outs = scail2_client.extract_all_image_outputs(hist or {})
+                for o in outs:
+                    all_outputs.append(o)
+                    gallery_urls.append(scail2_client.get_output_url(
+                        o["filename"], o.get("subfolder", ""), o.get("type", "output")))
+            except Exception as e:
+                _log.error(f"[run_image] extract failed for {prompt_id}: {e}")
 
-        progress(seg_end, desc=f"[{idx}/{len(sizes)}] {w}x{h} 完成")
-        # 单段完成用 🖼 前缀, 不能用 ✅ —— ✅ 会被 stream_events 当成整个 run 成功而提前 break,
-        # 导致多尺寸文生图只跑第一张. 只有最后的 "全部完成" 才用 ✅.
-        yield f"🖼 [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
+            progress(seg_end, desc=f"[{idx}/{len(sizes)}] {w}x{h} 完成")
+            yield f"🖼 [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
 
     finished_at = datetime.now(timezone.utc)
     primary = all_outputs[0] if all_outputs else None
@@ -602,8 +603,12 @@ def run_image_workflow(preset_name, *component_values):
         _log.error(f"[run_image] manifest write failed: {e}")
 
     progress(1.0 if final_status == "success" else 0,
-                      desc="完成" if final_status == "success" else f"❌ {final_status}")
-    yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
+             desc="完成" if final_status == "success" else f"❌ {final_status}")
+    if final_status == "success":
+        yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
+    else:
+        _tail = f" 失败于尺寸 {len(all_outputs)+1}" if final_status == "failure" else ""
+        yield f"❌ 全部完成，{final_status}{_tail}", list(gallery_urls)
 
 
 # ============================================================

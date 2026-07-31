@@ -396,6 +396,13 @@ def _parse_ws_event(msg: dict[str, Any]) -> tuple[str, int | None, int | None, s
         if node is None:
             return ("done", None, None, None)
         return ("executing", None, None, str(node))
+    if mtype == "execution_error":
+        prompt_id = data.get("prompt_id")
+        node_id = data.get("node_id")
+        msg = data.get("exception_message") or data.get("exception_type") or "execution error"
+        if not isinstance(msg, str):
+            msg = str(msg)
+        return ("error", None, None, str(node_id) if node_id is not None else None, prompt_id, msg)
     return None
 
 
@@ -498,6 +505,8 @@ def wait_for_completion(
         nonlocal cur_progress
         if progress_queue is None:
             return
+        if False:  # placeholder for generator marker
+            yield
         while True:
             try:
                 evt = progress_queue.get_nowait()
@@ -509,14 +518,38 @@ def wait_for_completion(
             parsed = _parse_ws_event(evt)
             if parsed is None:
                 continue
-            kind, value, mx, _node = parsed
+            kind = parsed[0]
+            if kind == "error":
+                _err_pid = parsed[4] if len(parsed) > 4 else None
+                if _err_pid is not None and _err_pid != prompt_id:
+                    # 其它 prompt 的失败, 忽略 (并发 run 不串线)
+                    continue
+                _err_node = parsed[3]
+                _err_msg = parsed[5] if len(parsed) > 5 else "execution error"
+                if title_map and _err_node in title_map:
+                    _err_label = title_map[_err_node]
+                else:
+                    _err_label = f"node {_err_node}" if _err_node else "unknown node"
+                yield f"\u274c {_err_label}: {_err_msg}"
+                return
+            value, mx = parsed[1], parsed[2]
             if kind == "progress" and value is not None and mx is not None and mx > 0:
                 # 值只增不减 (cache hit 可能跳 step -> max(seen, new) 防倒退)
                 if cur_progress is None or value >= cur_progress[0]:
                     cur_progress = (value, mx)
 
+    fatal_msg: str | None = None
     while time.time() - start < timeout:
-        _drain_progress()
+        if fatal_msg is not None:
+            yield fatal_msg
+            return
+        for _fatal in _drain_progress():
+            if _fatal.startswith(chr(0x274c)):
+                fatal_msg = _fatal
+                yield _fatal
+                return
+            else:
+                yield _fatal
         try:
             hist = get_history(prompt_id)
         except ConnectionError_ as e:
@@ -540,6 +573,7 @@ def wait_for_completion(
             else:
                 err = _extract_error_from_status(status)
                 yield f"\u274c {status_str}: {err}"
+                fatal_msg = f"\u274c {status_str}: {err}"
             return
 
         # 未完成：报最近执行的节点 + ws step 进度 (如果有)

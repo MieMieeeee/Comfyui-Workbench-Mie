@@ -63,6 +63,16 @@ def test_ws_completion_event_parses():
     assert parsed[0] == "done"
 
 
+def test_ws_execution_error_event_parses_prompt_and_message():
+    msg = {"type": "execution_error", "data": {"prompt_id": "pid-failed", "node_id": "7", "exception_message": "CUDA error: no kernel image is available"}}
+    parsed = scail2_client._parse_ws_event(msg)
+    assert parsed is not None
+    assert parsed[0] == "error"
+    assert parsed[3] == "7"
+    assert parsed[4] == "pid-failed"
+    assert "no kernel image" in parsed[5]
+
+
 def test_ws_unknown_event_returns_none():
     """未知事件类型 -> None (调用方跳过, 不崩)。
     ComfyUI 偶尔推 status / execution_cached 等事件, 不影响进度显示。"""
@@ -126,6 +136,26 @@ def test_wait_for_completion_degrades_when_ws_unavailable():
             "pid", timeout_sec=30, poll_interval_sec=0, progress_queue=pq,
         ))
     assert msgs[-1].startswith("\u2705")  # 仍能正常完成
+
+
+def test_wait_for_completion_stops_on_ws_execution_error_before_history():
+    pq = queue.Queue()
+    pq.put({"type": "execution_error", "data": {"prompt_id": "pid", "node_id": "7", "exception_message": "CUDA error: no kernel image is available"}})
+    with patch.object(scail2_client, "get_history", return_value=None):
+        msgs = _collect(scail2_client.wait_for_completion("pid", timeout_sec=30, poll_interval_sec=0, title_map={"7": "CLIPTextEncode"}, progress_queue=pq))
+    assert len(msgs) == 1
+    assert msgs[0].startswith("\u274c")
+    assert "CLIPTextEncode" in msgs[0]
+    assert "no kernel image" in msgs[0]
+
+
+def test_wait_for_completion_ignores_ws_error_for_other_prompt():
+    pq = queue.Queue()
+    pq.put({"type": "execution_error", "data": {"prompt_id": "other-pid", "exception_message": "other run failed"}})
+    hist = {"status": {"completed": True, "status_str": "success", "messages": []}}
+    with patch.object(scail2_client, "get_history", return_value=hist):
+        msgs = _collect(scail2_client.wait_for_completion("pid", timeout_sec=30, poll_interval_sec=0, progress_queue=pq))
+    assert msgs == ["\u2705 done in 00:00"]
 
 
 def test_wait_for_completion_step_progress_falls_back_when_no_queue():
