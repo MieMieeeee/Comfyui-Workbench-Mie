@@ -97,7 +97,14 @@ def _failure_hint(msg):
     if not msg:
         return ''
     low = msg.lower()
-    # 关键词 → 建议. 顺序按"最常见 → 最不可能"排列。
+    # 关键词 → 建议. 顺序按"最具体 → 最不可能"排列 (具体分支必须在宽泛分支前).
+    # torch / 算力不兼容: 必须在 cuda/OOM 分支之前, 否则 'no kernel image' 里含
+    # 'cuda' 会被误判成显存不足, 给出"缩小尺寸"的误导建议.
+    # 用户场景: torch.AcceleratorError: CUDA error: no kernel image is available
+    # for execution on the device —— 这是 torch 编译的算力等级跟 GPU 对不上,
+    # 跟显存无关, 正确动作是重装匹配显卡的 torch.
+    if 'no kernel image' in low or 'acceleratorerror' in low or ('torch' in low and 'cuda' in low):
+        return '下一步: torch 与 GPU 算力不兼容 (常见于新版 torch + 旧卡或反之), 去 ComfyUI 启动器重装匹配你显卡的 torch 版本。'
     if 'upload' in low or '上传' in msg or 'input dir' in low or 'cannot move' in low:
         return '下一步: 检查文件路径是否含特殊字符 / ComfyUI 的 input 目录是否可写。'
     if 'queue' in low or '入队' in msg or 'connection' in low or 'connect' in low or 'refused' in low:

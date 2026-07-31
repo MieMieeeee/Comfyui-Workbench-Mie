@@ -87,6 +87,19 @@ def _output_kind(preset_cfg) -> str:
     return config.resolve_output_kind(preset_cfg)
 
 
+def _error_banner_html(title: str, raw_err: str) -> str:
+    """统一构造 error banner: 标题 + 原始错误 + (如有) 可操作建议.
+
+    接入 status_svc._failure_hint, 把之前全仓无人调用的死代码激活,
+    兑现 AGENTS.md "失败必须给可操作诊断" 契约 —— 用户看到 torch.AcceleratorError
+    这种原文会懵, 在原文后补一条 "下一步: ..." 的可执行动作 (e.g. 去启动器重装 torch).
+    没匹配到关键词 (返回空串) 就只显示原文, 不强塞建议.
+    """
+    hint = status_svc._failure_hint(raw_err or "")
+    hint_html = f"<div class='error-hint'>{hint}</div>" if hint else ""
+    return f"<div class='error-banner-inner'><b>{title}</b><br>{raw_err}{hint_html}</div>"
+
+
 # sca12 manifest 段数预估需要的三个 int 参数对应的 spec role.
 # 老 runner 直接硬编码 node_id 367/464/479 取值; review 2026-07-28 改成读 spec 上的
 # manifest_role 字段 (数据驱动), node_id 兜底保留给没迁移的老 preset.
@@ -695,9 +708,9 @@ def stream_events(
             step = status_svc._extract_step_progress(status_msg)
             error_html = None
             if kind == "failure":
-                error_html = f"<div class='error-banner-inner'><b>运行失败</b><br>{err}</div>"
+                error_html = _error_banner_html("运行失败", err)
             elif kind == "timeout":
-                error_html = f"<div class='error-banner-inner'><b>运行超时</b><br>{err}</div>"
+                error_html = _error_banner_html("运行超时", err)
 
             media_html = None
             if media:
@@ -734,7 +747,7 @@ def stream_events(
             type="error",
             log="\n".join(log_lines[-12:]),
             status_msg="❌ " + err_msg,
-            error_html=f"<div class='error-banner-inner'><b>运行失败</b><br>{err_msg}</div>",
+            error_html=_error_banner_html("运行失败", err_msg),
             state="failure",
             elapsed_sec=_elapsed(),
         )
@@ -746,7 +759,7 @@ def stream_events(
             type="error",
             log="\n".join(log_lines[-12:]),
             status_msg="❌ " + err_msg,
-            error_html=f"<div class='error-banner-inner'><b>运行异常</b><br>{err_msg}</div>",
+            error_html=_error_banner_html("运行异常", err_msg),
             state="failure",
             elapsed_sec=_elapsed(),
         )

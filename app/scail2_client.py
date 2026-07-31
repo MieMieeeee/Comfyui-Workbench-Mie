@@ -576,6 +576,19 @@ def wait_for_completion(
                 fatal_msg = f"\u274c {status_str}: {err}"
             return
 
+        # 执行异常: ComfyUI 在 node 崩溃 (torch/CUDA/节点抛异常) 时把 status 写成
+        # {completed: False, status_str: 'error'} (源码 main.py prompt_worker:
+        # ExecutionStatus(status_str='success' if e.success else 'error',
+        # completed=e.success, ...) —— 异常时 e.success=False).
+        # 之前唯一终止判定是 `if completed:`, completed=False 永远走 "未完成 →
+        # 继续 running", UI 卡死直到 30min 超时. 这里补 status_str 终态判定,
+        # 让 HTTP 轮询跟 ws execution_error 两条路都收敛到终止.
+        # 'failed' 是版本/方言变体容错, 信任模型下真返了就是执行端炸了.
+        if status_str in ("error", "failed"):
+            err = _extract_error_from_status(status)
+            yield f"\u274c {status_str}: {err}"
+            return
+
         # 未完成：报最近执行的节点 + ws step 进度 (如果有)
         last_node = _last_executed_node(hist, title_map=title_map)
         suffix = f"  {last_node}" if last_node else ""

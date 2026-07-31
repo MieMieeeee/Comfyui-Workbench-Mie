@@ -54,3 +54,40 @@ def test_timeout_prefix_returns_timeout_kind_with_message():
 def test_running_status_returns_none_none():
     """⏳ 进度消息 (非终态) 必须返 (None, None), 让 stream_events 继续 running."""
     assert status_svc._extract_status_kind("⏳ [1/3] 1024x1024 seed=...…") == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# _failure_hint — torch/CUDA 版本不兼容场景 (bug fix 2026-07-31)
+# ---------------------------------------------------------------------------
+#
+# 用户场景: ComfyUI 报 torch.AcceleratorError: CUDA error: no kernel image is
+# available for execution on the device. 这是 torch 版本与 GPU 算力 (compute
+# capability) 不兼容的典型错误, 用户看到原文会懵. _failure_hint 要把这类错误
+# 转成"去 ComfyUI 启动器重装匹配你显卡的 torch"这种可执行的下一步.
+# 同时回归保护: 现有 cuda/OOM 分支不能被新分支遮蔽.
+
+def test_failure_hint_torch_kernel_image_mismatch():
+    """torch.AcceleratorError: no kernel image → 给 torch 版本不兼容建议."""
+    msg = "error: torch.AcceleratorError: CUDA error: no kernel image is available for execution on the device"
+    hint = status_svc._failure_hint(msg)
+    assert hint, f"应给出建议, 得到空串. msg={msg!r}"
+    # 建议必须提到 torch 版本 + ComfyUI 启动器 (可执行动作), 而不是显存不足那种误导
+    assert "torch" in hint.lower() or "版本" in hint
+
+
+def test_failure_hint_accelerator_error_type_also_matched():
+    """异常类型名 'AcceleratorError' 单独出现也要命中 (可能错误信息被截断只剩类型)."""
+    hint = status_svc._failure_hint("error: AcceleratorError during sampling")
+    assert hint and ("torch" in hint.lower() or "版本" in hint)
+
+
+def test_failure_hint_cuda_oom_still_works():
+    """回归保护: 新增 torch 分支不能遮蔽现有 cuda/OOM 分支.
+
+    cuda out of memory 应该命中显存建议, 而不是 torch 版本建议
+    (OOM 是显存问题, 不是算力兼容问题, 给错建议会误导用户).
+    """
+    hint = status_svc._failure_hint("error: CUDA out of memory")
+    assert hint
+    # 显存建议关键词 (现有分支文案): 显存 / 缩小 / GPU
+    assert "显存" in hint or "缩小" in hint
