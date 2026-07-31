@@ -495,6 +495,8 @@ def run_image_workflow(preset_name, *component_values):
     all_outputs: list[dict] = []
     final_status = "success"
     final_error: str | None = None
+    final_failed_size: str | None = None  # 失败的 (w x h), 让最终提示说人话
+    final_failed_idx: int | None = None    # 1-indexed 位置, 让用户定位批处理里哪张失败
     gallery_urls: list[str] = []
 
     try:
@@ -545,8 +547,14 @@ def run_image_workflow(preset_name, *component_values):
                     final_status = "failure"
                     if err:
                         final_error = err
+                    if final_failed_idx is None:
+                        final_failed_idx = idx
+                        final_failed_size = f"{w}x{h}"
                 elif kind == "timeout":
                     final_status = "timeout"
+                    if final_failed_idx is None:
+                        final_failed_idx = idx
+                        final_failed_size = f"{w}x{h}"
                 _step = status_svc._extract_step_progress(status_msg)
                 if _step is not None:
                     _ratio = _step[0] / _step[1]
@@ -602,13 +610,33 @@ def run_image_workflow(preset_name, *component_values):
     except Exception as e:
         _log.error(f"[run_image] manifest write failed: {e}")
 
-    progress(1.0 if final_status == "success" else 0,
-             desc="完成" if final_status == "success" else f"❌ {final_status}")
+    # 失败/超时最终提示: 必须告诉用户具体错误, 不能光说 'failure' 或 '全部完成' 糊弄.
+    # 用户场景: ComfyUI 抛 torch.AcceleratorError: CUDA error: no kernel image is available ...
+    # 之前我们抓了 final_error 但 yield 时丢掉, 用户看 '❌ 全部完成，failure' 不知道哪类错.
     if final_status == "success":
+        progress(1.0, desc="完成")
         yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
-    else:
-        _tail = f" 失败于尺寸 {len(all_outputs)+1}" if final_status == "failure" else ""
-        yield f"❌ 全部完成，{final_status}{_tail}", list(gallery_urls)
+    elif final_status == "failure":
+        progress(0, desc="❌ 失败")
+        # 说出失败的 (w x h) 和批处理里位置, 而不是含糊的 "失败于尺寸 N".
+        # 用户场景: "❌ 全部失败: 第 1 个 (共 1 个, 768x512): torch.AcceleratorError: ..." 一眼就能定位.
+        _total = len(sizes)
+        if final_failed_idx is not None and final_failed_size:
+            _pos = f"第 {final_failed_idx} 个 (共 {_total} 个, {final_failed_size})"
+        else:
+            _pos = ""
+        _err = (final_error or "").strip()
+        if len(_err) > 200:
+            _err = _err[:200] + "…"
+        _err_part = f": {_err}" if _err else ""
+        yield f"❌ 全部失败: {_pos}{_err_part}".rstrip(": "), list(gallery_urls)
+    else:  # timeout
+        progress(0, desc="⏰ 超时")
+        _err = (final_error or "").strip()
+        if len(_err) > 200:
+            _err = _err[:200] + "…"
+        _err_part = f": {_err}" if _err else ""
+        yield f"⏰ 全部超时{_err_part}", list(gallery_urls)
 
 
 # ============================================================
