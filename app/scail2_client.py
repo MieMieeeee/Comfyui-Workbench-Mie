@@ -606,17 +606,19 @@ def _extract_error_from_status(status: dict[str, Any]) -> str:
     messages = status.get("messages", [])
     if not messages:
         return "unknown error"
-    # 优先找 execution_error 类型
+    # 优先找 execution_error 类型. 不截断 —— 用户明确要看完整原始错误
+    # (e.g. torch.AcceleratorError 含的 NVIDIA 文档链接要能完整复制), 截断会
+    # 丢掉末尾的诊断信息.
     for msg in messages:
         if isinstance(msg, list) and len(msg) >= 2:
             kind, content = msg[0], msg[1]
             if "error" in str(kind).lower():
-                return str(content)[:200]
+                return str(content)
     # 否则取最后一条
     last = messages[-1]
     if isinstance(last, list) and len(last) >= 2:
-        return str(last[1])[:200]
-    return str(last)[:200]
+        return str(last[1])
+    return str(last)
 
 
 def build_node_title_map(workflow: dict[str, Any]) -> dict[str, str]:

@@ -1070,14 +1070,21 @@ body {
   font-size: var(--text-base);
 }
 .error-banner-inner b { color: var(--color-error) !important; }
-/* 错误原文下方的"下一步: …"可执行建议, 视觉上跟原文分层 (上分隔线 + 略淡). */
-.error-hint {
+/* 复制错误信息按钮 —— 错误条内右对齐, 不抢原文焦点. */
+.error-copy-btn {
   margin-top: var(--space-2) !important;
-  padding-top: var(--space-2) !important;
-  border-top: 1px solid var(--color-error) !important;
-  opacity: 0.9 !important;
-  font-size: var(--text-sm) !important;
+  padding: var(--space-1) var(--space-3) !important;
+  background: transparent !important;
+  border: 1px solid var(--color-error) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--color-error) !important;
+  font-size: var(--text-xs) !important;
+  cursor: pointer !important;
+  display: block !important;
+  margin-left: auto !important;
 }
+.error-copy-btn:hover:not(:disabled) { background: var(--color-error) !important; color: var(--bg-input) !important; }
+.error-copy-btn:disabled { opacity: 0.6 !important; cursor: default !important; }
 
 /* ============================================================
  * .file-fallback —— 未知文件类型 banner

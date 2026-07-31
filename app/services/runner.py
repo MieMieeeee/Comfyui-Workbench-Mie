@@ -63,6 +63,7 @@ class RunEvent:
     media_url: str | None = None
     media_html: str | None = None
     error_html: str | None = None
+    error_text: str | None = None  # 纯文本原始错误 (不含 HTML), 供前端复制按钮
     state: str | None = None
     elapsed_sec: float | None = None
     progress: tuple[int, int] | None = None
@@ -88,16 +89,12 @@ def _output_kind(preset_cfg) -> str:
 
 
 def _error_banner_html(title: str, raw_err: str) -> str:
-    """统一构造 error banner: 标题 + 原始错误 + (如有) 可操作建议.
+    """统一构造 error banner: 状态标题 + 原始错误全文.
 
-    接入 status_svc._failure_hint, 把之前全仓无人调用的死代码激活,
-    兑现 AGENTS.md "失败必须给可操作诊断" 契约 —— 用户看到 torch.AcceleratorError
-    这种原文会懵, 在原文后补一条 "下一步: ..." 的可执行动作 (e.g. 去启动器重装 torch).
-    没匹配到关键词 (返回空串) 就只显示原文, 不强塞建议.
+    不做分析, 不加 "下一步" 建议, 不截断 —— 用户要看完整原文并能复制.
+    title 只是状态语义 (运行失败/超时/异常), 不是分析内容.
     """
-    hint = status_svc._failure_hint(raw_err or "")
-    hint_html = f"<div class='error-hint'>{hint}</div>" if hint else ""
-    return f"<div class='error-banner-inner'><b>{title}</b><br>{raw_err}{hint_html}</div>"
+    return f"<div class='error-banner-inner'><b>{title}</b><br>{raw_err}</div>"
 
 
 # sca12 manifest 段数预估需要的三个 int 参数对应的 spec role.
@@ -631,25 +628,13 @@ def run_image_workflow(preset_name, *component_values):
         yield f"✅ 全部完成，共 {len(all_outputs)} 张图", list(gallery_urls)
     elif final_status == "failure":
         progress(0, desc="❌ 失败")
-        # 说出失败的 (w x h) 和批处理里位置, 而不是含糊的 "失败于尺寸 N".
-        # 用户场景: "❌ 全部失败: 第 1 个 (共 1 个, 768x512): torch.AcceleratorError: ..." 一眼就能定位.
-        _total = len(sizes)
-        if final_failed_idx is not None and final_failed_size:
-            _pos = f"第 {final_failed_idx} 个 (共 {_total} 个, {final_failed_size})"
-        else:
-            _pos = ""
-        _err = (final_error or "").strip()
-        if len(_err) > 200:
-            _err = _err[:200] + "…"
-        _err_part = f": {_err}" if _err else ""
-        yield f"❌ 全部失败: {_pos}{_err_part}".rstrip(": "), list(gallery_urls)
+        # 只显示原始错误全文, 不截断, 不加位置/尺寸前缀 (用户明确要看原文 + 复制).
+        _err = (final_error or "未知错误").strip()
+        yield f"❌ {_err}", list(gallery_urls)
     else:  # timeout
         progress(0, desc="⏰ 超时")
         _err = (final_error or "").strip()
-        if len(_err) > 200:
-            _err = _err[:200] + "…"
-        _err_part = f": {_err}" if _err else ""
-        yield f"⏰ 全部超时{_err_part}", list(gallery_urls)
+        yield f"⏰ 超时: {_err}" if _err else "⏰ 超时", list(gallery_urls)
 
 
 # ============================================================
@@ -724,6 +709,7 @@ def stream_events(
                 media_url=str(media) if media else None,
                 media_html=media_html,
                 error_html=error_html,
+                error_text=err,
                 state=state,
                 elapsed_sec=_elapsed(),
                 progress=step,
@@ -748,6 +734,7 @@ def stream_events(
             log="\n".join(log_lines[-12:]),
             status_msg="❌ " + err_msg,
             error_html=_error_banner_html("运行失败", err_msg),
+            error_text=err_msg,
             state="failure",
             elapsed_sec=_elapsed(),
         )
@@ -760,6 +747,7 @@ def stream_events(
             log="\n".join(log_lines[-12:]),
             status_msg="❌ " + err_msg,
             error_html=_error_banner_html("运行异常", err_msg),
+            error_text=err_msg,
             state="failure",
             elapsed_sec=_elapsed(),
         )

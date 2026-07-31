@@ -366,8 +366,15 @@
             </details>
 
             <!-- 错误条 -->
-            <div class="error-banner" x-show="errorHtml[w.name]"
-                 x-html="errorHtml[w.name]"></div>
+            <div class="error-banner" x-show="errorHtml[w.name]">
+              <div x-html="errorHtml[w.name]"></div>
+              <button type="button" class="error-copy-btn"
+                      x-show="errorText[w.name]"
+                      @click="copyError(w.name)"
+                      :disabled="errorCopied[w.name]">
+                <span x-text="errorCopied[w.name] ? '✓ 已复制' : '复制错误信息'"></span>
+              </button>
+            </div>
 
             <!-- 结果区 -->
             <div class="result-area">

@@ -166,6 +166,8 @@ function runTab(workflows, presetCfgs) {
     statusMsg: {},
     elapsedStr: {},
     errorHtml: {},
+    errorText: {},
+    errorCopied: {},
     resultHtml: {},
     // 配置常量 (从 config 同步)
     imageExts: '.png,.jpg,.jpeg,.webp',
@@ -471,6 +473,8 @@ function runTab(workflows, presetCfgs) {
       this.runState[presetName] = 'running';
       this.statusMsg[presetName] = '';
       this.errorHtml[presetName] = '';
+      this.errorText[presetName] = '';
+      this.errorCopied[presetName] = false;
       this.runLogs[presetName] = '';
       this.resultHtml[presetName] = '<div class="result-placeholder">正在生成新结果…</div>';
 
@@ -534,9 +538,37 @@ function runTab(workflows, presetCfgs) {
         if (ev.status_msg) this.statusMsg[presetName] = ev.status_msg;
         if (ev.media_html) this.resultHtml[presetName] = ev.media_html;
         if (ev.error_html) this.errorHtml[presetName] = ev.error_html;
+        if (ev.error_text) this.errorText[presetName] = ev.error_text;
         if (ev.state && ev.state !== 'running') {
           this.runState[presetName] = ev.state;
         }
+      }
+    },
+
+    // 复制错误原文到剪贴板. errorText 存的是后端透传的纯文本原始错误
+    // (不含 "运行失败" 标题 / HTML 标签), 方便用户贴去搜索或反馈.
+    // 复制后按钮文案临时变 "已复制", 1.5s 后恢复 (自包含反馈, 不引入 toast 子系统).
+    async copyError(presetName) {
+      const text = this.errorText[presetName];
+      if (!text) return;
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch {
+        // clipboard API 在非 https / 旧浏览器不可用, 回退到 execCommand
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch { ok = false; }
+        document.body.removeChild(ta);
+      }
+      if (ok) {
+        this.errorCopied[presetName] = true;
+        setTimeout(() => { this.errorCopied[presetName] = false; }, 1500);
       }
     },
 
