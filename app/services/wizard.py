@@ -158,6 +158,29 @@ def _default_label(field: str, typ: str) -> str:
     return labels.get(field, field)
 
 
+# 向导运行期专用字段 — 落盘 definition 时要剥离 (它们只服务于向导 UI / 推断过程,
+# runner/form_schema/validator 从不读). 用 frozenset 让 strip_runtime_fields 不会被
+# 误传 list. _merge_key 带 _ 前缀也属于这一类 (parse 阶段临时用).
+_RUNTIME_SPEC_FIELDS = frozenset({
+    "class_type", "confidence", "current_value", "node_title", "enabled", "_merge_key",
+})
+
+
+def strip_runtime_fields(spec: dict) -> dict:
+    """剥离向导运行期字段, 返回干净的 spec dict (不污染入参).
+
+    wizard 生成的 spec 带 class_type/confidence/current_value/node_title/enabled 等
+    向导 UI 专用字段. 这些对 runner/form_schema/validator 无用, 留在 definition 里
+    只增加体积 + 让 spec 语义看着复杂. 落盘前 (wizard_save) 调本函数过滤.
+
+    保留: node_id/field/type/label/default/help/tier/max_chars/example_key/
+          manifest_role/min/max/step/random_default/min_width/min_height/... 等运行字段.
+    """
+    if not isinstance(spec, dict):
+        return spec
+    return {k: v for k, v in spec.items() if k not in _RUNTIME_SPEC_FIELDS}
+
+
 # ============================================================
 # parse_workflow_api_json — 解析 workflow, 列出候选输入字段
 # ============================================================

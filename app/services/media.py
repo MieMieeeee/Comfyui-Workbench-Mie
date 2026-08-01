@@ -6,7 +6,8 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse, parse_qs, unquote
 
 from app import config
 
@@ -27,8 +28,6 @@ def _media_ext_from_url(src):
       - query 里的 filename 扩展名 (/comfy_output?filename=foo.mp3 -> ".mp3")
       - 找不到 -> ""
     """
-    from urllib.parse import urlparse, parse_qs, unquote
-    from pathlib import PurePosixPath
     if not src or not isinstance(src, str):
         return ""
     try:

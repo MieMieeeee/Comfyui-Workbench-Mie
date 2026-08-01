@@ -19,8 +19,8 @@ import re
 
 from app import config
 
-_TOKENS_CACHE: str | None = None
-_THEMES_CACHE: list[dict] | None = None
+_TOKENS_CACHE: str | None = None  # deprecated: 保留符号仅为向后兼容 (旧测试会赋 None), 不再被读取
+_THEMES_CACHE: list[dict] | None = None  # deprecated: 同上
 _DEFAULT_THEME_ID = "forest-island"  # fallback only —— actual startup value comes from _load_saved_theme()
 _THEMES_PATH = config.REPO_ROOT / "app" / "presets" / "themes.json"
 _TOKENS_PATH = config.REPO_ROOT / "app" / "static" / "tokens.css"
@@ -31,34 +31,37 @@ _PAGE_BG_COLOR = "#0f1115"
 
 
 def _load_tokens_css() -> str:
-    """读 app/static/tokens.css,缓存结果。文件不存在返回空串(不崩)。"""
-    global _TOKENS_CACHE
-    if _TOKENS_CACHE is None:
-        try:
-            _TOKENS_CACHE = _TOKENS_PATH.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            _TOKENS_CACHE = ""
-    return _TOKENS_CACHE
+    """读 app/static/tokens.css. 文件不存在返回空串 (不崩).
+
+    不缓存: tokens.css 是冷资产 (页面加载时浏览器自己也会请求一次), 每次直读开销
+    可忽略; 缓存反而让开发期改文件必须重启 Flask 才生效. 旧 _TOKENS_CACHE 符号保留
+    仅为向后兼容 (老代码 / 测试可能赋值), 但本函数不再读它.
+    """
+    try:
+        return _TOKENS_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
 
 
 def _list_themes() -> list[dict]:
-    """读 app/presets/themes.json,返回 [{id, name, desc, tokens}, ...] 列表。"""
-    global _THEMES_CACHE
-    if _THEMES_CACHE is None:
-        try:
-            raw = json.loads(_THEMES_PATH.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            raw = {}
-        out: list[dict] = []
-        for tid, t in raw.items():
-            out.append({
-                "id": tid,
-                "name": t.get("name", tid),
-                "desc": t.get("desc", ""),
-                "tokens": t.get("tokens", {}),
-            })
-        _THEMES_CACHE = out
-    return _THEMES_CACHE
+    """读 app/presets/themes.json,返回 [{id, name, desc, tokens}, ...] 列表.
+
+    不缓存 (同 _load_tokens_css 理由): 让开发期改 themes.json 立即生效, 且测试用
+    monkeypatch._THEMES_PATH 切临时文件时不会被 stale 缓存污染.
+    """
+    try:
+        raw = json.loads(_THEMES_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        raw = {}
+    out: list[dict] = []
+    for tid, t in raw.items():
+        out.append({
+            "id": tid,
+            "name": t.get("name", tid),
+            "desc": t.get("desc", ""),
+            "tokens": t.get("tokens", {}),
+        })
+    return out
 
 
 def _load_saved_theme() -> str:

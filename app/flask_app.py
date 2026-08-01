@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 import requests
@@ -72,10 +73,9 @@ def _comfy_status_dict() -> dict:
     review 2026-07-28: 加 port 字段, 顶部菜单栏的状态 pill 要显示 "ComfyUI · 8188" 这种短标签.
     解析失败时 port=None, 客户端会显示 "ComfyUI · ?".
     """
-    import re as _re
     url = scail2_client.get_base_url()
     port = None
-    m = _re.search(r":(\d+)(?=/|$)", url)
+    m = re.search(r":(\d+)(?=/|$)", url)
     if m:
         try:
             port = int(m.group(1))
@@ -509,18 +509,12 @@ def run_preset(preset_name):
         _save_last_run(name, vals, specs)
 
     def event_stream():
-        try:
-            for ev in runner.stream_events(preset_name, form_values, on_success=on_success):
-                yield ev.to_sse()
-        except Exception as e:
-            # 兜底: 生成器内部异常, 发一个 error event
-            import json as _json
-            err_data = {
-                "type": "error",
-                "error_html": f"<div class='error-banner-inner'><b>服务器异常</b><br>{e}</div>",
-                "state": "failure",
-            }
-            yield f"data: {_json.dumps(err_data, ensure_ascii=False)}\n\n"
+        # stream_events 内部已捕获所有异常并转成 error RunEvent (见 runner.py
+        # stream_events 的 except _RunError / except Exception 两层兜底), 这里
+        # 不再叠一层 try/except —— 重复防御只会让错误信息来源不明. 末尾 [DONE]
+        # 是前端 SSE 哨兵 (handleSSEEvent 里 if payload === '[DONE]') 不消费内容.
+        for ev in runner.stream_events(preset_name, form_values, on_success=on_success):
+            yield ev.to_sse()
         yield "data: [DONE]\n\n"
 
     return Response(
@@ -766,6 +760,9 @@ def wizard_save():
 
     workflow = json.loads(wf_path.read_text(encoding="utf-8"))
     fields = data.get("fields", [])
+    # 落盘前剥离向导运行期字段 (class_type/confidence/current_value/node_title/enabled/
+    # _merge_key), 它们只服务向导 UI, runner/form_schema/validator 不读. 保留运行字段.
+    fields = [wizard.strip_runtime_fields(f) if isinstance(f, dict) else f for f in fields]
     example = data.get("example") or {}
     if data.get("selected_output"):
         try:
