@@ -145,8 +145,14 @@ class HealthReport:
 # --- 主检查函数 ---
 
 def check_health(url: str | None = None, timeout: int = 8) -> HealthReport:
-    """执行完整多层健康检查，返回 HealthReport。"""
-    target = (url or config.COMFY_BASE_URL).strip().rstrip("/")
+    """执行完整多层健康检查，返回 HealthReport。
+
+    url=None 时读 scail2_client 的运行时 base URL (跟顶部状态灯/连接检查同源),
+    不直接读 config.COMFY_BASE_URL —— 否则用户在设置页改了地址后, 状态灯绿但
+    完整健康检查会探旧地址给矛盾结论. 显式传 url 仍优先 (向后兼容 + 测试用).
+    """
+    from . import scail2_client
+    target = (url or scail2_client.get_base_url() or config.COMFY_BASE_URL).strip().rstrip("/")
     report = HealthReport(url=target)
     reqs = load_requirements()
     report.required_models = [ModelReq(m["filename"], m["folder"], m["node"], m.get("workflows", []))
