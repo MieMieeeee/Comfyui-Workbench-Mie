@@ -33,6 +33,14 @@ python -m app.flask_app
 1. WebUI 默认连 `http://127.0.0.1:8188` 的本地 ComfyUI。要改地址，去 **系统设置** tab 填 + 点"保存并测试"。
 2. WebUI 与 ComfyUI 解耦：ComfyUI 没跑也能打开 WebUI；跑工作流前确保 ComfyUI 就绪。
 
+### 可选：装 FFmpeg（驱动视频段数预估用）
+
+SCAIL-2 等视频类工作流会用 `ffprobe`（FFmpeg 套件的一部分）读驱动视频帧数，从而预估循环段数。没装也不影响运行，只是「预估段数」那行会显示「读取帧数失败」。装了 FFmpeg 并把 `ffprobe` 加进 PATH 后自动生效。
+
+### Python 依赖
+
+只看 [`requirements.txt`](./requirements.txt)：Flask + requests + websockets + pytest。从干净 venv 跑 `pip install -r requirements.txt` 即可，无系统级 Python 依赖。
+
 ## 目录结构
 
 ```

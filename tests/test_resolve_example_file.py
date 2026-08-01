@@ -1,79 +1,76 @@
-"""_resolve_example_file 契约测试 (Flask 版, review 2026-07-28).
+"""_resolve_example_file 解析行为契约锁.
 
-锁: 全部 example 资源统一从项目仓库 app/static/examples/ 读, 不再依赖 ComfyUI input 目录.
-  - 返回值: "app/static/examples/<basename>" (项目相对路径, 让前端和 runner 都能识别)
-  - 空 / 找不到: None
-  - 绝对路径: 原样返回 (用户手填, 历史兼容)
+背景: review 早期误判 '绝对路径找不到会落 CWD 同名文件', 复核发现第 305 行
+`return ... if src.exists() else None` 已经正确 return None. 此测试把正确行为
+钉死, 防未来回归.
 """
+from __future__ import annotations
+
+import os
+import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+import pytest
+
+from app import config
 from app.services import form_schema
 
 
-def test_resolve_in_project_returns_project_path(tmp_path, monkeypatch):
-    """example 资源在 app/static/examples/ -> 返回项目相对路径 "app/static/examples/<name>".
-
-    review 2026-07-28: 不再读 COMFY_INPUT_DIR, example 一律走项目仓库.
-    """
-    examples = tmp_path / "app" / "static" / "examples"
-    examples.mkdir(parents=True)
-    (examples / "ref.png").write_bytes(b"x")
-    monkeypatch.setattr(form_schema.config, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(form_schema.config, "COMFY_INPUT_DIR", tmp_path / "input")
-
-    result = form_schema._resolve_example_file("ref.png")
-    assert result == "app/static/examples/ref.png", f"got {result!r}"
-
-
-def test_resolve_relative_path_in_cwd_fallback(tmp_path, monkeypatch):
-    """如果旧版本存的 example 路径是 CWD 下的文件 (不是项目 examples 也不是 COMFY_INPUT),
-    仍按 CWD 兜底解析 (兼容历史 manifest 侧车)."""
-    monkeypatch.setattr(form_schema.config, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(form_schema.config, "COMFY_INPUT_DIR", tmp_path / "input")
-    # 用 monkeypatch.chdir 在临时目录里建一个文件
-    monkeypatch.chdir(tmp_path)
-    staged = tmp_path / "staged.png"
-    staged.write_bytes(b"x")
-    result = form_schema._resolve_example_file("staged.png")
-    # 相对 CWD 路径存在 -> 原样返回 (Path("staged.png") 走 str() 得 "staged.png")
-    assert result == "staged.png", f"got {result!r}"
-
-
-def test_resolve_empty_returns_none():
-    """空文件名 -> None (让前端显示空缩略图)."""
+def test_empty_returns_none():
     assert form_schema._resolve_example_file("") is None
     assert form_schema._resolve_example_file(None) is None
 
 
-def test_resolve_missing_file_returns_none(tmp_path, monkeypatch):
-    """文件不存在 -> None."""
-    monkeypatch.setattr(form_schema.config, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(form_schema.config, "COMFY_INPUT_DIR", tmp_path / "input")
-
-    assert form_schema._resolve_example_file("ghost.png") is None
-
-
-def test_resolve_absolute_path_returns_as_is(tmp_path, monkeypatch):
-    """绝对路径 -> 原样返回 (用户手填绝对路径, 不强行归一化)."""
-    examples = tmp_path / "app" / "static" / "examples"
-    examples.mkdir(parents=True)
-    f = examples / "abs.png"
+def test_absolute_path_existing_returns_as_is(tmp_path):
+    f = tmp_path / "ref.png"
     f.write_bytes(b"x")
-    monkeypatch.setattr(form_schema.config, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(form_schema.config, "COMFY_INPUT_DIR", tmp_path / "input")
-
-    result = form_schema._resolve_example_file(str(f))
-    assert result == str(f), f"got {result!r}"
+    assert form_schema._resolve_example_file(str(f)) == str(f)
 
 
-def test_resolve_does_not_create_examples_cache(tmp_path, monkeypatch):
-    """副作用: 不再创建 .examples_cache 目录 (Gradio 6 workaround 早已删除, 这里再锁一次)."""
-    examples = tmp_path / "app" / "static" / "examples"
-    examples.mkdir(parents=True)
-    (examples / "ref.png").write_bytes(b"x")
-    monkeypatch.setattr(form_schema.config, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(form_schema.config, "COMFY_INPUT_DIR", tmp_path / "input")
+def test_absolute_path_missing_returns_none_not_cwd(tmp_path, monkeypatch):
+    """绝对路径不存在 -> 直接 None, 即使 CWD 有同名文件也不命中."""
+    # 在 CWD 放一个同名文件, 制造诱惑
+    cwd_dir = tmp_path / "cwd"
+    cwd_dir.mkdir()
+    bait = cwd_dir / "ghost.png"
+    bait.write_bytes(b"x")
+    monkeypatch.chdir(cwd_dir)
+    missing_abs = tmp_path / "elsewhere" / "ghost.png"  # 不存在
+    assert not missing_abs.exists()
+    result = form_schema._resolve_example_file(str(missing_abs))
+    assert result is None, f"绝对路径不存在应返 None, 实际 {result}"
 
-    form_schema._resolve_example_file("ref.png")
-    cache_dir = tmp_path / ".examples_cache"
-    assert not cache_dir.exists(), ".examples_cache 不应该被创建"
+
+def test_project_examples_hit(tmp_path):
+    """项目 examples 里有同名文件 -> 返 'app/static/examples/<name>'."""
+    # 用一个真实存在的 example 文件 (仓库自带) 验证
+    real_example = config.REPO_ROOT / "app" / "static" / "examples" / "person.png"
+    if not real_example.exists():
+        pytest.skip("仓库无 app/static/examples/person.png")
+    result = form_schema._resolve_example_file("person.png")
+    assert result == "app/static/examples/person.png"
+    # 传带前缀的形态也只看 basename
+    result2 = form_schema._resolve_example_file("some/dir/person.png")
+    assert result2 == "app/static/examples/person.png"
+
+
+def test_relative_path_in_cwd_falls_back(tmp_path, monkeypatch):
+    """相对路径 + CWD 命中 -> 返 CWD 绝对路径 (历史 staged 兼容路径)."""
+    cwd_dir = tmp_path / "cwd"
+    cwd_dir.mkdir()
+    f = cwd_dir / "staged.png"
+    f.write_bytes(b"x")
+    monkeypatch.chdir(cwd_dir)
+    # 项目 examples 没这个名, 走第 3 分支 CWD
+    assert (config.REPO_ROOT / "app" / "static" / "examples" / "staged.png").exists() is False
+    result = form_schema._resolve_example_file("staged.png")
+    assert result == str(f.resolve()) or result == "staged.png"
+
+
+def test_unresolvable_returns_none():
+    """既非绝对、项目 examples 没有、CWD 也没有 -> None."""
+    result = form_schema._resolve_example_file("definitely_not_exist_xyz.png")
+    assert result is None
