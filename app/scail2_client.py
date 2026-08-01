@@ -19,6 +19,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import quote
 
 import requests
 
@@ -359,7 +360,6 @@ def extract_all_image_outputs(history: dict[str, Any]) -> list[dict[str, str]]:
 
 def get_output_url(filename: str, subfolder: str = "", kind: str = "output") -> str:
     """拼 /view URL。浏览器 <img>/<video> 直接吃这个 URL (同机可访问)."""
-    from urllib.parse import quote
     qs = f"filename={quote(filename)}&type={kind}&subfolder={quote(subfolder)}"
     return f"/comfy_output?{qs}"
 
@@ -505,8 +505,6 @@ def wait_for_completion(
         nonlocal cur_progress
         if progress_queue is None:
             return
-        if False:  # placeholder for generator marker
-            yield
         while True:
             try:
                 evt = progress_queue.get_nowait()

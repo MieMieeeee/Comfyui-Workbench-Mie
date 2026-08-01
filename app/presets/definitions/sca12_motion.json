@@ -33,7 +33,8 @@
           "node_id": "541",
           "field": "text"
         }
-      ]
+      ],
+      "manifest_role": "ref_prompt"
     },
     {
       "node_id": "469",
@@ -63,7 +64,8 @@
           "node_id": "540",
           "field": "text"
         }
-      ]
+      ],
+      "manifest_role": "drive_prompt"
     },
     {
       "node_id": "360",
@@ -75,7 +77,8 @@
       "placeholder": "描述最终视频的主运动 / 表情 / 氛围, ≤500 字符。",
       "help": "模型用的正向提示词。",
       "tier": "basic",
-      "example_key": "main_prompt"
+      "example_key": "main_prompt",
+      "manifest_role": "main_prompt"
     },
     {
       "node_id": "469",

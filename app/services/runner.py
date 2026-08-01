@@ -138,6 +138,52 @@ def _resolve_segment_meta(inputs_spec, int_by_field):
     return out[0], out[1], out[2]
 
 
+# manifest 的 prompt 三件套 (main/ref/drive) 对应的 spec role.
+# 数据驱动收敛: 老 runner 硬编码 node_id 360/362/348 写 manifest, 非 SCAIL-2
+# preset 的这些字段永远是空串. review 后改成读 spec.manifest_role (跟段数迁移
+# _resolve_segment_meta 同款模式), 缺失时回退 SCAIL-2 老 node_id 兜底, 行为锁.
+#
+# 老 build_manifest 调用还有个 node_id 6 的 or 兜底 (replacements.get("6", ...)),
+# 它是 SCAIL-2 之外某个文生图 preset 的 main prompt node —— 现在数据驱动路径会
+# 先吃 manifest_role, 这个老兜底只在没声明 role 且没 360 时才生效.
+_PROMPT_ROLE_DEFAULTS = {
+    "main_prompt": ("360", "6"),
+    "ref_prompt": ("362", None),
+    "drive_prompt": ("348", None),
+}
+
+
+def _resolve_prompt_meta(
+    inputs_spec, text_by_field: dict[tuple[str, str], str],
+) -> tuple[str, str, str]:
+    """从 inputs_spec 里按 manifest_role 解析 (main_prompt, ref_prompt, drive_prompt).
+
+    每个 text/prompt_pool spec 可声明 "manifest_role" 为三者之一; 声明了就从
+    text_by_field[(node_id, field)] 取值. 没声明 manifest_role 的 preset 回退到
+    老 node_id 兜底 (360/362/348), 行为跟重构前完全一致.
+    """
+    by_role: dict[str, str] = {}
+    for spec in inputs_spec:
+        role = spec.get("manifest_role")
+        if role in _PROMPT_ROLE_DEFAULTS:
+            nid = str(spec["node_id"])
+            field = spec.get("field", "text")
+            by_role[role] = text_by_field.get((nid, field), "")
+
+    out = []
+    for role in ("main_prompt", "ref_prompt", "drive_prompt"):
+        if role in by_role:
+            out.append(by_role[role])
+            continue
+        primary_nid, secondary_nid = _PROMPT_ROLE_DEFAULTS[role]
+        field = "text"
+        val = text_by_field.get((primary_nid, field), "")
+        if not val and secondary_nid is not None:
+            val = text_by_field.get((secondary_nid, field), "")
+        out.append(val)
+    return out[0], out[1], out[2]
+
+
 # ============================================================
 # run_workflow — 视频/音频 preset 主流程
 # ============================================================
@@ -400,6 +446,9 @@ def run_workflow(preset_name, *component_values):
             fps, pre, mx = _resolve_segment_meta(inputs_spec, int_by_field)
             video_frames = form_schema.get_video_frames(drive_path) if drive_path else None
             est_seg = form_schema.estimated_segments(video_frames, fps, pre, max_segments=mx) if video_frames else None
+            # manifest 的 prompt 字段从 spec.manifest_role 解析 (数据驱动),
+            # 缺失时 _resolve_prompt_meta 内部回退 SCAIL-2 老 node_id 兜底.
+            main_p, ref_p, drive_p = _resolve_prompt_meta(inputs_spec, text_by_field)
             manifest = history.build_manifest(
                 prompt_id=prompt_id_final,
                 started_at_iso=started_at.isoformat(),
@@ -408,7 +457,7 @@ def run_workflow(preset_name, *component_values):
                 preset=preset_name,
                 reference_image=Path(ref_path).name if ref_path else "",
                 drive_video=Path(drive_path).name if drive_path else "",
-                prompt_text=replacements.get("360", {}).get("text", "") or replacements.get("6", {}).get("text", ""),
+                prompt_text=main_p,
                 frames_per_segment=fps,
                 pre_drop_frames=pre,
                 max_segments=mx,
@@ -418,9 +467,9 @@ def run_workflow(preset_name, *component_values):
                 cache_hit=False,
                 output=final_output,
                 error=final_error,
-                ref_prompt=replacements.get("362", {}).get("text", ""),
-                drive_prompt=replacements.get("348", {}).get("text", ""),
-                main_prompt=replacements.get("360", {}).get("text", ""),
+                ref_prompt=ref_p,
+                drive_prompt=drive_p,
+                main_prompt=main_p,
             )
             history.write_manifest(manifest)
             _log.debug(f"manifest written: {prompt_id_final[:8]}, est_seg={est_seg}")
@@ -440,6 +489,20 @@ def run_image_workflow(preset_name, *component_values):
 
     preset_cfg = config.preset_config(preset_name)
     inputs_spec = preset_cfg["user_facing_inputs"]
+
+    # 防御性断言: 本函数只处理纯文生图 (text/image_sizes/int_random/int/float).
+    # 含 file 类输入 (图生图 / 视频生图) 必须走 run_workflow, 否则参考图被静默
+    # 丢弃. stream_events 已对路由做了同样判定, 这里再断言一次防未来回归 ——
+    # AGENTS.md "不要加半个能用的 type": 静默吞不如显式报.
+    bad_types = sorted({
+        str(s.get("type", "")) for s in inputs_spec
+        if str(s.get("type", "")).startswith("file:")
+    })
+    if bad_types:
+        raise _RunError(
+            f"run_image_workflow 不支持 file 类输入 ({bad_types}), "
+            f"该 preset 应走 run_workflow. 检查 stream_events 路由条件."
+        )
 
     prompt_text = None
     sizes_raw = None
@@ -579,20 +642,22 @@ def run_image_workflow(preset_name, *component_values):
             _seg_pq.put(None)
 
         if kind in ("failure", "timeout"):
-            aborted = True
-        else:
-            try:
-                hist = scail2_client.get_history(prompt_id)
-                outs = scail2_client.extract_all_image_outputs(hist or {})
-                for o in outs:
-                    all_outputs.append(o)
-                    gallery_urls.append(scail2_client.get_output_url(
-                        o["filename"], o.get("subfolder", ""), o.get("type", "output")))
-            except Exception as e:
-                _log.error(f"[run_image] extract failed for {prompt_id}: {e}")
+            # 失败/超时后继续跑下一张尺寸 (尽力而为: 让用户拿到能跑通的那几张,
+            # 而不是一张挂了整批全废). final_status / final_error / final_failed_idx
+            # 已在上面记录, 末尾 yield 会告诉用户具体哪张失败.
+            continue
+        try:
+            hist = scail2_client.get_history(prompt_id)
+            outs = scail2_client.extract_all_image_outputs(hist or {})
+            for o in outs:
+                all_outputs.append(o)
+                gallery_urls.append(scail2_client.get_output_url(
+                    o["filename"], o.get("subfolder", ""), o.get("type", "output")))
+        except Exception as e:
+            _log.error(f"[run_image] extract failed for {prompt_id}: {e}")
 
-            progress(seg_end, desc=f"[{idx}/{len(sizes)}] {w}x{h} 完成")
-            yield f"🖼 [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
+        progress(seg_end, desc=f"[{idx}/{len(sizes)}] {w}x{h} 完成")
+        yield f"🖼 [{idx}/{len(sizes)}] {w}x{h} done", list(gallery_urls)
 
     finished_at = datetime.now(timezone.utc)
     primary = all_outputs[0] if all_outputs else None
@@ -653,15 +718,22 @@ def stream_events(
     """
     preset_cfg = config.preset_config(preset_name)
     output_kind = _output_kind(preset_cfg)
-    # run_image_workflow 是 zimage 那种多尺寸循环专用, 只支持 text / image_sizes / int_random
-    # 三种类型, 其它类型 (file:image / file:video / float / bool) 会被忽略. 通用 run_workflow
-    # 已经支持 image output_kind (见 wait_for_completion 后 extract_all_image_outputs 分支)
-    # + 所有 user_facing_inputs 类型, 所以非多尺寸的 image preset 也走 run_workflow.
-    has_image_sizes = any(
-        s.get("type") == "image_sizes"
-        for s in preset_cfg.get("user_facing_inputs", [])
+    # run_image_workflow 是 zimage 那种多尺寸循环专用, 只支持 text / image_sizes /
+    # int_random / int / float 五种类型. 它的 else 分支会静默丢弃 file 类输入, 所以
+    # 含 file:image / file:video / file:audio 的 preset 必须走通用 run_workflow, 否则
+    # 参考图等输入被默默忽略 (review: 之前路由只看 output_kind+image_sizes, 图生图
+    # preset 会被错路由到 run_image_workflow). 通用 run_workflow 已支持 image
+    # output_kind (见 wait_for_completion 后 extract_all_image_outputs 分支) + 全部 type.
+    inputs = preset_cfg.get("user_facing_inputs", [])
+    has_image_sizes = any(s.get("type") == "image_sizes" for s in inputs)
+    has_file_input = any(
+        str(s.get("type", "")).startswith("file:") for s in inputs
     )
-    run_fn = run_image_workflow if (output_kind == "image" and has_image_sizes) else run_workflow
+    run_fn = (
+        run_image_workflow
+        if (output_kind == "image" and has_image_sizes and not has_file_input)
+        else run_workflow
+    )
 
     log_lines: list[str] = []
     last_media = None
