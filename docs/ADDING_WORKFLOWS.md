@@ -187,7 +187,7 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 
 ### 3.1 `type` 怎么选 —— 从 class_type + field 推断
 
-`type` 不需要你手查文档。下面是 `_build_input_component` 当前支持的全集：
+`type` 不需要你手查文档。下面是当前支持的全集（渲染在 `app/templates/run.html` 按 `spec.type` 分的模板分支，patch 在 `app/services/runner.py` 按 type 分派）：
 
 | 节点 class_type | field | type | UI 呈现 |
 | --- | --- | --- | --- |
@@ -199,20 +199,24 @@ WebUI 左侧新增 **"工作流向导"** tab，全程不碰代码、不手编 JS
 | `PrimitiveBoolean` | `value` | `bool` | 复选框 |
 | 任何**带"随机种子"含义**的 int 字段 | `value` | `int_random` | "勾选随机" + 数值 |
 | `EmptySD3LatentImage` / `EmptyLatentImage` | `width` / `height` | `image_sizes` | 多选预设尺寸 |
+| 各种 **loader**（`CheckpointLoaderSimple`/`UNETLoader`/`VAELoader`/`CLIPLoader`/`LoraLoader`/…，见 `model_slots.LOADER_MAP`）| 模型字段（`ckpt_name`/`unet_name`/`vae_name`/…）| `model` | 动态下拉，选项来自本机 `/object_info` |
 | `MieLoopParamGetInt|Mie` / `*GetFloat|Mie` | `value` | `int` | 滑块 |
 
 **输出节点不需要 user_facing_input**（例如 `SaveImage`、`VHS_VideoCombine`、`PreviewImage`）。它们的 role 通过 `output_kind` 体现。
 
-推断不出来 → 先在 `_build_input_component` 里加这个 type，再在 definition 用。**不要**加"半工作"的 type 后留下走不到的分支。
+推断不出来 → 先在渲染层（`run.html` 模板分支 + `runner.py` patch 分派，必要时加 `wizard.py:infer_spec` 推断规则）里加这个 type，再在 definition 用。**不要**加"半工作"的 type 后留下走不到的分支。
 
-### 3.2 `tier` 怎么选 —— basic vs advanced
+> **模型 type 自动推断**：用向导添加工作流时，`wizard.infer_spec` 会自动把 loader 节点的模型字段标成 `type=model` / `tier=model`（高置信度、默认勾选），label 用 `LOADER_MAP` 里的中文名（大模型 / 扩散模型 / VAE / 文本编码器 / 视觉编码器 / LoRA / 放大模型）。所以 loader 一般不用手填 —— 向导帮你认好了。
+
+### 3.2 `tier` 怎么选 —— basic / advanced / model
 
 判断口诀：**90% 用户用默认值就不动** 的字段 → `advanced`。
 
 - `basic` —— 默认显示在主区域，用户每次都要改的字段
 - `advanced` —— 折叠进 🔧 高级参数面板，用户偶尔才碰
+- `model` —— 折叠进 🧩 模型面板，专门放 loader 的模型字段（动态下拉换本机已装模型）。`type=model` 的条目自动归这里。
 
-参考 SCAIL-2：主提示词 `basic`，ref_prompt / drive_prompt / frames_per_segment / pre_drop / max_segments 都是 `advanced`。
+参考 SCAIL-2：主提示词 `basic`，ref_prompt / drive_prompt / frames_per_segment / pre_drop / max_segments 都是 `advanced`；UNet/VAE/CLIP/LoRA 等模型槽位是 `model`。
 
 ### 3.3 `output_kind` 怎么选 —— 决定 output_box 怎么渲染
 
@@ -504,7 +508,7 @@ Copy-Item "<COMFY_OUTPUT_DIR>\MyPrefix\my_preset_00001-audio.mp4" `
 - **示例输入文件不在 ComfyUI input 目录** → "加载示例"按钮不填 file 字段（其它字段仍填），用户手动上传。不是 bug，是 fallback。
 - **示例输出没复制到项目** → 右栏 output_box 显示的是默认占位符（"运行后这里显示结果"），用户跑完之后才看到结果。需要按 §4.4 补 preview 资产。
 - **同一份 workflow 多 preset 共享** → 用 `workflow_file` 显式指明，别依赖默认。
-- **新工作流需新 type** → 走"拓 schema"路径（`_build_input_component` 先加，再用），不要单独写代码。
+- **新工作流需新 type** → 走"拓 schema"路径（`run.html` 模板分支 + `runner.py` patch 分派先加，再用），不要单独写代码。
 - **新工作流用了列表里没有的模型 / 节点** → 记得追 `health_requirements.json` 里的 `models` 或 `custom_nodes`。
 - **Gradio 6 静态文件路由是 `/gradio_api/file=` 不是 `/file=`** → 见 AGENTS.md "Gotcha" 段，不要在 src 里写 `/file=`。
 - **示例参数跑出来的图跟用户想象的不一样** → 调 prompt / seed / 参考图；不是改 schema。

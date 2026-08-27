@@ -37,6 +37,33 @@
       "random_default": true,
       "step": 1,
       "help": "勾上「随机」则忽略数值, 每个尺寸独立随机; 不勾则用下方具体数值 (固定种子)。"
+    },
+    {
+      "node_id": "16",
+      "field": "unet_name",
+      "label": "扩散模型",
+      "type": "model",
+      "default": "Z-Image-Turbo\\z_image_turbo_bf16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "17",
+      "field": "vae_name",
+      "label": "VAE",
+      "type": "model",
+      "default": "Flux\\ae.sft",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "18",
+      "field": "clip_name",
+      "label": "文本编码器",
+      "type": "model",
+      "default": "Qwen\\qwen_3_4b.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

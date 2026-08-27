@@ -334,6 +334,30 @@
                       </div>
                     </template>
                   </details>
+
+                  <!-- 模型参数类: tier=model 的字段, 独立折叠区. 下拉选项来自本机 /object_info (面板打开时懒加载).
+                       缺模型只警告不阻塞运行 (徽章提示), 用户可换本机已装的同类型模型. -->
+                  <details class="model-section" x-show="modelInputs(presetCfg).length > 0">
+                    <summary>🧩 模型 <span class="model-count" x-text="'(' + modelInputs(presetCfg).length + ')'"></span></summary>
+                    <template x-for="{ spec, idx } in modelInputs(presetCfg)" :key="'m' + idx">
+                      <div class="form-field model-field" data-tier="model">
+                        <label class="field-label" x-text="spec.label"></label>
+                        <template x-if="spec.type === 'model'">
+                          <div class="model-slot">
+                            <select x-model="formValues[idx]" :disabled="!modelSlot(w.name, spec)">
+                              <template x-for="opt in modelSlotOptions(w.name, spec)" :key="opt">
+                                <option :value="opt" x-text="modelSlotOptionLabel(w.name, spec, opt)"></option>
+                              </template>
+                            </select>
+                            <span class="model-badge"
+                                  :class="modelSlot(w.name, spec) ? (modelSlotInstalled(w.name, spec) ? 'badge-ok' : 'badge-warn') : 'badge-loading'"
+                                  x-text="modelSlot(w.name, spec) ? (modelSlotInstalled(w.name, spec) ? '✓ 已装' : '⚠ 本机未装') : '读取中…'"></span>
+                            <p class="field-help" x-show="spec.help" x-text="spec.help"></p>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </details>
                 </div>
               </template>
             </div>

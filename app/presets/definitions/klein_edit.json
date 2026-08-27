@@ -43,6 +43,33 @@
       "random_default": true,
       "step": 1,
       "help": "勾上「随机」则忽略数值; 不勾则用下方具体数值 (固定种子)。"
+    },
+    {
+      "node_id": "107",
+      "field": "clip_name",
+      "label": "文本编码器",
+      "type": "model",
+      "default": "Flux.2-Klein\\qwen_3_8b_fp8mixed.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "110",
+      "field": "vae_name",
+      "label": "VAE",
+      "type": "model",
+      "default": "Flux\\flux2-vae.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "163",
+      "field": "unet_name",
+      "label": "扩散模型",
+      "type": "model",
+      "default": "Flux\\Flux.2-Klein\\flux-2-klein-9b-Q6_K.gguf",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

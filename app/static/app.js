@@ -169,6 +169,9 @@ function runTab(workflows, presetCfgs) {
     errorText: {},
     errorCopied: {},
     resultHtml: {},
+    // 模型参数类: name -> { "<node_id>::<field>": slot }. 懒加载 (面板打开时拉 /api/preset_models).
+    // slot = { key, node_id, class_type, field, required_filename, available[], installed }.
+    modelSlots: {},
     // 配置常量 (从 config 同步)
     imageExts: '.png,.jpg,.jpeg,.webp',
     videoExts: '.mp4,.mov,.webm,.m4v',
@@ -185,9 +188,14 @@ function runTab(workflows, presetCfgs) {
       // 拉 example 填默认表单 + 渲染 preview 到结果区.
       const cfg = this.presetCfgs[name];
       if (!cfg) return;
-      // 1. 拉 example 填表单
+      // 1. 拉 example 填表单. 模型字段 (type=model) 例外: 沿用上次成功运行的选择 ——
+      //    用户多因缺默认模型才手动换, 重开面板回落示例值会逼他们每次重选 (review 2026-08-27).
+      //    只覆盖模型字段, 其它输入仍从示例开始; last_run 拉不到时静默跳过.
       try {
-        const values = await fetchJSON(`/api/example/${name}`);
+        const [values, lastValues] = await Promise.all([
+          fetchJSON(`/api/example/${name}`),
+          fetchJSON(`/api/last_run/${name}`).catch(() => null),
+        ]);
         const fv = {};
         let fi = 0;
         for (const spec of cfg.user_facing_inputs) {
@@ -195,6 +203,9 @@ function runTab(workflows, presetCfgs) {
             fv[fi + '_random'] = values[fi];
             fv[fi] = values[fi + 1];
             fi += 2;
+          } else if (spec.type === 'model' && lastValues && typeof lastValues[fi] === 'string' && lastValues[fi]) {
+            fv[fi] = lastValues[fi];
+            fi += 1;
           } else {
             fv[fi] = values[fi];
             fi += 1;
@@ -224,6 +235,15 @@ function runTab(workflows, presetCfgs) {
         } else {
           scope.defaultResultHtml = `<div style="padding:8px"><img src="${cfg.preview_url}" loading="lazy" class="lightboxable" style="max-width:100%;max-height:70vh;object-fit:contain;cursor:zoom-in;border-radius:var(--radius-md);display:block;margin:0 auto" /></div>${caption}`;
         }
+      }
+      // 3. 懒拉模型槽位 (本机已装模型列表). 无模型参数类的工作流 slots 为空, 模板里整段隐藏.
+      //    失败/离线 → modelSlots[name] 置空对象, 模板显示"读取中", 不阻断表单.
+      if (this.modelInputs(cfg).length > 0) {
+        fetchJSON(`/api/preset_models/${name}`).then(data => {
+          const byKey = {};
+          for (const s of (data && data.slots) || []) byKey[s.key] = s;
+          this.modelSlots[name] = byKey;
+        }).catch(() => { this.modelSlots[name] = {}; });
       }
     },
 
@@ -307,6 +327,39 @@ function runTab(workflows, presetCfgs) {
       return cfg.user_facing_inputs
         .map((spec, idx) => ({ spec, idx }))
         .filter(({ spec }) => spec.tier === 'advanced');
+    },
+
+    // 模型参数类 (tier=model): 渲染成独立的「模型」折叠区, 选项来自本机 /object_info.
+    modelInputs(cfg) {
+      if (!cfg || !cfg.user_facing_inputs) return [];
+      return cfg.user_facing_inputs
+        .map((spec, idx) => ({ spec, idx }))
+        .filter(({ spec }) => (spec.tier || 'basic') === 'model');
+    },
+
+    // —— 模型槽位辅助 (模板里按 spec.node_id+field 取本机已装列表) ——
+    modelSlot(name, spec) {
+      const slots = this.modelSlots[name] || {};
+      return slots[(spec.node_id || '') + '::' + (spec.field || '')] || null;
+    },
+    modelSlotInstalled(name, spec) {
+      const s = this.modelSlot(name, spec);
+      return !!(s && s.installed);
+    },
+    // 下拉选项: 本机已装列表; 若工作流自带的模型没装, 把它置顶 (带⚠) 让默认值仍可选.
+    modelSlotOptions(name, spec) {
+      const s = this.modelSlot(name, spec);
+      if (!s) return [];
+      const opts = (s.available || []).slice();
+      const req = s.required_filename;
+      if (req && !opts.includes(req)) opts.unshift(req);
+      return opts;
+    },
+    modelSlotOptionLabel(name, spec, opt) {
+      const s = this.modelSlot(name, spec);
+      const req = s && s.required_filename;
+      if (opt === req && s && !s.installed) return '⚠ ' + opt + ' (默认·本机未装)';
+      return opt;
     },
 
     // 分组列表: [{tier:'basic', items:[...]}, {tier:'advanced', items:[...]}]

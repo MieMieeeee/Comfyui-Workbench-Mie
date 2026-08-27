@@ -57,6 +57,42 @@
       "step": 1,
       "help": "输出帧率。",
       "tier": "advanced"
+    },
+    {
+      "node_id": "101",
+      "field": "model_name",
+      "label": "放大模型",
+      "type": "model",
+      "default": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "132",
+      "field": "lora_name",
+      "label": "LoRA",
+      "type": "model",
+      "default": "LTX-2.3\\ltx-2.3-22b-distilled-lora-384.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "159",
+      "field": "ckpt_name",
+      "label": "大模型",
+      "type": "model",
+      "default": "LTX-2.3\\ltx-2.3-22b-dev-fp8.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "208",
+      "field": "lora_name",
+      "label": "LoRA",
+      "type": "model",
+      "default": "LTX-2\\ltx-2-19b-ic-lora-detailer.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

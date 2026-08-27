@@ -39,6 +39,7 @@ class ModelReq:
     filename: str
     folder: str
     node: str
+    field: str           # loader 节点里持有文件名的字段 (ckpt_name/unet_name/...), 供 _get_available_models 按 field 取列表
     workflows: list[str]
 
 
@@ -155,7 +156,7 @@ def check_health(url: str | None = None, timeout: int = 8) -> HealthReport:
     target = (url or scail2_client.get_base_url() or config.COMFY_BASE_URL).strip().rstrip("/")
     report = HealthReport(url=target)
     reqs = load_requirements()
-    report.required_models = [ModelReq(m["filename"], m["folder"], m["node"], m.get("workflows", []))
+    report.required_models = [ModelReq(m["filename"], m["folder"], m["node"], m.get("field", ""), m.get("workflows", []))
                               for m in reqs.get("models", [])]
     report.required_nodes = [NodeReq(n["class_type"], n["package"], n.get("workflows", []))
                              for n in reqs.get("custom_nodes", [])]
@@ -206,7 +207,7 @@ def check_health(url: str | None = None, timeout: int = 8) -> HealthReport:
                     report.missing_nodes.append(nreq)
             # L2: 检查模型文件
             for mreq in report.required_models:
-                available_files = _get_available_models(object_info, mreq.node, mreq.folder)
+                available_files = _get_available_models(object_info, mreq.node, mreq.field)
                 if mreq.filename not in available_files:
                     report.missing_models.append(mreq)
     except Exception:
@@ -215,22 +216,15 @@ def check_health(url: str | None = None, timeout: int = 8) -> HealthReport:
     return report
 
 
-def _get_available_models(object_info: dict, node_class: str, folder: str) -> set[str]:
+def _get_available_models(object_info: dict, node_class: str, field: str) -> set[str]:
     """从 /object_info 提取某 loader 节点可用的模型文件名列表。
 
     loader 节点的 input.required.<field>[0] 是当前磁盘上的模型文件名列表。
+    实际提取逻辑在 services.model_slots.extract_options (按 field 参数化, 与运行页模型
+    参数类共用); 这里只做 set 转换给 health 检查用。
     """
-    node = object_info.get(node_class)
-    if not node:
-        return set()
-    required = node.get("input", {}).get("required", {})
-    # loader 节点的字段名固定（unet_name/vae_name/clip_name/ckpt_name/lora_name）
-    for field in ("unet_name", "vae_name", "clip_name", "ckpt_name", "lora_name"):
-        if field in required:
-            val = required[field]
-            if isinstance(val, list) and val and isinstance(val[0], list):
-                return set(val[0])
-    return set()
+    from .services.model_slots import extract_options
+    return set(extract_options(object_info, node_class, field))
 
 
 def _diagnose_connection_error(target: str, exc: Exception) -> str:

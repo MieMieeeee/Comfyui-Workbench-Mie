@@ -42,6 +42,21 @@ def _is_connection_ref(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
 
 
+# loader 节点 → 模型参数类. 复用 services.model_slots 的权威映射 (单一真相),
+# 向导解析时把 loader 的模型字段自动标成 type=model/tier=model, 用户只需确认.
+# 懒导入避免 wizard 顶层连带 requests/config 加载 (虽然 model_slots 无副作用, 保持克制).
+def _loader_model_field(class_type: str) -> tuple[str, str] | None:
+    """class_type 是 loader → 返回 (model 字段名, 默认中文 label); 否则 None."""
+    if not isinstance(class_type, str):
+        return None
+    from .model_slots import LOADER_MAP
+    mapping = LOADER_MAP.get(class_type)
+    if mapping is None:
+        return None
+    field, _folder, label = mapping
+    return field, label
+
+
 def infer_spec(node_id: str, field: str, value: Any, class_type: str = "") -> dict | None:
     """根据 (class_type, field, value) 推断该字段应渲染成什么 spec.type.
 
@@ -66,6 +81,14 @@ def infer_spec(node_id: str, field: str, value: Any, class_type: str = "") -> di
         return _base_spec(node_id, field, "file:image", default=value, confidence="high")
     if class_type == "VHS_LoadVideo" and field == "video":
         return _base_spec(node_id, field, "file:video", default=value, confidence="high")
+
+    # 规则 3.5: loader 节点的模型字段 → 模型参数类 (高置信度 — loader 的模型文件名就是
+    # 该暴露给用户做二次选择的; 选项运行页从本机 /object_info 动态拉). 只匹配 loader 的
+    # 模型字段本身, 同节点其它字段 (如 weight_dtype) 走后面的通用规则.
+    loader = _loader_model_field(class_type)
+    if loader and field == loader[0]:
+        return _base_spec(node_id, field, "model", default=value, confidence="high",
+                          tier="model", label=loader[1])
 
     # 规则 4: seed → int_random (高置信度 — seed 几乎总是要暴露给用户)
     if field == "seed":
@@ -132,6 +155,8 @@ def _default_spec_options(typ: str) -> dict:
         return {"help": "上传本次生成使用的参考图片。"}
     if typ == "file:video":
         return {"help": "上传本次生成使用的驱动视频。"}
+    if typ == "model":
+        return {"help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"}
     return {}
 
 

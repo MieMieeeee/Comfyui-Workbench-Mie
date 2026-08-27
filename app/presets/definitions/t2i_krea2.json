@@ -38,6 +38,33 @@
       "step": 1,
       "help": "勾选随机会在每次运行时生成新种子；取消后使用固定数值。",
       "tier": "basic"
+    },
+    {
+      "node_id": "3",
+      "field": "unet_name",
+      "label": "扩散模型",
+      "type": "model",
+      "default": "Krea-2\\krea2_turbo_int8_convrot.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "4",
+      "field": "vae_name",
+      "label": "VAE",
+      "type": "model",
+      "default": "Qwen\\qwen_image_vae.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "7",
+      "field": "clip_name",
+      "label": "文本编码器",
+      "type": "model",
+      "default": "Krea-2\\qwen3vl_4b_fp8_scaled.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "output_kind": "image",

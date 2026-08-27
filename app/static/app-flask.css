@@ -461,6 +461,21 @@ code {
 .advanced-section > summary:hover { color: var(--text-primary); }
 .advanced-count { color: var(--text-muted); font-weight: 400; }
 .advanced-section .form-field { margin-top: var(--space-2); }
+/* 模型参数类折叠区: tier=model 的字段 (动态下拉, 选项来自本机 /object_info) */
+.model-section { margin-top: var(--space-3); border-top: 1px solid var(--border-subtle); padding-top: var(--space-2); }
+.model-section > summary {
+  cursor: pointer; font-size: var(--text-sm); color: var(--text-secondary);
+  font-weight: 500; user-select: none; padding: var(--space-1) 0;
+}
+.model-section > summary:hover { color: var(--text-primary); }
+.model-count { color: var(--text-muted); font-weight: 400; }
+.model-section .form-field { margin-top: var(--space-2); }
+.model-slot { display: flex; flex-direction: column; gap: var(--space-1); }
+.model-slot select { width: 100%; }
+.model-badge { font-size: var(--text-xs); font-weight: 500; align-self: flex-start; }
+.model-badge.badge-ok { color: var(--color-success); }
+.model-badge.badge-warn { color: var(--color-error); }
+.model-badge.badge-loading { color: var(--text-muted); }
 .field-label {
   font-size: var(--text-sm);
   font-weight: 600;

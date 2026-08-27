@@ -38,7 +38,7 @@
 | `app/presets/definitions/<name>.json` | preset 配置（display_name / category / group / description / user_facing_inputs / example） |
 | `app/presets/health_requirements.json` | 只有 workflow 加了新模型 / 自定义节点时才动 |
 
-**新 type 不在已有 schema 范围内**：先在 `_build_input_component` 扩展类型支持，再让作者在 definition 里用。**不要**为一个 workflow 写一次性 bypass 路径。
+**新 type 不在已有 schema 范围内**：先在渲染层（`run.html` 模板分支 + `runner.py` patch 分派）扩展类型支持，再让作者在 definition 里用。**不要**为一个 workflow 写一次性 bypass 路径。
 
 `example` 字段每个 preset 都必须有 —— 它是用户打开工作流后**第一眼看到**的参数，也是切到该 preset 时的默认值。这条由 `tests/test_preset_must_have_example.py` 锁住。
 
@@ -62,8 +62,9 @@ workflow 有多个 image / video 输出节点时，runner 要挑一个显示在�
 
 `user_facing_inputs` 数组每条要填 (node_id / field / label / type / tier)。这是项目里**最重的作者负担**。几个收敛方向值得追：
 
-- `type` 大多能从 workflow JSON 推（`file:image` / `file:video` / `text` / `int` / `bool` / `image_sizes`）。任何减字段的方向都是好事。
-- 加新 type 时，**先**在 `_build_input_component` 落地，**再**让作者用。**不要**加半个能用的 type —— 当前 `image_sizes` 的「自定义 WxH 逗号分隔」分支 UI 不可达，半成品应该清掉。
+- `type` 大多能从 workflow JSON 推（`file:image` / `file:video` / `text` / `int` / `bool` / `image_sizes` / `model`）。任何减字段的方向都是好事。
+- 加新 type 时，**先**在渲染层落地，**再**让作者用。**注意**：项目里**没有** `_build_input_component` 这个函数 —— 表单渲染是 `app/templates/run.html` 里按 `spec.type` 分的 `<template x-if>` 分支（basic / advanced / model 三组各一处），patch 逻辑在 `app/services/runner.py` 的 parse/patch 循环按 type 分派。加新 type = 在这两处（+ 向导 `wizard.html` 的 type 下拉、`wizard.py:infer_spec` 的推断）都加上。**不要**加半个能用的 type —— 当前 `image_sizes` 的「自定义 WxH 逗号分隔」分支 UI 不可达，半成品应该清掉。
+- `model` type / `model` tier = 「模型参数类」。loader 节点（CheckpointLoaderSimple / UNETLoader / VAELoader / CLIPLoader / LoraLoader 等）的模型字段暴露成动态下拉，选项来自本机 ComfyUI `/object_info`（运行页懒加载，60s 缓存），默认值是工作流自带的模型文件名，用户可二次选择覆盖；面板打开时模型下拉自动沿用上次成功运行的选择（其它字段仍从示例开始，「加载示例」可重置）。映射表 `LOADER_MAP` 在 `app/services/model_slots.py`（单一真相，health check 和向导推断都复用它）。内置工作流的 loader 由作者/扫描写进 `user_facing_inputs`（tier=model，追加在数组末尾，别插中间 —— 会打乱 `form_values` 的位置索引）；用户用向导添加工作流时 `infer_spec` 自动把 loader 识别成 model，无需手填。
 - `do_not_modify_warnings` 是给未来维护者的备忘，不是用户配置 —— 保持轻量。
 - `fixed_patches` 是 preset 级硬 patch（比如 SCAIL2 两种模式共用一个 workflow JSON，只在 node 353 不同）。这个复用机制很好，鼓励新 workflow 用。
 

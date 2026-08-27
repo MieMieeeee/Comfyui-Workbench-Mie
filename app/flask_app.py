@@ -609,6 +609,32 @@ def preset_cfg(preset_name):
     })
 
 
+@app.route("/api/preset_models/<preset_name>")
+def preset_models(preset_name):
+    """返回 preset 的模型槽位 + 本机已装模型列表, 供运行页「模型」折叠区动态下拉.
+
+    槽位来源: definition 里 type=model 的条目 (作者/向导选了哪些 loader 暴露).
+    本机已装列表: ComfyUI /object_info (按 base_url 缓存). ComfyUI 离线时 fetched=False,
+    slots 仍返回 (前端显示「需要 X」清单, 只是不能换). 任何意外都降级成空, 不让 500
+    打断运行页面板渲染.
+    """
+    valid = {w["name"] for w in config.list_workflows()}
+    if preset_name not in valid:
+        return jsonify({"error": f"unknown preset: {preset_name}"}), 404
+    from app.services import model_slots
+    try:
+        slots, fetched = model_slots.slots_for_preset(preset_name)
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"name": preset_name, "slots": [], "fetched": False, "error": str(e)})
+    return jsonify({
+        "name": preset_name,
+        "slots": [s.to_dict() for s in slots],
+        "fetched": fetched,
+    })
+
+
 # ============================================================
 # 工作流向导 API (workflow-decouple-wizard 2026-07-24)
 # 引导用户把 ComfyUI workflow JSON 变成 preset definition, 不用手工编辑 JSON.

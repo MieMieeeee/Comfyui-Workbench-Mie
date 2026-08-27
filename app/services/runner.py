@@ -211,6 +211,7 @@ def run_workflow(preset_name, *component_values):
     file_by_type: dict[str, str] = {}
     int_by_field: dict[tuple[str, str], int] = {}
     sizes_by_node: dict[str, Any] = {}
+    model_by_field: dict[tuple[str, str], str] = {}
     component_idx = 0
     for spec in inputs_spec:
         nid = str(spec["node_id"])
@@ -240,6 +241,10 @@ def run_workflow(preset_name, *component_values):
             number = component_values[component_idx + 1] if component_idx + 1 < len(component_values) else spec.get("default", 0)
             int_by_field[(nid, field)] = random.randint(1, 10**12) if bool(value) else int(number)
             component_idx += 1
+        elif typ == "model":
+            # 模型参数: 一个动态下拉 (选项来自 /object_info). 值是 ComfyUI 模型文件名,
+            # 直接当字符串 patch 进 loader 节点, 不走文本/数字桶.
+            model_by_field[(nid, field)] = value or ""
         component_idx += 1
     ref_path = file_by_type.get("image")
     audio_path = file_by_type.get("audio")
@@ -354,6 +359,16 @@ def run_workflow(preset_name, *component_values):
                         replacements[_enid][_efield] = final
                     else:
                         replacements[_enid] = {_efield: final}
+            elif typ == "model":
+                # 模型覆盖: 用用户选的文件名, 没选/空 → 退 spec.default (= 工作流自带模型).
+                # 不用 DEFAULT_PROMPT_TEXT 兜底 (那是提示词, 塞进模型字段会把运行打挂).
+                raw = model_by_field.get((nid, field), "")
+                final = (raw or "").strip() or spec.get("default") or ""
+                if final:
+                    if nid in replacements:
+                        replacements[nid][field] = final
+                    else:
+                        replacements[nid] = {field: final}
             elif typ == "image_sizes":
                 w, h = size_by_node[str(spec["node_id"])]
                 replacements.setdefault(nid, {}).update({"width": w, "height": h, "batch_size": 1})
@@ -513,6 +528,9 @@ def run_image_workflow(preset_name, *component_values):
     # 收集所有 text / prompt_pool / select 字段, 避免多 text preset (e.g. QwenImage 的
     # positive + negative) 只 patch 最后一个, 前面那个被吞掉. 修 review 2026-07-29.
     text_patches: dict[tuple[str, str], str] = {}
+    # 模型参数类 (zimage/qwen_image 等 T2I 工作流也要能换 unet/vae/clip): 解析时收齐,
+    # 每个尺寸的 replacements 都带上 (模型与尺寸无关, 跨尺寸不变).
+    model_patches: dict[tuple[str, str], str] = {}
     i = 0
     while i < len(inputs_spec):
         spec = inputs_spec[i]
@@ -542,6 +560,10 @@ def run_image_workflow(preset_name, *component_values):
             i += 1
         elif typ == "float":
             # float spec (SAM3 threshold 等) 不进 seed 槽, 直接 pass-through 替换
+            i += 1
+        elif typ == "model":
+            value = component_values[i] if i < len(component_values) else None
+            model_patches[(nid, spec["field"])] = (value or "").strip() or str(spec.get("default") or "")
             i += 1
         else:
             i += 1
@@ -587,6 +609,14 @@ def run_image_workflow(preset_name, *component_values):
         replacements = {}
         # 把所有 text / prompt_pool / select 字段 patch 进去 (review 2026-07-29 修多 text 支持)
         for (nid, field), val in text_patches.items():
+            if nid in replacements:
+                replacements[nid][field] = val
+            else:
+                replacements[nid] = {field: val}
+        # 模型覆盖 (与尺寸无关, 每张都带)
+        for (nid, field), val in model_patches.items():
+            if not val:
+                continue
             if nid in replacements:
                 replacements[nid][field] = val
             else:

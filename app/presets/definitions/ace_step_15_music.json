@@ -107,6 +107,15 @@
       "default": 31,
       "help": "相同 tags + seed 复现同一首;想换曲风改 seed。",
       "tier": "advanced"
+    },
+    {
+      "node_id": "97",
+      "field": "ckpt_name",
+      "label": "大模型",
+      "type": "model",
+      "default": "Ace_Step_1.5\\ace_step_1.5_turbo_aio.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

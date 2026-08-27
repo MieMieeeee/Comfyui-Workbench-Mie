@@ -117,6 +117,69 @@
       "help": "每段开头跳过的帧数，避免段头黑屏。高级参数。",
       "tier": "advanced",
       "example_key": "pre_drop_frames"
+    },
+    {
+      "node_id": "322",
+      "field": "lora_name",
+      "label": "LoRA",
+      "type": "model",
+      "default": "Wan2.1\\lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "323",
+      "field": "vae_name",
+      "label": "VAE",
+      "type": "model",
+      "default": "Wan_2.1\\wan_2.1_vae.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "327",
+      "field": "clip_name",
+      "label": "文本编码器",
+      "type": "model",
+      "default": "Wan\\umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "328",
+      "field": "clip_name",
+      "label": "视觉编码器",
+      "type": "model",
+      "default": "clip_vision_h.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "329",
+      "field": "unet_name",
+      "label": "扩散模型",
+      "type": "model",
+      "default": "SCAIL-2\\wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "349",
+      "field": "ckpt_name",
+      "label": "大模型",
+      "type": "model",
+      "default": "sam3.1_multiplex_fp16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
+    },
+    {
+      "node_id": "363",
+      "field": "lora_name",
+      "label": "LoRA",
+      "type": "model",
+      "default": "Scail-2\\wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

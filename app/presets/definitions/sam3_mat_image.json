@@ -54,6 +54,15 @@
       "default": false,
       "tier": "advanced",
       "help": "勾上后每个检测到的物体单独出图, 不勾则合并成一张 mask。"
+    },
+    {
+      "node_id": "116",
+      "field": "ckpt_name",
+      "label": "大模型",
+      "type": "model",
+      "default": "sam3.1_multiplex_fp16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

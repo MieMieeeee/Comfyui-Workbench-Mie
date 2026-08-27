@@ -66,6 +66,15 @@
       "default": 0,
       "tier": "advanced",
       "help": "跳过视频开头的 N 帧 (跳过片头/黑场用)。"
+    },
+    {
+      "node_id": "127",
+      "field": "ckpt_name",
+      "label": "大模型",
+      "type": "model",
+      "default": "sam3.1_multiplex_fp16.safetensors",
+      "tier": "model",
+      "help": "本工作流需要的模型；运行页可下拉换成本机已装的同类型模型。"
     }
   ],
   "example": {

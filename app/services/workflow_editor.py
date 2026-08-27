@@ -133,8 +133,8 @@ def save_input_layout(name: str, submitted: list[dict]) -> dict:
         for key in EDITABLE_FIELDS:
             if key in item:
                 value = item[key]
-                if key == "tier" and value not in ("basic", "advanced"):
-                    raise ValueError("输入项 tier 只能是 basic 或 advanced")
+                if key == "tier" and value not in ("basic", "advanced", "model"):
+                    raise ValueError("输入项 tier 只能是 basic / advanced / model")
                 if not isinstance(value, str):
                     raise ValueError(f"输入项 {key} 必须是字符串")
                 spec[key] = value.strip()
