@@ -88,6 +88,19 @@ def _output_kind(preset_cfg) -> str:
     return config.resolve_output_kind(preset_cfg)
 
 
+def _coerce_bool(value: Any, default: Any = False) -> bool:
+    """把表单值收敛成真正的 bool (patch 进 ComfyUI 前).
+
+    复选框在 Alpine 里是 JS boolean, 但值也可能来自 example / last_run 的 JSON,
+    或者字符串形态 ("true"/"1"). False 是有效值, 不能当 "没填" 处理 —— 用 None 判断缺失.
+    """
+    if value is None:
+        return bool(default)
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 def _error_banner_html(title: str, raw_err: str) -> str:
     """统一构造 error banner: 状态标题 + 原始错误全文.
 
@@ -210,6 +223,7 @@ def run_workflow(preset_name, *component_values):
     text_by_field: dict[tuple[str, str], str] = {}
     file_by_type: dict[str, str] = {}
     int_by_field: dict[tuple[str, str], int] = {}
+    bool_by_field: dict[tuple[str, str], bool] = {}
     sizes_by_node: dict[str, Any] = {}
     model_by_field: dict[tuple[str, str], str] = {}
     component_idx = 0
@@ -230,6 +244,9 @@ def run_workflow(preset_name, *component_values):
             file_by_type["audio"] = value
         elif typ == "image_sizes":
             sizes_by_node[nid] = value
+        elif typ == "bool":
+            # 复选框 (SAM3 individual_masks 等): False 也是有效值, 用 None 判缺失
+            bool_by_field[(nid, field)] = _coerce_bool(value, spec.get("default", False))
         elif typ == "int":
             int_by_field[(nid, field)] = int(value) if value is not None else spec.get("default", 1)
         elif typ == "float":
@@ -372,6 +389,13 @@ def run_workflow(preset_name, *component_values):
             elif typ == "image_sizes":
                 w, h = size_by_node[str(spec["node_id"])]
                 replacements.setdefault(nid, {}).update({"width": w, "height": h, "batch_size": 1})
+            elif typ == "bool":
+                # 复选框: False 也要照实 patch (工作流默认值可能是 True)
+                val = bool_by_field.get((nid, field), bool(spec.get("default", False)))
+                if nid in replacements:
+                    replacements[nid][field] = val
+                else:
+                    replacements[nid] = {field: val}
             elif typ in ("int", "int_random"):
                 default = spec.get("default", 1)
                 val = int_by_field.get((nid, field), default)
@@ -533,6 +557,8 @@ def run_image_workflow(preset_name, *component_values):
     # int / float 字段原样 patch (不再当 seed 处理 —— seed 只由 int_random 负责).
     int_patches: dict[tuple[str, str], int] = {}
     float_patches: dict[tuple[str, str], float] = {}
+    # 复选框字段 (SAM3 individual_masks 等): False 也是有效值, 原样 patch.
+    bool_patches: dict[tuple[str, str], bool] = {}
     # seed 槽位: (node_id, field). int_random 每个尺寸重算一次 seed.
     seed_slot: tuple[str, str] | None = None
     # 两个计数器必须分开走:
@@ -579,6 +605,11 @@ def run_image_workflow(preset_name, *component_values):
                 float_patches[(nid, spec["field"])] = float(raw) if raw is not None else float(spec.get("default", 0.0))
             except (TypeError, ValueError):
                 float_patches[(nid, spec["field"])] = float(spec.get("default", 0.0))
+            si += 1
+            vi += 1
+        elif typ == "bool":
+            raw = component_values[vi] if vi < len(component_values) else None
+            bool_patches[(nid, spec["field"])] = _coerce_bool(raw, spec.get("default", False))
             si += 1
             vi += 1
         elif typ == "model":
@@ -647,6 +678,9 @@ def run_image_workflow(preset_name, *component_values):
         for (nid, field), val in int_patches.items():
             replacements.setdefault(nid, {})[field] = val
         for (nid, field), val in float_patches.items():
+            replacements.setdefault(nid, {})[field] = val
+        # 复选框: False 也要照实 patch (工作流默认值可能是 True)
+        for (nid, field), val in bool_patches.items():
             replacements.setdefault(nid, {})[field] = val
         if seed_slot:
             replacements.setdefault(seed_slot[0], {})[seed_slot[1]] = actual_seed

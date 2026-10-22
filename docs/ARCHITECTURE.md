@@ -180,6 +180,7 @@ ComfyUI 通过 WebSocket 推送执行事件, 关键类型:
 复合 type 的映射:
 - `image_sizes` → 一个 spec 拆成 `{width, height, batch_size}` 三个字段 (文生图多尺寸循环时每个尺寸各 patch 一次)
 - `int_random` → UI 上是 [Checkbox + Number], 勾选时运行期 `random.randint`, 不勾用固定值
+- `bool` → 复选框 (SAM3 individual_masks 等), True / False 都照实 patch —— False 是有效值, 不是"缺值"
 - `file:*` → 上传后取 ComfyUI input 目录下的纯文件名
 
 `fixed_patches` (preset 级) 先于 user_facing_inputs 应用, 让 SCAIL-2 replace/motion 两种模式共用一个 workflow JSON.

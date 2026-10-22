@@ -132,3 +132,18 @@ def test_model_select_shows_its_own_model(tmp_path, preset):
     for idx, want in expected.items():
         assert got.get(idx) == want, (
             f"{preset}: 模型下拉框 (spec #{idx}) 显示的是 {got.get(idx)!r}, 应为 {want!r}")
+
+
+def test_bool_checkbox_round_trip(tmp_path):
+    """复选框: 勾上 → 扁平数组里是 true; 不勾 → 是 false (不能当成缺值丢掉)."""
+    definition = {"user_facing_inputs": [
+        {"node_id": "5", "field": "text", "type": "text", "default": "prompt"},
+        {"node_id": "9", "field": "individual_masks", "type": "bool", "default": False},
+    ]}
+    values = ["prompt", False]
+
+    unchecked = _run_harness(tmp_path, "synthetic", definition, values)
+    assert unchecked["collected"] == ["prompt", False]
+
+    checked = _run_harness(tmp_path, "synthetic", definition, values, edits={"1": True})
+    assert checked["collected"] == ["prompt", True]
