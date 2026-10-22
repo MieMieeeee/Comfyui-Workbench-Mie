@@ -344,7 +344,9 @@
                         <label class="field-label" x-text="spec.label"></label>
                         <template x-if="spec.type === 'model'">
                           <div class="model-slot">
-                            <select x-model="formValues[idx]" :disabled="!modelSlot(w.name, spec)">
+                            <select x-model="formValues[idx]"
+                                    :data-model-idx="idx"
+                                    :disabled="!modelSlot(w.name, spec)">
                               <template x-for="opt in modelSlotOptions(w.name, spec)" :key="opt">
                                 <option :value="opt" x-text="modelSlotOptionLabel(w.name, spec, opt)"></option>
                               </template>

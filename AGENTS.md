@@ -133,3 +133,6 @@ emoji 调色板（🎬/🖼️/🔊 等）、tab 结构、`last_run` 状态持�
 - 提「重写这个 helper」之前看 `docs/DECISIONS.md` —— 每条决策都有 rationale。
 - 提「拆这个模块」之前查数据驱动原则是否禁止 —— 新功能应该只动数据，不加模块。
 - 写新文案 / 帮助文字时用**用户视角**（用户不知道 node ID 367 是什么），永远不要在 UI 文案里漏 node 数字。
+- 动表单字段（新增 / 改 type / 改顺序）之前先分清 **spec 索引 ≠ 扁平表单值索引**：`int_random` 占 2 格，
+  两者会错开一格，混用会让模型/参数落到别的节点上（issue #1 的根因）。契约见
+  [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) 的「表单值的两套索引」。

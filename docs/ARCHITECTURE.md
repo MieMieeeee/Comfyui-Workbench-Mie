@@ -184,6 +184,26 @@ ComfyUI 通过 WebSocket 推送执行事件, 关键类型:
 
 `fixed_patches` (preset 级) 先于 user_facing_inputs 应用, 让 SCAIL-2 replace/motion 两种模式共用一个 workflow JSON.
 
+### 表单值的两套索引 (别混用)
+
+前后端之间传的 `form_values` 是**扁平数组**: 按 `user_facing_inputs` 顺序排, 每个 spec 占 1 格,
+`int_random` 占 2 格 (随机勾 + 数值). `example_to_form_values` / `_manifest_to_form_values` /
+`persistence._save_last_run` 都按这个约定产出/消费.
+
+但页面内部的 `formValues` 是**按 spec 索引**存的 (模板里 `x-model="formValues[idx]"`, `idx` 就是
+spec 在 `user_facing_inputs` 里的位置). 两者不是一回事: `int_random` 之后的字段, spec 索引比扁平
+位置小 1. 混用会导致字段值整体错位一格 (issue #1: Z-Image-Turbo 的 VAE 收到 unet 的文件名,
+ComfyUI 直接 400).
+
+- 前端: `app.js` 的 `initPanelScope` / `_applyFormValues` 用扁平位置**读** `values`, 按 spec 索引**写**
+  `formValues`; `collectFormValues` 再按 spec 顺序收回扁平数组.
+- 后端: `runner` 的解析循环必须用两个计数器 —— spec 索引走 `user_facing_inputs`, 值索引走
+  `form_values`. `int_random` 占 2 格, 不能把 spec 索引和值索引合成一个.
+
+另外: 模型下拉框的选项 (`/api/preset_models`) 是异步到的, Alpine 的 `x-model` 在 `<option>`
+渲染之前就把值写进 `<select>`, 那时选不中任何项, 浏览器会落回列表第一项 —— `app.js` 的
+`_syncModelSelects` 负责在选项到位后把值摆正.
+
 ---
 
 ## 运行流 (SSE)

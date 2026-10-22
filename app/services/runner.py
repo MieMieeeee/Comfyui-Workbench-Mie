@@ -524,49 +524,71 @@ def run_image_workflow(preset_name, *component_values):
     seed_val = 0
     prompt_target: tuple[str, str] | None = None
     sizes_node_id = None
-    seed_node_id = None
     # 收集所有 text / prompt_pool / select 字段, 避免多 text preset (e.g. QwenImage 的
     # positive + negative) 只 patch 最后一个, 前面那个被吞掉. 修 review 2026-07-29.
     text_patches: dict[tuple[str, str], str] = {}
     # 模型参数类 (zimage/qwen_image 等 T2I 工作流也要能换 unet/vae/clip): 解析时收齐,
     # 每个尺寸的 replacements 都带上 (模型与尺寸无关, 跨尺寸不变).
     model_patches: dict[tuple[str, str], str] = {}
-    i = 0
-    while i < len(inputs_spec):
-        spec = inputs_spec[i]
+    # int / float 字段原样 patch (不再当 seed 处理 —— seed 只由 int_random 负责).
+    int_patches: dict[tuple[str, str], int] = {}
+    float_patches: dict[tuple[str, str], float] = {}
+    # seed 槽位: (node_id, field). int_random 每个尺寸重算一次 seed.
+    seed_slot: tuple[str, str] | None = None
+    # 两个计数器必须分开走:
+    #   si —— user_facing_inputs 里的位置 (spec 顺序)
+    #   vi —— component_values (扁平表单值) 里的位置, int_random 占 2 格 (随机勾 + 数值)
+    # 之前只用一个 i: int_random 时 i += 2 把紧跟其后的那个 spec 整个跳过去了, 后面
+    # 所有字段的值都往前错一格 —— Z-Image-Turbo 的 VAE 收到 unet 的文件名, ComfyUI 直接
+    # 400 (issue #1).  spec 索引和表单值索引是两套坐标系, 不能混用.
+    si = 0
+    vi = 0
+    while si < len(inputs_spec):
+        spec = inputs_spec[si]
         typ = spec["type"]
         nid = str(spec["node_id"])
         if typ in ("text", "prompt_pool", "select"):
-            value = component_values[i] if i < len(component_values) else None
+            value = component_values[vi] if vi < len(component_values) else None
             text_patches[(nid, spec["field"])] = value or ""
             # 第一个 text / prompt_pool 当主 prompt 喂 size loop, 其它的从 text_patches 出
             if typ in ("text", "prompt_pool") and prompt_target is None:
                 prompt_text = value or ""
                 prompt_target = (nid, spec["field"])
-            i += 1
+            si += 1
+            vi += 1
         elif typ == "image_sizes":
-            sizes_raw = component_values[i]
+            sizes_raw = component_values[vi] if vi < len(component_values) else None
             sizes_node_id = nid
-            i += 1
+            si += 1
+            vi += 1
         elif typ == "int_random":
-            randomize = bool(component_values[i]) if component_values[i] is not None else True
-            number_val = component_values[i + 1] if i + 1 < len(component_values) else spec.get("default", 0)
+            randomize = bool(component_values[vi]) if vi < len(component_values) else True
+            number_val = component_values[vi + 1] if vi + 1 < len(component_values) else spec.get("default", 0)
             seed_val = 0 if randomize else int(number_val) if number_val is not None else spec.get("default", 0)
-            seed_node_id = nid
-            i += 2
+            seed_slot = (nid, spec.get("field", "seed"))
+            si += 1
+            vi += 2
         elif typ == "int":
-            seed_val = int(component_values[i]) if component_values[i] is not None else spec.get("default", 0)
-            seed_node_id = nid
-            i += 1
+            raw = component_values[vi] if vi < len(component_values) else None
+            int_patches[(nid, spec["field"])] = int(raw) if raw is not None else int(spec.get("default", 0))
+            si += 1
+            vi += 1
         elif typ == "float":
-            # float spec (SAM3 threshold 等) 不进 seed 槽, 直接 pass-through 替换
-            i += 1
+            raw = component_values[vi] if vi < len(component_values) else None
+            try:
+                float_patches[(nid, spec["field"])] = float(raw) if raw is not None else float(spec.get("default", 0.0))
+            except (TypeError, ValueError):
+                float_patches[(nid, spec["field"])] = float(spec.get("default", 0.0))
+            si += 1
+            vi += 1
         elif typ == "model":
-            value = component_values[i] if i < len(component_values) else None
+            value = component_values[vi] if vi < len(component_values) else None
             model_patches[(nid, spec["field"])] = (value or "").strip() or str(spec.get("default") or "")
-            i += 1
+            si += 1
+            vi += 1
         else:
-            i += 1
+            si += 1
+            vi += 1
 
     # 主 prompt 缺省: 优先用 text_patches 里第一个非空值, 都没有再用 spec[0].default
     # (老逻辑直接抓 spec[0].default, 在多 text preset + user 给空 negative 的场景下
@@ -621,10 +643,16 @@ def run_image_workflow(preset_name, *component_values):
                 replacements[nid][field] = val
             else:
                 replacements[nid] = {field: val}
-        if seed_node_id:
-            replacements[seed_node_id] = {"seed": actual_seed}
+        # int / float 字段原样 patch (SAM3 threshold 之类)
+        for (nid, field), val in int_patches.items():
+            replacements.setdefault(nid, {})[field] = val
+        for (nid, field), val in float_patches.items():
+            replacements.setdefault(nid, {})[field] = val
+        if seed_slot:
+            replacements.setdefault(seed_slot[0], {})[seed_slot[1]] = actual_seed
         if sizes_node_id:
-            replacements[sizes_node_id] = {"width": w, "height": h, "batch_size": 1}
+            replacements.setdefault(sizes_node_id, {}).update(
+                {"width": w, "height": h, "batch_size": 1})
 
         seg_start = (idx - 1) / len(sizes)
         seg_end = idx / len(sizes)

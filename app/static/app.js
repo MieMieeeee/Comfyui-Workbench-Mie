@@ -198,19 +198,23 @@ function runTab(workflows, presetCfgs) {
         ]);
         const fv = {};
         let fi = 0;
-        for (const spec of cfg.user_facing_inputs) {
+        // formValues 按 spec 索引 (user_facing_inputs 里的位置) 存值 —— 模板里所有
+        // 控件都用 spec.idx 读写 (x-model="formValues[idx]"), 两边必须同一个坐标系.
+        // values / lastValues 是「扁平数组」(前后端契约): int_random 占 2 格
+        // (随机勾 + 数值), 其它 spec 占 1 格 —— 用 fi 单独走扁平位置, 别跟 spec 索引混.
+        cfg.user_facing_inputs.forEach((spec, idx) => {
           if (spec.type === 'int_random') {
-            fv[fi + '_random'] = values[fi];
-            fv[fi] = values[fi + 1];
+            fv[idx + '_random'] = values[fi];
+            fv[idx] = values[fi + 1];
             fi += 2;
           } else if (spec.type === 'model' && lastValues && typeof lastValues[fi] === 'string' && lastValues[fi]) {
-            fv[fi] = lastValues[fi];
+            fv[idx] = lastValues[fi];
             fi += 1;
           } else {
-            fv[fi] = values[fi];
+            fv[idx] = values[fi];
             fi += 1;
           }
-        }
+        });
         this._seedImageSizesCustomKeys(fv, cfg);
         scope.formValues = fv;
         for (let i = 0; i < cfg.user_facing_inputs.length; i++) {
@@ -243,7 +247,29 @@ function runTab(workflows, presetCfgs) {
           const byKey = {};
           for (const s of (data && data.slots) || []) byKey[s.key] = s;
           this.modelSlots[name] = byKey;
+          // 选项是 Alpine 响应式渲染的, 排在下一个 tick 才摆正 (否则 <option> 还没进 DOM)
+          setTimeout(() => this._syncModelSelects(name), 0);
         }).catch(() => { this.modelSlots[name] = {}; });
+      }
+    },
+
+    // 模型下拉框的值摆正.
+    //
+    // 槽位选项 (/api/preset_models) 是异步到的, 而 Alpine 的 x-model 在 <option>
+    // 渲染之前就把值写进 <select> 了 —— 那时选不中任何项, 浏览器只能落回第一项,
+    // 于是下拉框显示的是列表第一项, 不是这个工作流自己带的模型 (用户会以为模型
+    // 没装 / 选错了). 这里在选项渲染完之后把值重新摆正.
+    _syncModelSelects(name) {
+      const panels = document.querySelectorAll(`[data-preset="${name}"]`);
+      for (const panel of panels) {
+        const data = panelData(panel);
+        if (!data || !data.formValues) continue;
+        panel.querySelectorAll('select[data-model-idx]').forEach((sel) => {
+          const idx = sel.getAttribute('data-model-idx');
+          const want = data.formValues[idx];
+          if (want === undefined || want === null || want === '') return;
+          if (sel.value !== want) sel.value = want;
+        });
       }
     },
 
@@ -254,18 +280,23 @@ function runTab(workflows, presetCfgs) {
       if (!data) return;
       const formValues = {};
       let flatIdx = 0;
-      for (const spec of cfg.user_facing_inputs) {
+      // 按 spec 索引存值 (跟模板的 formValues[idx] 对齐); values 是扁平数组,
+      // 用 flatIdx 单独走扁平位置 —— int_random 占 2 格.
+      cfg.user_facing_inputs.forEach((spec, idx) => {
         if (spec.type === 'int_random') {
-          formValues[flatIdx + '_random'] = values[flatIdx];
-          formValues[flatIdx] = values[flatIdx + 1];
+          formValues[idx + '_random'] = values[flatIdx];
+          formValues[idx] = values[flatIdx + 1];
           flatIdx += 2;
         } else {
-          formValues[flatIdx] = values[flatIdx];
+          formValues[idx] = values[flatIdx];
           flatIdx += 1;
         }
-      }
+      });
       this._seedImageSizesCustomKeys(formValues, cfg);
       data.formValues = formValues;
+      // 换表单值后, 模型下拉框要把新值摆正 (x-model 只在值变化时写 select)
+      const presetName = panelEl.getAttribute && panelEl.getAttribute('data-preset');
+      if (presetName) setTimeout(() => this._syncModelSelects(presetName), 0);
     },
 
     // 按 group 分组的 nav 数据, 搜索时自动展开含匹配的 group.
@@ -755,22 +786,21 @@ function runTab(workflows, presetCfgs) {
     },
 
     collectFormValues(panel) {
-      // 从 panelData(panel).formValues 收集成扁平 list (按 spec 顺序)
+      // 从 panelData(panel).formValues 收集成扁平 list (按 spec 顺序).
+      // 扁平数组是前后端契约: int_random 占 2 格 (随机勾 + 数值), 其它 spec 占 1 格.
+      // formValues 按 spec 索引存值 (跟模板 x-model="formValues[idx]" 一致).
       const cfg = panelData(panel)?.presetCfg;
       const fv = panelData(panel).formValues;
       if (!cfg) return [];
       const out = [];
-      let flatIdx = 0;
-      for (const spec of cfg.user_facing_inputs) {
+      cfg.user_facing_inputs.forEach((spec, idx) => {
         if (spec.type === 'int_random') {
-          out.push(fv[flatIdx + '_random'] ?? true);
-          out.push(fv[flatIdx] ?? spec.default);
-          flatIdx += 2;
+          out.push(fv[idx + '_random'] ?? true);
+          out.push(fv[idx] ?? spec.default);
         } else {
-          out.push(fv[flatIdx] ?? spec.default);
-          flatIdx += 1;
+          out.push(fv[idx] ?? spec.default);
         }
-      }
+      });
       return out;
     },
 
